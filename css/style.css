@@ -1,0 +1,104 @@
+html, body {
+  margin: 0; padding: 0; overflow: hidden;
+  background: #1b1f18; font-family: 'Segoe UI', sans-serif;
+  color: #eee; height: 100%; width: 100%;
+}
+#canvas { display: block; cursor: grab; touch-action: none; }
+#canvas.dragging { cursor: grabbing; }
+
+.panel {
+  position: fixed; background: rgba(20,24,18,0.92); border: 1px solid #3a4a2f;
+  border-radius: 6px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
+}
+
+/* Panel yang bisa dilipat: header selalu tampak, body disembunyikan saat .collapsed */
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.panel-header h2 { margin: 0; }
+.collapse-btn {
+  background: none; border: 1px solid #556b46; color: #cfe0c0;
+  width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
+  font-size: 12px; line-height: 1; flex-shrink: 0;
+}
+.panel.collapsed .panel-body { display: none; }
+.panel.collapsed { padding: 8px 12px; }
+
+/* Resource: pojok kiri-atas untuk Pemain 1 (kiri), kanan-atas untuk Pemain 2 (kanan) */
+#resLeft { top: 12px; left: 12px; min-width: 210px; }
+#resRight { top: 12px; right: 12px; min-width: 210px; text-align: right; }
+
+#hud { top: 150px; left: 12px; max-width: 230px; }
+#hud h2 { margin: 0 0 6px; font-size: 15px; color: #a8d08d; }
+#hud small { color: #9aa89a; }
+
+#info { bottom: 12px; left: 12px; max-width: 280px; display: none; }
+#info b { color: #d7b56d; font-size: 15px; }
+
+#legend { top: 150px; right: 12px; font-size: 12px; max-height: 50vh; overflow-y: auto; }
+#legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+#legend .swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+#turnbar {
+  top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px; font-size: 14px;
+  padding: 10px 20px;
+}
+#turnbar .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+#turnbar b { font-size: 16px; }
+#endturn {
+  background: #4a6b3a; border: 1px solid #6b9b3f; color: #eee;
+  padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 13px;
+}
+#endturn:hover { background: #5b8047; }
+
+#deploy, #entitypanel {
+  top: 70px; left: 50%; transform: translateX(-50%);
+  display: none; font-size: 12px; min-width: 260px;
+}
+#deploy h3, #entitypanel h3 { margin: 0 0 8px; font-size: 13px; color: #d7b56d; }
+#deploy .unitrow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; border-bottom: 1px solid #2a2f22;
+}
+#deploy button, #entitypanel button {
+  background: #4a6b3a; border: 1px solid #6b9b3f; color: #eee;
+  padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
+}
+#deploy button:disabled, #entitypanel button:disabled { opacity: 0.4; cursor: not-allowed; }
+#deploy .close, #entitypanel .close { float: right; cursor: pointer; color: #e06c6c; }
+#entitypanel .entityactions { margin-top: 8px; display: flex; gap: 8px; }
+#entitypanel .entityactions button.atkbtn { background: #6b3a3a; border-color: #9b3f3f; }
+
+#actionpanel {
+  bottom: 80px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 10px; font-size: 12px;
+}
+#actionpanel button {
+  background: #4a4a4a; border: 1px solid #666; color: #eee;
+  padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+#actionpanel button:hover { background: #5a5a5a; }
+
+#actionlog {
+  bottom: 140px; left: 50%; transform: translateX(-50%);
+  max-width: 300px; max-height: 110px; overflow-y: auto;
+  font-size: 11px; text-align: left; line-height: 1.4;
+}
+#actionlog b { color: #a8d08d; }
+#actionlog .entry { border-bottom: 1px solid #2a2f22; padding: 2px 0; }
+#actionlog .entry:last-child { border-bottom: none; }
+
+#gameover {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  align-items: center; justify-content: center; z-index: 100;
+}
+#gameover .box {
+  background: #1b1f18; border: 2px solid #6b9b3f; border-radius: 10px;
+  padding: 30px 40px; text-align: center; max-width: 320px;
+}
+#gameover h2 { margin: 0 0 10px; color: #d7b56d; font-size: 22px; }
+#gameover p { color: #ccc; margin: 0 0 18px; font-size: 13px; }
+#gameover button {
+  background: #4a6b3a; border: 1px solid #6b9b3f; color: #eee;
+  padding: 8px 20px; border-radius: 5px; cursor: pointer; font-size: 14px;
+}
+#gameover button:hover { background: #5b8047; }
