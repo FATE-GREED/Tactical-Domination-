@@ -4,7 +4,7 @@
 // sini, hanya orkestrasi.
 // ====================================================================
 
-mapData = generateMap();          // map-gen.js
+mapData = generateMap();          // map-gen.js (40x60, tanpa simetri)
 setupPlayersAndBuildings();       // setup.js
 
 currentPlayerIdx = Math.random() < 0.5 ? 0 : 1;
@@ -15,13 +15,21 @@ initInput();                      // input.js  — pasang semua event listener
 
 startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
 
+// Pusatkan kamera ke Markas pemain yang mulai
+(function centerOnStartingMarkas() {
+  const m = getBuilding(players[currentPlayerIdx], 'markas');
+  if (!m) return;
+  const { x, y } = hexCenter(m.r, m.c);
+  camX = canvas.width / 2 - x * scale;
+  camY = canvas.height / 2 - y * scale;
+})();
+
 renderLegend();
 renderResourcePanels();
-updateTurnBar();
 updateActionPanel();
 renderLog();
 logAction('Permainan dimulai.');
-draw();
+beginPlanning();                  // rules-auto.js — fase rencana 30 detik pertama
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

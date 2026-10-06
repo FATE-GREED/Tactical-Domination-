@@ -28,7 +28,7 @@ function spawnCorps(pIdx) {
   if (!g) return;
   const spot = emptyAdjacent(g.r, g.c, CORPS_DEF);
   if (!spot) return; // tidak ada ruang, coba lagi giliran berikutnya
-  units.push({ id: uidCounter++, owner: pIdx, type: 'corps', r: spot.r, c: spot.c, mp: CORPS_DEF.spd, fuel: 0, hp: CORPS_DEF.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false });
+  units.push({ id: uidCounter++, owner: pIdx, type: 'corps', r: spot.r, c: spot.c, mp: CORPS_DEF.spd, fuel: 0, hp: CORPS_DEF.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null });
   p.corps.count++;
 }
 
@@ -57,6 +57,7 @@ function startTurn(pIdx) {
     if (def.hasFuel) u.fuel = Math.max(0, u.fuel - def.fuelUse);
     u.attacked = false;
     u.semangatBesiUsed = false;
+    u.roadFreeUsesLeft = 2;
     if (u.intimidatedTurns > 0) u.intimidatedTurns--;             // Intimidasi meluruh
 
     if (u.isBuilding) { u.mp = 0; continue; } // masih membangun, tidak bisa beraksi lain giliran ini

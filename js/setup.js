@@ -1,45 +1,28 @@
 // ====================================================================
-// setup.js — Penempatan Markas/Barak/Garnisun awal & inisialisasi
-// objek pemain. Dipanggil sekali di main.js setelah map dibuat.
+// setup.js — Penempatan bangunan awal & inisialisasi pemain.
+//  - Markas: di tengah atas-bawah, 10 tile dari sisi samping.
+//  - Garnisun: sudut atas/bawah, pemain 2 di sudut yang berlawanan.
+//  - Barak: 10 tile di atas ATAU di bawah Markas (acak).
+// Tile bangunan dipaksa jadi Grass.
 // ====================================================================
 
-function isGrass(r, c) { return mapData[r] && mapData[r][c] === 'grass'; }
-function tileDist(a, b) { return Math.abs(a.r - b.r) + Math.abs(a.c - b.c); }
-
-// Pilih 3 titik Grass acak di separuh kiri, MAKS 30 tile dari tepi kiri peta
-// (untuk Pemain 2, otomatis maks 30 tile dari tepi kanan karena dicerminkan).
-// Jarak antar-bangunan >= 7 tile.
-function pickBuildingSpotsLeft() {
-  const candidates = [];
-  const marginFromEdge = 2;
-  const maxDistFromLeftEdge = 30; // aturan: tidak boleh lebih dari 30 petak dari sisi kiri/kanan
-  for (let r = marginFromEdge; r < ROWS - marginFromEdge; r++) {
-    for (let c = marginFromEdge; c <= maxDistFromLeftEdge; c++) {
-      if (isGrass(r, c)) candidates.push({ r, c });
-    }
-  }
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-  }
-  const chosen = [];
-  for (const cand of candidates) {
-    if (chosen.every(ch => tileDist(ch, cand) >= 7)) {
-      chosen.push(cand);
-      if (chosen.length === 3) break;
-    }
-  }
-  return chosen; // [markas, barak, garnisun]
-}
-
-// Buat objek players[] & tempatkan bangunan awal (Pemain 2 = cerminan Pemain 1)
 function setupPlayersAndBuildings() {
   players = [
     { id: 1, name: 'Pemain 1', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 50, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
     { id: 2, name: 'Pemain 2', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 50, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
   ];
-  const btypes = ['markas', 'barak', 'garnisun'];
-  const spotsLeft = pickBuildingSpotsLeft();
-  spotsLeft.forEach((s, i) => players[0].buildings.push({ r: s.r, c: s.c, type: btypes[i], hp: BUILDING_TYPES[btypes[i]].hp, defDebuffTurns: 0 }));
-  spotsLeft.forEach((s, i) => players[1].buildings.push({ r: s.r, c: COLS - 1 - s.c, type: btypes[i], hp: BUILDING_TYPES[btypes[i]].hp, defDebuffTurns: 0 }));
+  const place = (pIdx, type, r, c) => {
+    mapData[r][c] = 'grass';
+    players[pIdx].buildings.push({ r, c, type, hp: BUILDING_TYPES[type].hp, defDebuffTurns: 0, seq: buildingSeq++ });
+  };
+  const midR = Math.floor(ROWS / 2);
+  const cols = [10, COLS - 1 - 10];
+  const p1Top = Math.random() < 0.5;
+  for (let i = 0; i < 2; i++) {
+    const c = cols[i];
+    place(i, 'markas', midR, c);
+    place(i, 'barak', midR + (Math.random() < 0.5 ? -10 : 10), c);
+    const top = i === 0 ? p1Top : !p1Top;   // musuh di sudut berlawanan
+    place(i, 'garnisun', top ? 1 : ROWS - 2, i === 0 ? 1 : COLS - 2);
+  }
 }

@@ -15,7 +15,7 @@
 function effectiveSpeed(unit) {
   const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   let spd = def.spd;
-  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = 14; // Dikejar Waktu
+  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = def.spd + 4; // Dikejar Waktu (bonus tetap +4 dari SPD dasar)
   if (unit.type === 'corps' && !unit.cargo) spd += 2;                             // Jangan Menganggur
   if (unit.type === 'assault' && isUnitUnseen(unit)) {                            // Serangan Kejut: SPD+2 saat unseen
     const enemyWithin5 = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);

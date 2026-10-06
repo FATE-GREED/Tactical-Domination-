@@ -39,14 +39,20 @@ function startBuild(corps, type) {
 
 // Dipanggil dari rules-economy.js startTurn(): proses konstruksi yang sedang berjalan.
 // Jika Corps mati di tengah proses, project otomatis gugur (Corps sudah tidak ada di units).
+// Begitu selesai, Corps dipindah ke tile kosong bersebelahan (bangunan butuh tile itu
+// sendiri); kalau tidak ada tile kosong sama sekali, penyelesaian ditunda ke giliran
+// berikutnya (dicoba lagi tiap startTurn sampai ada ruang).
 function processBuildProgress(pIdx) {
   const p = players[pIdx];
   for (const u of units.filter(u => u.owner === pIdx && u.isBuilding)) {
-    u.buildTurnsRemaining--;
+    if (u.buildTurnsRemaining > 0) u.buildTurnsRemaining--;
     if (u.buildTurnsRemaining <= 0) {
       const spec = BUILDING_TYPES[u.buildType];
-      p.buildings.push({ r: u.r, c: u.c, type: u.buildType, hp: spec.hp, defDebuffTurns: 0 });
-      units = units.filter(uu => uu.id !== u.id); // Corps terpakai habis jadi bangunan
+      const spot = emptyAdjacent(u.r, u.c, CORPS_DEF);
+      if (!spot) continue; // belum ada tempat, coba lagi giliran depan (turnsRemaining tetap 0)
+      p.buildings.push({ r: u.r, c: u.c, type: u.buildType, hp: spec.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+      u.r = spot.r; u.c = spot.c;
+      u.isBuilding = false; u.buildType = null; u.buildTurnsRemaining = 0;
     }
   }
 }
@@ -58,12 +64,22 @@ function cargoCapacity(unit, cargoType) {
   return 0;
 }
 
-// Muat Fuel/Medical dari pool pemain ke unit (APC atau Corps), maksimal kapasitas. 1 Action.
+// Muat Fuel/Medical dari pool pemain ke unit (APC atau Corps), maksimal kapasitas.
+// WAJIB bersebelahan dengan bangunan sumbernya (Pom untuk Fuel, Pos Pemulihan
+// untuk Medical) — tidak bisa muat sembarang tempat. 1 Action.
 function loadCargo(unit, cargoType) {
   if (unit.type !== 'apc' && unit.type !== 'corps') return { ok: false, message: 'Hanya APC/Corps yang bisa membawa muatan.' };
   if (unit.cargo) return { ok: false, message: 'Unit ini sudah membawa muatan (1 jenis saja).' };
   if (unit.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
+
+  const sourceType = cargoType === 'fuel' ? 'pom' : 'pospemulihan';
+  const sourceName = cargoType === 'fuel' ? 'Pom' : 'Pos Pemulihan';
   const p = players[unit.owner];
+  const nearSource = neighborsOf(unit.r, unit.c).some(([nr, nc]) =>
+    p.buildings.some(b => b.type === sourceType && b.r === nr && b.c === nc)
+  );
+  if (!nearSource) return { ok: false, message: `Harus bersebelahan dengan ${sourceName} untuk memuat ${cargoType}.` };
+
   const cap = cargoCapacity(unit, cargoType);
   const amount = Math.min(cap, p.resources[cargoType]);
   if (amount <= 0) return { ok: false, message: `Tidak ada ${cargoType} tersisa di pool.` };

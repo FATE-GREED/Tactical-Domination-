@@ -14,27 +14,221 @@ function shiftColor(hex, amt) {
   return `rgb(${r},${g},${b})`;
 }
 
-// ---------- Sprite terrain (gradient, dibuat sekali lalu di-cache) ----------
+// ---------- Sprite terrain: gradient + grain + elemen representatif + bayangan ----------
+// Di-cache sekali per terrain (bukan per tile) supaya tetap ringan meski 4000 tile.
+// Render di resolusi 3x lalu diperkecil (supersampling) biar tajam di layar HP.
 let terrainSprites = {};
+const TERRAIN_SEED = { grass:1, forest:9, rocks:4, swamp:6, tallgrass:7, river:3, mountain:2, sand:8, road:10, ruins:11, city:12 };
+
+function mulberry32(seed) {
+  return function () {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function drawPineTree(o, x, y, s) {
+  o.fillStyle = 'rgba(0,0,0,0.22)';
+  o.beginPath(); o.ellipse(x, y + s * 0.42, s * 0.32, s * 0.1, 0, 0, Math.PI * 2); o.fill();
+  o.fillStyle = 'rgba(60,45,30,0.8)';
+  o.fillRect(x - s * 0.05, y + s * 0.3, s * 0.1, s * 0.15);
+  o.fillStyle = '#3a5c34';
+  o.beginPath(); o.moveTo(x, y - s * 0.55); o.lineTo(x + s * 0.4, y - s * 0.05); o.lineTo(x - s * 0.4, y - s * 0.05); o.closePath(); o.fill();
+  o.fillStyle = '#4a7040';
+  o.beginPath(); o.moveTo(x, y - s * 0.28); o.lineTo(x + s * 0.32, y + s * 0.18); o.lineTo(x - s * 0.32, y + s * 0.18); o.closePath(); o.fill();
+  o.fillStyle = '#57814a';
+  o.beginPath(); o.moveTo(x, y - s * 0.02); o.lineTo(x + s * 0.25, y + s * 0.32); o.lineTo(x - s * 0.25, y + s * 0.32); o.closePath(); o.fill();
+}
+function drawGrassClump(o, x, y, s) {
+  o.fillStyle = 'rgba(0,0,0,0.22)';
+  o.beginPath(); o.ellipse(x, y + s * 0.35, s * 0.28, s * 0.08, 0, 0, Math.PI * 2); o.fill();
+  for (let i = 0; i < 5; i++) {
+    const t = i / 4 - 0.5;
+    const sx = x + t * s * 0.35, topx = x + t * s * 0.6;
+    o.strokeStyle = 'rgba(110,130,60,0.85)'; o.lineWidth = s * 0.05;
+    o.beginPath(); o.moveTo(sx, y + s * 0.3); o.quadraticCurveTo(sx + t * s * 0.12, y - s * 0.15, topx, y - s * 0.6); o.stroke();
+  }
+}
+function drawWall(o, x, y, w, h, tilt, shade) {
+  o.save(); o.translate(x, y); o.rotate(tilt);
+  o.fillStyle = 'rgba(0,0,0,0.2)'; o.fillRect(-w / 2 + 2, h * 0.42, w, h * 0.14);
+  o.fillStyle = shade;
+  o.beginPath();
+  o.moveTo(-w / 2, h / 2); o.lineTo(-w / 2, -h / 2 + h * 0.15); o.lineTo(-w / 4, -h / 2); o.lineTo(0, -h / 2 + h * 0.22);
+  o.lineTo(w / 4, -h / 2 + h * 0.05); o.lineTo(w / 2, -h / 2 + h * 0.28); o.lineTo(w / 2, h / 2);
+  o.closePath(); o.fill();
+  o.strokeStyle = 'rgba(0,0,0,0.25)'; o.lineWidth = 1.5;
+  o.beginPath(); o.moveTo(-w / 2, 0); o.lineTo(w / 2, -h * 0.05); o.moveTo(-w / 3, -h / 2 + h * 0.3); o.lineTo(-w / 3, h / 2); o.stroke();
+  o.restore();
+}
+
+const TERRAIN_DETAIL = {
+  grass(o, cx, cy, hs, rand) {
+    for (let i = 0; i < 7; i++) {
+      const dx = (rand() - 0.5) * hs * 1.6, dy = (rand() - 0.5) * hs * 1.6;
+      o.strokeStyle = 'rgba(60,80,30,0.3)'; o.lineWidth = hs * 0.025;
+      o.beginPath(); o.moveTo(cx + dx, cy + dy + hs * 0.08); o.quadraticCurveTo(cx + dx + hs * 0.03, cy + dy - hs * 0.02, cx + dx, cy + dy - hs * 0.1); o.stroke();
+    }
+  },
+  forest(o, cx, cy, hs, rand) {
+    const positions = [[-0.5,-0.35],[0.1,-0.5],[0.5,-0.15],[-0.55,0.15],[0.05,-0.1],[0.45,0.3],[-0.15,0.4],[0.3,-0.35],[-0.3,-0.05],[0.6,0.05],[-0.1,0.55],[0.2,0.1]];
+    positions.forEach(([px, py]) => {
+      const jx = (rand() - 0.5) * hs * 0.06, jy = (rand() - 0.5) * hs * 0.06;
+      drawPineTree(o, cx + px * hs * 1.15 + jx, cy + py * hs * 1.15 + jy, hs * (0.4 + rand() * 0.14));
+    });
+  },
+  rocks(o, cx, cy, hs, rand) {
+    const boulders = [[-0.35,-0.15,0.35],[0.25,-0.3,0.28],[0.4,0.25,0.3],[-0.15,0.35,0.32],[0.02,0.0,0.22]];
+    boulders.forEach(([px, py, r]) => {
+      const x = cx + px * hs, y = cy + py * hs, rad = r * hs;
+      o.fillStyle = 'rgba(0,0,0,0.2)'; o.beginPath(); o.ellipse(x, y + rad * 0.7, rad * 0.9, rad * 0.3, 0, 0, Math.PI * 2); o.fill();
+      o.fillStyle = '#9a9a92'; o.beginPath(); o.ellipse(x, y, rad, rad * 0.8, 0.3, 0, Math.PI * 2); o.fill();
+      o.fillStyle = 'rgba(255,255,255,0.25)'; o.beginPath(); o.ellipse(x - rad * 0.3, y - rad * 0.3, rad * 0.35, rad * 0.2, 0.3, 0, Math.PI * 2); o.fill();
+      o.strokeStyle = 'rgba(0,0,0,0.25)'; o.lineWidth = hs * 0.02;
+      o.beginPath(); o.moveTo(x - rad * 0.2, y - rad * 0.3); o.lineTo(x + rad * 0.1, y + rad * 0.2); o.stroke();
+    });
+  },
+  swamp(o, cx, cy, hs, rand) {
+    [[-0.3,-0.1,0.4,0.22],[0.3,0.2,0.35,0.18],[0.0,-0.35,0.3,0.15]].forEach(([px, py, rw, rh]) => {
+      const x = cx + px * hs, y = cy + py * hs;
+      o.fillStyle = 'rgba(30,40,25,0.55)'; o.beginPath(); o.ellipse(x, y, rw * hs, rh * hs, 0, 0, Math.PI * 2); o.fill();
+      o.fillStyle = 'rgba(255,255,255,0.12)'; o.beginPath(); o.ellipse(x - rw * hs * 0.2, y - rh * hs * 0.2, rw * hs * 0.3, rh * hs * 0.15, 0, 0, Math.PI * 2); o.fill();
+    });
+    for (let i = 0; i < 8; i++) {
+      const dx = (rand() - 0.5) * hs * 1.5, dy = (rand() - 0.5) * hs * 1.5;
+      o.strokeStyle = 'rgba(90,100,50,0.6)'; o.lineWidth = hs * 0.03;
+      o.beginPath(); o.moveTo(cx + dx, cy + dy + hs * 0.15); o.lineTo(cx + dx + hs * 0.03, cy + dy - hs * 0.2); o.stroke();
+    }
+  },
+  tallgrass(o, cx, cy, hs, rand) {
+    for (let i = 0; i < 9; i++) {
+      const dx = (rand() - 0.5) * hs * 1.6, dy = (rand() - 0.5) * hs * 1.6;
+      o.strokeStyle = 'rgba(70,90,40,0.35)'; o.lineWidth = hs * 0.025;
+      o.beginPath(); o.moveTo(cx + dx, cy + dy + hs * 0.08); o.quadraticCurveTo(cx + dx + hs * 0.03, cy + dy - hs * 0.02, cx + dx, cy + dy - hs * 0.1); o.stroke();
+    }
+    const positions = [[-0.42,-0.2],[0.15,-0.4],[0.48,0.0],[-0.12,0.22],[0.35,0.38],[-0.5,0.38],[0.0,-0.02],[-0.25,0.5],[0.5,-0.35],[-0.55,-0.4]];
+    positions.forEach(([px, py]) => {
+      const jx = (rand() - 0.5) * hs * 0.08, jy = (rand() - 0.5) * hs * 0.08;
+      drawGrassClump(o, cx + px * hs * 1.2 + jx, cy + py * hs * 1.2 + jy, hs * (0.42 + rand() * 0.14));
+    });
+  },
+  river(o, cx, cy, hs, rand) {
+    const g = o.createLinearGradient(cx, cy - hs, cx, cy + hs);
+    g.addColorStop(0, 'rgba(255,255,255,0.08)'); g.addColorStop(0.5, 'rgba(0,0,0,0.12)'); g.addColorStop(1, 'rgba(255,255,255,0.05)');
+    o.fillStyle = g; o.fillRect(cx - hs, cy - hs, hs * 2, hs * 2);
+    o.strokeStyle = 'rgba(255,255,255,0.4)'; o.lineWidth = hs * 0.035;
+    for (let i = -1; i <= 1; i++) {
+      o.beginPath(); o.moveTo(cx - hs * 0.9, cy + i * hs * 0.32); o.quadraticCurveTo(cx, cy + i * hs * 0.32 + hs * 0.14, cx + hs * 0.9, cy + i * hs * 0.32); o.stroke();
+    }
+    o.fillStyle = 'rgba(255,255,255,0.25)'; o.beginPath(); o.ellipse(cx - hs * 0.2, cy - hs * 0.15, hs * 0.15, hs * 0.04, 0.3, 0, Math.PI * 2); o.fill();
+  },
+  mountain(o, cx, cy, hs, rand) {
+    o.fillStyle = 'rgba(120,120,125,0.55)';
+    o.beginPath(); o.moveTo(cx - hs * 0.15, cy - hs * 0.35); o.lineTo(cx + hs * 0.55, cy + hs * 0.35); o.lineTo(cx - hs * 0.75, cy + hs * 0.35); o.closePath(); o.fill();
+    o.fillStyle = '#6b6459';
+    o.beginPath();
+    o.moveTo(cx - hs * 0.55, cy + hs * 0.45); o.lineTo(cx - hs * 0.3, cy - hs * 0.1); o.lineTo(cx - hs * 0.12, cy + hs * 0.05);
+    o.lineTo(cx + hs * 0.15, cy - hs * 0.55); o.lineTo(cx + hs * 0.35, cy - hs * 0.15); o.lineTo(cx + hs * 0.55, cy - hs * 0.3);
+    o.lineTo(cx + hs * 0.75, cy + hs * 0.45); o.closePath(); o.fill();
+    o.fillStyle = 'rgba(35,30,26,0.55)';
+    o.beginPath();
+    o.moveTo(cx + hs * 0.15, cy - hs * 0.55); o.lineTo(cx + hs * 0.35, cy - hs * 0.15); o.lineTo(cx + hs * 0.55, cy - hs * 0.3);
+    o.lineTo(cx + hs * 0.75, cy + hs * 0.45); o.lineTo(cx + hs * 0.15, cy + hs * 0.45); o.closePath(); o.fill();
+    o.fillStyle = 'rgba(255,255,255,0.85)';
+    o.beginPath(); o.moveTo(cx + hs * 0.15, cy - hs * 0.55); o.lineTo(cx + hs * 0.28, cy - hs * 0.32); o.lineTo(cx + hs * 0.06, cy - hs * 0.28); o.closePath(); o.fill();
+    o.beginPath(); o.moveTo(cx - hs * 0.3, cy - hs * 0.1); o.lineTo(cx - hs * 0.22, cy + hs * 0.02); o.lineTo(cx - hs * 0.38, cy + hs * 0.02); o.closePath(); o.fill();
+  },
+  sand(o, cx, cy, hs, rand) {
+    o.strokeStyle = 'rgba(140,110,60,0.35)'; o.lineWidth = hs * 0.03;
+    for (let i = -2; i <= 2; i++) {
+      o.beginPath(); o.moveTo(cx - hs * 0.9, cy + i * hs * 0.35); o.quadraticCurveTo(cx, cy + i * hs * 0.35 - hs * 0.12, cx + hs * 0.9, cy + i * hs * 0.35); o.stroke();
+    }
+    for (let i = 0; i < 10; i++) {
+      const dx = (rand() - 0.5) * hs * 1.6, dy = (rand() - 0.5) * hs * 1.6;
+      o.fillStyle = 'rgba(90,70,40,0.3)'; o.beginPath(); o.arc(cx + dx, cy + dy, hs * 0.02 + rand() * hs * 0.02, 0, Math.PI * 2); o.fill();
+    }
+  },
+  road(o, cx, cy, hs, rand) {
+    o.fillStyle = 'rgba(60,55,48,0.4)'; o.fillRect(cx - hs * 0.95, cy - hs * 0.28, hs * 1.9, hs * 0.56);
+    o.fillStyle = 'rgba(0,0,0,0.15)'; o.fillRect(cx - hs * 0.95, cy - hs * 0.28, hs * 1.9, hs * 0.1);
+    o.strokeStyle = 'rgba(210,200,180,0.5)'; o.lineWidth = hs * 0.03; o.setLineDash([hs * 0.15, hs * 0.1]);
+    o.beginPath(); o.moveTo(cx - hs * 0.9, cy); o.lineTo(cx + hs * 0.9, cy); o.stroke(); o.setLineDash([]);
+    for (let i = 0; i < 6; i++) {
+      const dx = (rand() - 0.5) * hs * 1.7, dy = hs * 0.35 * (rand() > 0.5 ? 1 : -1) * rand();
+      o.fillStyle = 'rgba(80,70,55,0.4)'; o.beginPath(); o.arc(cx + dx, cy + dy, hs * 0.025, 0, Math.PI * 2); o.fill();
+    }
+  },
+  ruins(o, cx, cy, hs, rand) {
+    drawWall(o, cx - hs * 0.45, cy + hs * 0.1, hs * 0.5, hs * 0.75, -0.08, '#8a7d68');
+    drawWall(o, cx + hs * 0.15, cy - hs * 0.05, hs * 0.42, hs * 0.55, 0.12, '#968972');
+    drawWall(o, cx + hs * 0.5, cy + hs * 0.35, hs * 0.38, hs * 0.42, -0.15, '#7d7060');
+    drawWall(o, cx - hs * 0.05, cy + hs * 0.5, hs * 0.45, hs * 0.35, 0.2, '#8a7d68');
+    for (let i = 0; i < 8; i++) {
+      const rx = cx + (rand() - 0.5) * hs * 1.6, ry = cy + (rand() - 0.5) * hs * 1.6;
+      o.fillStyle = 'rgba(90,80,68,0.6)'; o.beginPath(); o.arc(rx, ry, hs * 0.05 + rand() * hs * 0.04, 0, Math.PI * 2); o.fill();
+    }
+  },
+  city(o, cx, cy, hs, rand) {
+    const buildings = [[-0.5,-0.4,0.4,0.35],[0.05,-0.5,0.35,0.3],[0.45,-0.25,0.3,0.4],[-0.35,0.15,0.35,0.4],[0.15,0.2,0.4,0.35],[-0.55,0.5,0.3,0.25],[0.5,0.4,0.3,0.3]];
+    buildings.forEach(([px, py, w, h]) => {
+      const x = cx + px * hs, y = cy + py * hs, bw = w * hs, bh = h * hs;
+      o.fillStyle = 'rgba(0,0,0,0.25)'; o.fillRect(x - bw / 2 + bh * 0.25, y - bh / 2 + bh * 0.25, bw, bh);
+      o.fillStyle = '#a85a35'; o.fillRect(x - bw / 2, y - bh / 2, bw, bh);
+      o.fillStyle = 'rgba(255,255,255,0.2)'; o.fillRect(x - bw / 2, y - bh / 2, bw, bh * 0.15);
+      o.strokeStyle = 'rgba(0,0,0,0.3)'; o.lineWidth = 1; o.strokeRect(x - bw / 2, y - bh / 2, bw, bh);
+    });
+  },
+};
+
+const TERRAIN_BASE_COLOR = {
+  grass: '#6b9b3f', forest: '#556b45', rocks: '#8f8d84', swamp: '#5c6b4a',
+  tallgrass: '#3f4f2a', river: '#4a7a8a', mountain: '#7d7568', sand: '#c9b077',
+  road: '#7a7367', ruins: '#a89a83', city: '#8f8574',
+};
+
 function buildTerrainSprites() {
-  const spriteSize = Math.ceil(HEX_SIZE * 2.4);
+  const SCALE = 3;
+  const dispSize = Math.ceil(HEX_SIZE * 2.4);
+  const size = dispSize * SCALE;
   for (const key in TERRAIN) {
-    const t = TERRAIN[key];
+    const color = TERRAIN_BASE_COLOR[key] || TERRAIN[key].color;
     const off = document.createElement('canvas');
-    off.width = spriteSize; off.height = spriteSize;
-    const octx = off.getContext('2d');
-    const cx = spriteSize / 2, cy = spriteSize / 2;
-    const pts = hexCorners(cx, cy, HEX_SIZE - 0.6);
-    octx.beginPath();
-    pts.forEach(([px, py], i) => i === 0 ? octx.moveTo(px, py) : octx.lineTo(px, py));
-    octx.closePath();
-    const grad = octx.createRadialGradient(cx - HEX_SIZE * 0.3, cy - HEX_SIZE * 0.35, HEX_SIZE * 0.1, cx, cy, HEX_SIZE * 1.1);
-    grad.addColorStop(0, shiftColor(t.color, 26));
-    grad.addColorStop(0.6, t.color);
-    grad.addColorStop(1, shiftColor(t.color, -18));
-    octx.fillStyle = grad;
-    octx.fill();
-    terrainSprites[key] = { canvas: off, size: spriteSize };
+    off.width = size; off.height = size;
+    const o = off.getContext('2d');
+    const cx = size / 2, cy = size / 2;
+    const hs = (HEX_SIZE - 0.6) * SCALE;
+    const pts = hexCorners(cx, cy, hs);
+    o.beginPath(); pts.forEach(([px, py], i) => i === 0 ? o.moveTo(px, py) : o.lineTo(px, py)); o.closePath();
+    o.save(); o.clip();
+
+    const grad = o.createLinearGradient(cx - hs, cy - hs, cx + hs, cy + hs);
+    grad.addColorStop(0, shiftColor(color, 16));
+    grad.addColorStop(1, shiftColor(color, -10));
+    o.fillStyle = grad; o.fillRect(0, 0, size, size);
+
+    const rand = mulberry32(TERRAIN_SEED[key] || 1);
+    for (let i = 0; i < 150; i++) {
+      const ang = rand() * Math.PI * 2, dist = rand() * hs * 0.95;
+      const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
+      const dark = rand() > 0.45;
+      o.fillStyle = dark ? `rgba(0,0,0,${0.03 + rand() * 0.04})` : `rgba(255,255,255,${0.02 + rand() * 0.03})`;
+      o.fillRect(cx + dx, cy + dy, 1 + rand() * 2, 1 + rand() * 2);
+    }
+
+    const detailFn = TERRAIN_DETAIL[key];
+    if (detailFn) detailFn(o, cx, cy, hs, rand);
+
+    const vg = o.createRadialGradient(cx, cy, hs * 0.6, cx, cy, hs * 1.05);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.16)');
+    o.fillStyle = vg; o.fillRect(0, 0, size, size);
+
+    o.restore();
+    o.strokeStyle = 'rgba(0,0,0,0.35)'; o.lineWidth = SCALE * 1;
+    o.beginPath(); pts.forEach(([px, py], i) => i === 0 ? o.moveTo(px, py) : o.lineTo(px, py)); o.closePath(); o.stroke();
+
+    terrainSprites[key] = { canvas: off, size: dispSize };
   }
 }
 
@@ -185,8 +379,8 @@ function drawBuildingSprite(b, ownerColor, x, y) {
 
 // ---------- Animasi: gerak unit (tween linear singkat) ----------
 let moveAnim = null; // {unitId, fromR, fromC, toR, toC, startTime, duration}
-function startMoveAnim(unit, fromR, fromC) {
-  moveAnim = { unitId: unit.id, fromR, fromC, toR: unit.r, toC: unit.c, startTime: performance.now(), duration: 220 };
+function startMoveAnim(unit, fromR, fromC, duration = 220) {
+  moveAnim = { unitId: unit.id, fromR, fromC, toR: unit.r, toC: unit.c, startTime: performance.now(), duration };
   requestAnimationFrame(draw);
 }
 

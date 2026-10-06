@@ -23,16 +23,18 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>Fase 8 — Win Condition & Polish</small><br>
-    <small>Klik tile = muncul ikon<br>Klik ikon "i" = info petak<br>Klik ikon unit/bangunan = rincian & aksi<br>Kalah jika semua Markas hancur</small>
+    <small>v7 — Rencana &amp; Eksekusi Otomatis</small><br>
+    <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
 
 <div id="turnbar" class="panel">
   <span><span class="dot" id="turndot"></span><b id="turntext">Giliran Pemain 1</b> — Turn <span id="turnnum">1</span></span>
-  <button id="endturn">Akhiri Giliran</button>
+  <span id="timer" class="timer"></span>
+  <button id="endturn">Eksekusi ▶</button>
 </div>
 
+<div id="targetpanel" class="panel"></div>
 <div id="deploy" class="panel"></div>
 <div id="entitypanel" class="panel"></div>
 <div id="actionpanel" class="panel">
@@ -62,8 +64,10 @@
 <script src="js/rules-combat.js"></script>
 <script src="js/rules-detection.js"></script>
 <script src="js/rules-win.js"></script>
+<script src="js/rules-auto.js"></script>
 <script src="js/render-fx.js"></script>
 <script src="js/render.js"></script>
+<script src="js/ui-orders.js"></script>
 <script src="js/input.js"></script>
 <script src="js/main.js"></script>
 

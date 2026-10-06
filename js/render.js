@@ -104,10 +104,7 @@ function draw() {
     }
   }
 
-  const midX = HALF_COLS * hexW;
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.setLineDash([6, 6]); ctx.lineWidth = 1.5 / scale;
-  ctx.beginPath(); ctx.moveTo(midX, -50); ctx.lineTo(midX, ROWS * vertSpacing + 50); ctx.stroke();
-  ctx.setLineDash([]);
+  if (phase === 'plan') drawOrderMarkers();
 
   const fxNeedsMore = renderFx();
   ctx.restore();
@@ -148,6 +145,7 @@ function updateTurnBar() {
   document.getElementById('turntext').textContent = `Giliran ${p.name}`;
   document.getElementById('turnnum').textContent = turnNumber;
   document.getElementById('turndot').style.background = p.color;
+  updateTimerUI();
 }
 
 function renderLegend() {
@@ -235,16 +233,21 @@ function showGameOver() {
 // Panel aksi bawah: muncul saat unit sedang menunggu tujuan gerak / target serang / target supply
 function updateActionPanel() {
   const el = document.getElementById('actionpanel');
-  if (!selectedUnit && !specialActor) { el.style.display = 'none'; return; }
+  const cancel = document.getElementById('cancelBtn');
+  if (!targetActor && !occupyHex && !specialActor) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
+  let text, btn = 'Batal';
   if (specialMode) {
     const labels = { recovery: 'Pilih target Recovery (tile biru)...', supplyFuel: 'Pilih target Supply Fuel (tile biru)...', supplyMedical: 'Pilih target Supply Medical (tile biru)...' };
-    document.getElementById('actioninfo').textContent = labels[specialMode] || 'Pilih target...';
+    text = labels[specialMode] || 'Pilih target...';
+  } else if (targetActor) {
+    text = `Target ${unitName(targetActor)} #${targetActor.id}: ketuk musuh, bangunan musuh, atau hex. Ketuk unit ini = default.`;
   } else {
-    document.getElementById('actioninfo').textContent = attackMode
-      ? 'Pilih target serang (tile merah)...'
-      : 'Pilih tile tujuan (tile putih)...';
+    text = `Tempati hex (${occupyHex.r},${occupyHex.c}): ketuk unit sendiri yang dikirim ke sana.`;
+    btn = 'Selesai';
   }
+  document.getElementById('actioninfo').textContent = text;
+  cancel.textContent = btn;
 }
 
 // Panel rincian unit/bangunan (dari ikon entitas) + tombol aksi
@@ -274,16 +277,22 @@ function openEntityPanel(r, c) {
       html += `<br>Muatan: ${cargoLabel}`;
     }
 
-    if (isMine && !u.attacked) {
-      if (u.mp > 0 && !(u.type === 'corps' && u.isBuilding)) buttons.push({ id: 'moveBtn', label: 'Gerak' });
-      if (target.def.combat) buttons.push({ id: 'atkBtn', label: 'Serang', cls: 'atkbtn' });
-
-      if (u.type === 'corps' && !u.isBuilding && !u.cargo) {
-        buttons.push({ id: 'buildBtn', label: 'Bangun' });
+    if (isMine) html += `<br><span style="color:#d7b56d">Tujuan: ${targetLabel(u)}</span><br>`;
+    if (isMine && phase === 'plan' && !(u.type === 'corps' && u.isBuilding)) {
+      buttons.push({ id: 'targetBtn', label: 'Atur Target' });
+      if (!target.def.combat) {
+        buttons.push({ id: 'jobIdleBtn', label: (u.job === 'idle' ? '✓ ' : '') + 'Nganggur' });
+        buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
+        buttons.push({ id: 'jobMedBtn', label: (u.job === 'medical' ? '✓ ' : '') + 'Isi Medical' });
       }
+      if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
+    }
+    if (isMine && phase === 'plan' && !u.attacked) {
       if ((u.type === 'apc' || u.type === 'corps') && !u.cargo && !(u.type === 'corps' && u.isBuilding)) {
-        if (owner.resources.fuel > 0) buttons.push({ id: 'loadFuelBtn', label: 'Muat Fuel' });
-        if (owner.resources.medical > 0) buttons.push({ id: 'loadMedicalBtn', label: 'Muat Medical' });
+        const nearPom = neighborsOf(u.r, u.c).some(([nr, nc]) => owner.buildings.some(b => b.type === 'pom' && b.r === nr && b.c === nc));
+        const nearPos = neighborsOf(u.r, u.c).some(([nr, nc]) => owner.buildings.some(b => b.type === 'pospemulihan' && b.r === nr && b.c === nc));
+        if (nearPom && owner.resources.fuel > 0) buttons.push({ id: 'loadFuelBtn', label: 'Muat Fuel' });
+        if (nearPos && owner.resources.medical > 0) buttons.push({ id: 'loadMedicalBtn', label: 'Muat Medical' });
       }
       if (u.type === 'apc' && !u.cargo) {
         const adjCorps = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'corps' && !cc.cargo));
@@ -309,7 +318,7 @@ function openEntityPanel(r, c) {
     html += `<h3 style="color:${owner.color}">${target.def.name} — ${owner.name}</h3>`;
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
     if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -20% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
-    if (isMine && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
+    if (isMine && phase === 'plan' && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
   }
 
   if (buttons.length > 0) {
@@ -321,10 +330,13 @@ function openEntityPanel(r, c) {
   document.getElementById('entityclose').addEventListener('click', () => { el.style.display = 'none'; });
 
   const bind = (id, fn) => { const btn = document.getElementById(id); if (btn) btn.addEventListener('click', fn); };
-  bind('moveBtn', () => startMoveMode(target.obj));
-  bind('atkBtn', () => startAttackMode(target.obj));
+  bind('targetBtn', () => { el.style.display = 'none'; startTargetMode(target.obj); });
+  const refresh = () => { renderTargetPanel(); draw(); openEntityPanel(r, c); };
+  bind('jobIdleBtn', () => { setJob(target.obj, 'idle'); refresh(); });
+  bind('jobFuelBtn', () => { setJob(target.obj, 'fuel'); refresh(); });
+  bind('jobMedBtn', () => { setJob(target.obj, 'medical'); refresh(); });
+  bind('resetBtn', () => { resetUnit(target.obj); refresh(); });
   bind('deployBtn', () => { el.style.display = 'none'; openDeployPanel(target.obj, owner); });
-  bind('buildBtn', () => { el.style.display = 'none'; openBuildPanel(target.obj, owner); });
   bind('loadFuelBtn', () => runAndRefreshEntity(target.obj, () => loadCargo(target.obj, 'fuel'), r, c));
   bind('loadMedicalBtn', () => runAndRefreshEntity(target.obj, () => loadCargo(target.obj, 'medical'), r, c));
   bind('selfRefuelBtn', () => runAndRefreshEntity(target.obj, () => selfRefuel(target.obj), r, c));
@@ -346,35 +358,6 @@ function runAndRefreshEntity(unit, actionFn, r, c) {
   draw();
   if (result.ok) { showGenericResult(result.message); logAction(result.message); } else alert(result.message);
   openEntityPanel(r, c); // refresh isi panel (cargo/MP/status berubah)
-}
-
-// Panel pilihan bangunan yang bisa dibangun Corps di tile-nya sendiri
-function openBuildPanel(corps, player) {
-  const el = document.getElementById('deploy');
-  el.style.display = 'block';
-  const buildable = ['pom', 'pospemulihan', 'jembatan', 'barak', 'benteng'];
-  const terr = mapData[corps.r][corps.c];
-  let html = '<span class="close" id="deployclose">✕</span><h3>Bangun di tile ini</h3>';
-  html += buildable.map(type => {
-    const spec = BUILDING_TYPES[type];
-    const count = player.buildings.filter(b => b.type === type).length;
-    const terrainOk = type === 'jembatan' ? terr === 'river' : terr === 'grass';
-    const maxedOut = count >= spec.maxCount;
-    const disabled = (!terrainOk || maxedOut) ? 'disabled' : '';
-    const reason = !terrainOk ? (type === 'jembatan' ? '(butuh tile River)' : '(butuh tile Grass)') : maxedOut ? '(maks tercapai)' : `(${spec.turnsRequired} giliran)`;
-    return `<div class="unitrow"><span>${spec.name} ${reason}</span><button data-build="${type}" ${disabled}>Bangun</button></div>`;
-  }).join('');
-  el.innerHTML = html;
-  document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
-  el.querySelectorAll('button[data-build]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const type = btn.getAttribute('data-build');
-      const result = startBuild(corps, type);
-      el.style.display = 'none';
-      draw();
-      if (result.ok) { showGenericResult(result.message); logAction(result.message); } else alert(result.message);
-    });
-  });
 }
 
 function openDeployPanel(barak, player) {

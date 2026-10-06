@@ -22,7 +22,7 @@ function neighborsOf(r, c) {
 function moveCost(terrainKey, def) {
   switch (terrainKey) {
     case 'mountain': return 1;                              // selalu 1 MP
-    case 'road': return 0;                                   // tidak makan MP
+    case 'road': return 1;                                   // normal; gratis terbatas ditangani di computeReachable (khusus Non-Combat)
     case 'sand': return 2;                                   // 2 MP/tile
     case 'rocks': return def.vehicle ? 2 : 1;                 // slow utk kendaraan
     case 'forest': return def.vehicle ? 2 : 1;                // slow utk kendaraan
@@ -76,31 +76,80 @@ function emptyAdjacent(r, c, def) {
   return null;
 }
 
-// Dijkstra sederhana: semua tile yang bisa dicapai unit dengan MP tersisa saat ini
+// Dijkstra: semua tile yang bisa dicapai unit dengan MP tersisa saat ini.
+// Untuk unit Non-Combat, Road gratis MP tapi jatahnya terbatas (unit.roadFreeUsesLeft,
+// direset tiap giliran) — dilacak sebagai dimensi tambahan di state pencarian (f =
+// berapa kali jatah gratis sudah kepakai di jalur ini), supaya tidak bisa "curang"
+// dapat jatah baru tiap kali computeReachable dipanggil ulang dalam giliran yang sama.
+let lastReachableParents = new Map();
+let lastReachableBestKey = new Map();
+
 function computeReachable(unit) {
   const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
-  const dist = new Map();
-  const start = unit.r + ',' + unit.c;
-  dist.set(start, 0);
-  const frontier = [{ r: unit.r, c: unit.c, cost: 0 }];
+  const isNonCombat = !def.combat;
+  const maxFree = isNonCombat ? unit.roadFreeUsesLeft : 0;
+
+  const dist = new Map();    // key `r,c,f` -> cost termurah
+  const parent = new Map();  // key `r,c,f` -> parent key
+  const startKey = `${unit.r},${unit.c},0`;
+  dist.set(startKey, 0);
+  const frontier = [{ r: unit.r, c: unit.c, f: 0, cost: 0 }];
+
   while (frontier.length > 0) {
     frontier.sort((a, b) => a.cost - b.cost);
     const cur = frontier.shift();
-    const key = cur.r + ',' + cur.c;
-    if (dist.get(key) < cur.cost) continue;
+    const curKey = `${cur.r},${cur.c},${cur.f}`;
+    if (dist.get(curKey) < cur.cost) continue;
     for (const [nr, nc] of neighborsOf(cur.r, cur.c)) {
-      if (isTileBlocked(nr, nc) && !(nr === unit.r && nc === unit.c)) continue; // tile terisi, tidak bisa lewat
-      const cost = tileMoveCost(nr, nc, def);
+      if (isTileBlocked(nr, nc) && !(nr === unit.r && nc === unit.c)) continue;
+      let cost = tileMoveCost(nr, nc, def);
+      let nf = cur.f;
+      if (mapData[nr][nc] === 'road' && isNonCombat && cur.f < maxFree) {
+        cost = 0; nf = cur.f + 1;
+      }
       if (cost === Infinity) continue;
       const total = cur.cost + cost;
       if (total > unit.mp) continue;
-      const nk = nr + ',' + nc;
-      if (!dist.has(nk) || dist.get(nk) > total) {
-        dist.set(nk, total);
-        frontier.push({ r: nr, c: nc, cost: total });
+      const nKey = `${nr},${nc},${nf}`;
+      if (!dist.has(nKey) || dist.get(nKey) > total) {
+        dist.set(nKey, total);
+        parent.set(nKey, curKey);
+        frontier.push({ r: nr, c: nc, f: nf, cost: total });
       }
     }
   }
-  dist.delete(start);
-  return dist;
+
+  // Konsolidasi ke per-tile (ambil state termurah, simpan key-nya utk reconstruct nanti)
+  const best = new Map(); // "r,c" -> {cost, key}
+  for (const [key, cost] of dist) {
+    const [r, c] = key.split(',');
+    const rk = r + ',' + c;
+    if (rk === unit.r + ',' + unit.c) continue;
+    if (!best.has(rk) || best.get(rk).cost > cost) best.set(rk, { cost, key });
+  }
+
+  lastReachableParents = parent;
+  lastReachableBestKey = new Map(Array.from(best, ([rk, v]) => [rk, v.key]));
+
+  const result = new Map();
+  for (const [rk, v] of best) result.set(rk, v.cost);
+  return result;
+}
+
+// Hitung berapa banyak tile Road GRATIS yang terpakai di sepanjang jalur menuju
+// tile tujuan (r,c), berdasarkan hasil computeReachable() TERAKHIR. Dipakai untuk
+// mengurangi unit.roadFreeUsesLeft yang sesungguhnya setelah unit benar-benar bergerak.
+function countFreeRoadUsesToTile(r, c) {
+  const rk = r + ',' + c;
+  let key = lastReachableBestKey.get(rk);
+  if (!key) return 0;
+  let count = 0;
+  while (lastReachableParents.has(key)) {
+    const f = Number(key.split(',')[2]);
+    const pkey = lastReachableParents.get(key);
+    const pf = Number(pkey.split(',')[2]);
+    if (f > pf) count++;
+    key = pkey;
+  }
+  return count;
 }

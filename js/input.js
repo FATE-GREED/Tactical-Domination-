@@ -1,36 +1,51 @@
 // ====================================================================
-// input.js — Menangani semua input pengguna. Model interaksi baru:
-//   1) Klik tile kosong dari mode apapun -> tampilkan ikon "i" (info)
-//      di atas tile itu; jika tile berisi unit/bangunan, tampilkan
-//      juga ikon entitas di sampingnya.
-//   2) Klik ikon "i" -> panel info terrain.
-//   3) Klik ikon entitas -> panel rincian unit/bangunan + tombol aksi
-//      (Gerak/Serang untuk unit sendiri, Deploy untuk Barak sendiri).
-//   4) Tombol "Gerak"/"Serang" mengaktifkan mode pilih-tile-tujuan;
-//      klik tile highlight untuk menyelesaikan aksi, atau "Batal".
+// input.js — Input pengguna. Model interaksi (fase rencana):
+//   - Ketuk tile -> ikon "i" (info) + ikon entitas (rincian/aksi).
+//   - TAHAN LAMA unit sendiri -> mode pilih target (ketuk entitas musuh
+//     atau hex di map; ketuk unit itu lagi = kembali default).
+//   - TAHAN LAMA hex lain -> menu: Bangun / Tempati.
+//       Bangun : pilih bangunan, Corps nganggur terdekat otomatis berangkat.
+//       Tempati: mode pilih terbalik — hex sudah dipilih, ketuk unit sendiri
+//                yang akan dikirim ke hex itu.
+//   - Saat fase eksekusi, ketukan pada peta diabaikan (geser/zoom tetap bisa).
 // ====================================================================
 
 let dragging = false, lastX = 0, lastY = 0, dragMoved = false;
 let pinchStartDist = 0, pinchStartScale = 1;
-let attackMode = false;
+let attackMode = false;          // tidak dipakai lagi (serangan otomatis); dipertahankan untuk render.js
 let attackable = [];
-let specialMode = null;    // 'recovery' | 'supplyFuel' | 'supplyMedical'
+let specialMode = null;          // 'recovery' | 'supplyFuel' | 'supplyMedical'
 let specialActor = null;
 let specialTargets = [];
-let pendingTile = null;                          // tile yang baru diklik, menunggu klik ikon
-let iconHitboxes = { info: null, entity: null };  // posisi ikon di layar (screen-space)
+let pendingTile = null;
+let iconHitboxes = { info: null, entity: null };
+let lpTimer = null, suppressClickUntil = 0;
+const LONG_PRESS_MS = 550;
+
+function armLongPress(x, y) {
+  clearLongPress();
+  lpTimer = setTimeout(() => {
+    lpTimer = null;
+    if (dragMoved || phase !== 'plan' || gameOver) return;
+    suppressClickUntil = Date.now() + 700;
+    onLongPress(x, y);
+  }, LONG_PRESS_MS);
+}
+function clearLongPress() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } }
 
 function initInput() {
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
   canvas.addEventListener('mousedown', e => {
     dragging = true; dragMoved = false;
     lastX = e.clientX; lastY = e.clientY;
     canvas.classList.add('dragging');
+    armLongPress(e.clientX, e.clientY);
   });
-  window.addEventListener('mouseup', () => { dragging = false; canvas.classList.remove('dragging'); });
+  window.addEventListener('mouseup', () => { dragging = false; clearLongPress(); canvas.classList.remove('dragging'); });
   window.addEventListener('mousemove', e => {
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) { dragMoved = true; clearLongPress(); }
     camX += dx; camY += dy; lastX = e.clientX; lastY = e.clientY; draw();
   });
   canvas.addEventListener('wheel', e => {
@@ -47,16 +62,15 @@ function initInput() {
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
   document.getElementById('restartBtn').addEventListener('click', () => location.reload());
 
-  // ---------- Touch: pan 1 jari, pinch-zoom 2 jari ----------
-  // Tidak preventDefault() di touchstart/touchend supaya tap tunggal tetap
-  // memicu event 'click' bawaan browser (dipakai onCanvasClick di atas).
+  // ---------- Touch: pan 1 jari, pinch-zoom 2 jari, tahan lama ----------
   canvas.addEventListener('touchstart', e => {
     if (e.touches.length === 1) {
       dragging = true; dragMoved = false;
       lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
       canvas.classList.add('dragging');
+      armLongPress(lastX, lastY);
     } else if (e.touches.length === 2) {
-      dragging = false;
+      dragging = false; clearLongPress();
       pinchStartDist = touchDist(e.touches[0], e.touches[1]);
       pinchStartScale = scale;
     }
@@ -66,12 +80,15 @@ function initInput() {
     if (e.touches.length === 1 && dragging) {
       const t = e.touches[0];
       const dx = t.clientX - lastX, dy = t.clientY - lastY;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
-      camX += dx; camY += dy;
-      lastX = t.clientX; lastY = t.clientY;
-      draw();
-      e.preventDefault(); // cegah scroll halaman saat geser peta
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) { dragMoved = true; clearLongPress(); }
+      if (dragMoved) {
+        camX += dx; camY += dy;
+        lastX = t.clientX; lastY = t.clientY;
+        draw();
+      }
+      e.preventDefault();
     } else if (e.touches.length === 2) {
+      clearLongPress();
       const dist = touchDist(e.touches[0], e.touches[1]);
       const mid = touchMid(e.touches[0], e.touches[1]);
       const newScale = Math.min(4, Math.max(0.25, pinchStartScale * (dist / pinchStartDist)));
@@ -84,10 +101,9 @@ function initInput() {
     }
   }, { passive: false });
 
-  canvas.addEventListener('touchend', () => {
-    dragging = false;
-    canvas.classList.remove('dragging');
-  }, { passive: true });
+  const endTouch = () => { dragging = false; clearLongPress(); canvas.classList.remove('dragging'); };
+  canvas.addEventListener('touchend', endTouch, { passive: true });
+  canvas.addEventListener('touchcancel', endTouch, { passive: true });
 }
 
 function touchDist(t1, t2) {
@@ -121,34 +137,112 @@ function closeAllPanels() {
   document.getElementById('deploy').style.display = 'none';
 }
 
+// ---------- Tahan lama ----------
+function onLongPress(x, y) {
+  const tile = tileFromScreen(x, y);
+  if (!tile) return;
+  if (targetActor || occupyHex || specialMode) return;
+  pendingTile = null;
+  closeAllPanels();
+  const own = units.find(u => u.r === tile.r && u.c === tile.c && u.owner === currentPlayerIdx);
+  if (own) {
+    if (own.isBuilding) { draw(); alert('Corps ini sedang membangun.'); return; }
+    startTargetMode(own);
+  } else {
+    draw();
+    openHexMenu(tile.r, tile.c);
+  }
+}
+
+function startTargetMode(unit) {
+  cancelActionMode();
+  targetActor = unit;
+  selectedUnit = unit; // untuk sorotan sprite
+  pendingTile = null;
+  closeAllPanels();
+  updateActionPanel();
+  draw();
+}
+function startOccupyMode(r, c) {
+  cancelActionMode();
+  occupyHex = { r, c };
+  pendingTile = null;
+  closeAllPanels();
+  updateActionPanel();
+  draw();
+}
+function finishTargetMode() {
+  targetActor = null; selectedUnit = null;
+  updateActionPanel();
+  renderTargetPanel();
+  draw();
+}
+
+function handleTargetPick(r, c) {
+  const actor = targetActor;
+  const own = units.find(u => u.r === r && u.c === c && u.owner === actor.owner);
+  if (own) {
+    if (own === actor) { resetUnit(actor); logAction(`${unitName(actor)} #${actor.id}: target default`); }
+    finishTargetMode();
+    return;
+  }
+  const eu = units.find(u => u.r === r && u.c === c && u.owner !== actor.owner && isVisibleToCurrentPlayer(u));
+  if (eu) {
+    setUnitTarget(actor, { kind: 'unit', id: eu.id });
+    logAction(`${unitName(actor)} #${actor.id} → ${unitName(eu)} #${eu.id} (musuh)`);
+    finishTargetMode();
+    return;
+  }
+  const eb = players[1 - actor.owner].buildings.find(b => b.r === r && b.c === c);
+  if (eb && eb.type !== 'garnisun') {
+    setUnitTarget(actor, { kind: 'building', ref: eb });
+    logAction(`${unitName(actor)} #${actor.id} → ${BUILDING_TYPES[eb.type].name} musuh`);
+    finishTargetMode();
+    return;
+  }
+  // hex biasa
+  if (tileMoveCost(r, c, defOf(actor)) === Infinity) { alert('Hex ini tidak bisa dijangkau unit ini.'); return; }
+  if (isTileBlocked(r, c)) { alert('Hex ini sudah terisi.'); return; }
+  setUnitTarget(actor, { kind: 'hex', r, c });
+  logAction(`${unitName(actor)} #${actor.id} → hex (${r},${c})`);
+  finishTargetMode();
+}
+
+function handleOccupyPick(r, c) {
+  const u = units.find(uu => uu.r === r && uu.c === c && uu.owner === currentPlayerIdx);
+  if (!u) return; // mode tetap aktif sampai "Selesai"
+  if (u.isBuilding) { alert('Corps ini sedang membangun.'); return; }
+  if (tileMoveCost(occupyHex.r, occupyHex.c, defOf(u)) === Infinity) { alert('Unit ini tidak bisa menjangkau hex itu.'); return; }
+  setUnitTarget(u, { kind: 'hex', r: occupyHex.r, c: occupyHex.c });
+  logAction(`${unitName(u)} #${u.id} → tempati hex (${occupyHex.r},${occupyHex.c})`);
+  renderTargetPanel();
+  draw();
+}
+
 function onCanvasClick(e) {
   if (gameOver) return;
   if (dragMoved) return;
+  if (Date.now() < suppressClickUntil) return;
+  if (phase !== 'plan') return;
   const mx = e.clientX, my = e.clientY;
 
-  // 0) Klik ikon "i" -> panel info terrain
+  // 0) Ikon "i" / ikon entitas
   if (hitTestIcon(mx, my, iconHitboxes.info)) {
-    const t = pendingTile;
-    pendingTile = null;
-    draw();
-    showInfo(t.r, t.c);
-    return;
+    const t = pendingTile; pendingTile = null; draw(); showInfo(t.r, t.c); return;
   }
-  // 0b) Klik ikon entitas -> panel rincian unit/bangunan
   if (hitTestIcon(mx, my, iconHitboxes.entity)) {
-    const t = pendingTile;
-    pendingTile = null;
-    draw();
-    openEntityPanel(t.r, t.c);
-    return;
+    const t = pendingTile; pendingTile = null; draw(); openEntityPanel(t.r, t.c); return;
   }
 
   const tile = tileFromScreen(mx, my);
   if (!tile) return;
   const { r, c } = tile;
-  const rk = r + ',' + c;
 
-  // 1) Mode Supply aktif (Recovery/Supply Fuel/Supply Medical) -> klik target valid mengeksekusi
+  // 1) Mode tempati / pilih target
+  if (occupyHex) { handleOccupyPick(r, c); return; }
+  if (targetActor) { handleTargetPick(r, c); return; }
+
+  // 2) Mode Supply manual (Recovery / Supply Fuel / Supply Medical)
   if (specialMode && specialActor) {
     const isTarget = specialTargets.some(t => t.r === r && t.c === c);
     if (isTarget) {
@@ -172,54 +266,7 @@ function onCanvasClick(e) {
     return;
   }
 
-  // 2) Mode Serang aktif -> klik target valid mengeksekusi serangan
-  if (attackMode && selectedUnit) {
-    const isTarget = attackable.some(t => t.r === r && t.c === c);
-    if (isTarget) {
-      const attackerFromR = selectedUnit.r, attackerFromC = selectedUnit.c;
-      const result = applyAttack(selectedUnit, r, c);
-      attackMode = false; attackable = []; selectedUnit = null; reachable.clear();
-      pendingTile = null;
-      updateActionPanel();
-      renderResourcePanels();
-      if (result.ok) startAttackFx(attackerFromR, attackerFromC, r, c, result.damage);
-      draw();
-      if (result.ok) {
-        showAttackResult(result);
-        logAction(`Serang ${result.targetName}: ${result.damage} dmg${result.destroyed ? ' (HANCUR)' : ''}`);
-        if (gameOver) { showGameOver(); return; }
-      } else {
-        alert(result.message);
-      }
-      return;
-    }
-    attackMode = false; attackable = []; selectedUnit = null;
-    updateActionPanel();
-    draw();
-    return;
-  }
-
-  // 3) Mode Gerak aktif -> klik tile terjangkau memindahkan unit
-  if (selectedUnit && reachable.has(rk)) {
-    const movedUnitLabel = selectedUnit.type === 'corps' ? 'Corps' : UNITS[selectedUnit.type].name;
-    const movedUnit = selectedUnit;
-    const fromR = selectedUnit.r, fromC = selectedUnit.c;
-    selectedUnit.r = r; selectedUnit.c = c;
-    selectedUnit.mp -= reachable.get(rk);
-    selectedUnit = null; reachable.clear();
-    pendingTile = null;
-    updateActionPanel();
-    startMoveAnim(movedUnit, fromR, fromC);
-    draw();
-    logAction(`${movedUnitLabel} bergerak ke (${r},${c})`);
-    return;
-  }
-  if (selectedUnit) { // klik di luar jangkauan -> batalkan mode gerak
-    selectedUnit = null; reachable.clear();
-    updateActionPanel();
-  }
-
-  // 3) Klik tile biasa -> tampilkan ikon "i" (dan ikon entitas jika berisi sesuatu)
+  // 3) Ketuk tile biasa -> ikon "i" (+ ikon entitas)
   pendingTile = { r, c };
   closeAllPanels();
   draw();
@@ -228,13 +275,14 @@ function onCanvasClick(e) {
 function cancelActionMode() {
   selectedUnit = null; reachable.clear(); attackMode = false; attackable = [];
   specialMode = null; specialActor = null; specialTargets = [];
+  targetActor = null; occupyHex = null;
   updateActionPanel();
   draw();
 }
 
 // Dipanggil dari tombol Recovery/Supply Fuel/Supply Medical di panel entitas
 function startSpecialMode(actor, mode) {
-  selectedUnit = null; reachable.clear(); attackMode = false; attackable = [];
+  cancelActionMode();
   specialActor = actor;
   specialMode = mode;
   specialTargets = computeSupplyTargets(actor, mode);
@@ -248,55 +296,26 @@ function startSpecialMode(actor, mode) {
   }
 }
 
-// Dipanggil dari tombol "Gerak" di panel entitas
-function startMoveMode(unit) {
-  selectedUnit = unit;
-  applySemangatBesi(unit); // Anti-Tank: +2 MP sekali/giliran jika bersebelahan kendaraan
-  reachable = unit.mp > 0 ? computeReachable(unit) : new Map();
-  attackMode = false; attackable = [];
-  pendingTile = null;
-  closeAllPanels();
-  updateActionPanel();
-  draw();
-}
-// Dipanggil dari tombol "Serang" di panel entitas
-function startAttackMode(unit) {
-  selectedUnit = unit;
-  attackMode = true;
-  attackable = computeAttackable(unit);
-  reachable.clear();
-  pendingTile = null;
-  closeAllPanels();
-  updateActionPanel();
-  draw();
-}
-
 // Dipanggil dari tombol "Deploy" di panel deploy (render.js)
 function onDeployClick(key, barak, player) {
+  if (phase !== 'plan') return;
   const def = UNITS[key];
   if (player.barakSlots <= 0 || player.resources.kredit < def.price) return;
   const spot = emptyAdjacent(barak.r, barak.c, def);
   if (!spot) { alert('Tidak ada tile kosong di sekitar Barak untuk deploy.'); return; }
   player.resources.kredit -= def.price;
   player.barakSlots--;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false });
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null });
   renderResourcePanels();
+  renderTargetPanel();
   openDeployPanel(barak, player); // refresh panel (slot & kredit terupdate)
   draw();
   logAction(`Deploy ${def.name}`);
 }
 
+// Tombol "Eksekusi" = percepat: langsung jalankan fase eksekusi
 function onEndTurnClick() {
-  if (gameOver) return;
-  selectedUnit = null; reachable.clear(); attackMode = false; attackable = [];
-  specialMode = null; specialActor = null; specialTargets = [];
+  if (gameOver || phase !== 'plan') return;
   pendingTile = null;
-  closeAllPanels();
-  updateActionPanel();
-  currentPlayerIdx = 1 - currentPlayerIdx;
-  if (currentPlayerIdx === 0) turnNumber++;
-  startTurn(currentPlayerIdx);
-  updateTurnBar();
-  renderResourcePanels();
-  draw();
+  runExecution();
 }

@@ -16,24 +16,26 @@ html, body {
 .panel-header h2 { margin: 0; }
 .collapse-btn {
   background: none; border: 1px solid #556b46; color: #cfe0c0;
-  width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
-  font-size: 12px; line-height: 1; flex-shrink: 0;
+  width: 16px; height: 16px; border-radius: 3px; cursor: pointer;
+  font-size: 9px; line-height: 1; flex-shrink: 0; padding: 0;
 }
 .panel.collapsed .panel-body { display: none; }
-.panel.collapsed { padding: 8px 12px; }
+.panel.collapsed { padding: 4px 8px; font-size: 11px; }
+.panel.collapsed h2 { font-size: 12px; }
 
 /* Resource: pojok kiri-atas untuk Pemain 1 (kiri), kanan-atas untuk Pemain 2 (kanan) */
 #resLeft { top: 12px; left: 12px; min-width: 210px; }
 #resRight { top: 12px; right: 12px; min-width: 210px; text-align: right; }
 
-#hud { top: 150px; left: 12px; max-width: 230px; }
+#hud { bottom: 12px; top: auto; left: 12px; max-width: 170px; }
 #hud h2 { margin: 0 0 6px; font-size: 15px; color: #a8d08d; }
 #hud small { color: #9aa89a; }
 
-#info { bottom: 12px; left: 12px; max-width: 280px; display: none; }
+#info { bottom: 50px; left: 12px; max-width: 220px; display: none; font-size: 12px; }
 #info b { color: #d7b56d; font-size: 15px; }
 
-#legend { top: 150px; right: 12px; font-size: 12px; max-height: 50vh; overflow-y: auto; }
+#legend { bottom: 12px; top: auto; right: 12px; font-size: 11px; max-height: 50vh; overflow-y: auto; max-width: 170px; }
+#legend.collapsed { max-height: none; }
 #legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 #legend .swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
 
@@ -79,10 +81,11 @@ html, body {
 #actionpanel button:hover { background: #5a5a5a; }
 
 #actionlog {
-  bottom: 140px; left: 50%; transform: translateX(-50%);
-  max-width: 300px; max-height: 110px; overflow-y: auto;
+  bottom: 12px; left: 50%; transform: translateX(-50%);
+  max-width: 170px; max-height: 110px; overflow-y: auto;
   font-size: 11px; text-align: left; line-height: 1.4;
 }
+#actionlog.collapsed { max-height: none; }
 #actionlog b { color: #a8d08d; }
 #actionlog .entry { border-bottom: 1px solid #2a2f22; padding: 2px 0; }
 #actionlog .entry:last-child { border-bottom: none; }
@@ -102,3 +105,20 @@ html, body {
   padding: 8px 20px; border-radius: 5px; cursor: pointer; font-size: 14px;
 }
 #gameover button:hover { background: #5b8047; }
+
+/* ---------- v7: rencana & eksekusi ---------- */
+#turnbar .timer { min-width: 70px; text-align: center; color: #d7b56d; font-weight: bold; }
+#endturn:disabled { opacity: 0.5; cursor: not-allowed; }
+#targetpanel {
+  top: 92px; left: 12px; max-width: 250px; max-height: 45vh; overflow-y: auto;
+  font-size: 11px; line-height: 1.4;
+}
+#targetpanel.collapsed { max-height: none; }
+#targetpanel .trow { padding: 3px 0; border-bottom: 1px solid #2a2f22; cursor: pointer; }
+#targetpanel .trow:last-child { border-bottom: none; }
+#targetpanel .trow b { color: #a8d08d; }
+#targetpanel .tx {
+  background: #6b3a3a; border: 1px solid #9b3f3f; color: #eee;
+  border-radius: 3px; cursor: pointer; font-size: 10px; padding: 0 5px; margin-left: 4px;
+}
+#actionpanel { max-width: 90vw; }
