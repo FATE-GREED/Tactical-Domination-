@@ -26,7 +26,7 @@ function armLongPress(x, y) {
   clearLongPress();
   lpTimer = setTimeout(() => {
     lpTimer = null;
-    if (dragMoved || phase !== 'plan' || gameOver) return;
+    if (dragMoved || !canAct()) return;
     suppressClickUntil = Date.now() + 700;
     onLongPress(x, y);
   }, LONG_PRESS_MS);
@@ -144,7 +144,7 @@ function onLongPress(x, y) {
   if (targetActor || occupyHex || specialMode) return;
   pendingTile = null;
   closeAllPanels();
-  const own = units.find(u => u.r === tile.r && u.c === tile.c && u.owner === currentPlayerIdx);
+  const own = units.find(u => u.r === tile.r && u.c === tile.c && u.owner === HUMAN);
   if (own) {
     if (own.isBuilding) { draw(); alert('Corps ini sedang membangun.'); return; }
     startTargetMode(own);
@@ -209,7 +209,7 @@ function handleTargetPick(r, c) {
 }
 
 function handleOccupyPick(r, c) {
-  const u = units.find(uu => uu.r === r && uu.c === c && uu.owner === currentPlayerIdx);
+  const u = units.find(uu => uu.r === r && uu.c === c && uu.owner === HUMAN);
   if (!u) return; // mode tetap aktif sampai "Selesai"
   if (u.isBuilding) { alert('Corps ini sedang membangun.'); return; }
   if (tileMoveCost(occupyHex.r, occupyHex.c, defOf(u)) === Infinity) { alert('Unit ini tidak bisa menjangkau hex itu.'); return; }
@@ -223,7 +223,7 @@ function onCanvasClick(e) {
   if (gameOver) return;
   if (dragMoved) return;
   if (Date.now() < suppressClickUntil) return;
-  if (phase !== 'plan') return;
+  if (!canAct()) return;
   const mx = e.clientX, my = e.clientY;
 
   // 0) Ikon "i" / ikon entitas
@@ -298,14 +298,10 @@ function startSpecialMode(actor, mode) {
 
 // Dipanggil dari tombol "Deploy" di panel deploy (render.js)
 function onDeployClick(key, barak, player) {
-  if (phase !== 'plan') return;
+  if (!canAct()) return;
   const def = UNITS[key];
   if (player.barakSlots <= 0 || player.resources.kredit < def.price) return;
-  const spot = emptyAdjacent(barak.r, barak.c, def);
-  if (!spot) { alert('Tidak ada tile kosong di sekitar Barak untuk deploy.'); return; }
-  player.resources.kredit -= def.price;
-  player.barakSlots--;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null });
+  if (!doDeploy(key, barak, player)) { alert('Tidak ada tile kosong di sekitar Barak untuk deploy.'); return; }
   renderResourcePanels();
   renderTargetPanel();
   openDeployPanel(barak, player); // refresh panel (slot & kredit terupdate)
@@ -315,7 +311,7 @@ function onDeployClick(key, barak, player) {
 
 // Tombol "Eksekusi" = percepat: langsung jalankan fase eksekusi
 function onEndTurnClick() {
-  if (gameOver || phase !== 'plan') return;
+  if (!canAct()) return;
   pendingTile = null;
   runExecution();
 }

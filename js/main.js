@@ -12,12 +12,13 @@ turnNumber = 1;
 
 initCanvas();                     // render.js — siapkan canvas & pertama kali draw
 initInput();                      // input.js  — pasang semua event listener
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
 
 startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
 
-// Pusatkan kamera ke Markas pemain yang mulai
+// Pusatkan kamera ke Markas pemain manusia
 (function centerOnStartingMarkas() {
-  const m = getBuilding(players[currentPlayerIdx], 'markas');
+  const m = getBuilding(players[HUMAN], 'markas');
   if (!m) return;
   const { x, y } = hexCenter(m.r, m.c);
   camX = canvas.width / 2 - x * scale;

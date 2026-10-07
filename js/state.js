@@ -5,16 +5,18 @@
 // ====================================================================
 
 // ---------- Konfigurasi Peta ----------
+const HUMAN = 0, BOT = 1; // mode lawan bot: Pemain 1 = manusia (kiri), Pemain 2 = bot (kanan)
 const ROWS = 40, COLS = 60, HALF_COLS = COLS / 2, HEX_SIZE = 18;
-const PLAN_SECONDS = 30; // durasi fase rencana tiap giliran
+const PLAN_SECONDS = 50; // durasi fase rencana tiap giliran
 
 // ---------- Terrain (Bagian 2 dokumen desain) ----------
 const TERRAIN = {
-  grass:     { name: "Grass",      pct: 45, color: "#6b9b3f", effect: "Normal." },
+  grass:     { name: "Grass",      pct: 38, color: "#6b9b3f", effect: "Normal." },
   forest:    { name: "Forest",     pct: 30, color: "#2f5233", effect: "Unit unseen (default). Kendaraan slow (2 MP)." },
   rocks:     { name: "Rocks",      pct: 2,  color: "#8d8d85", effect: "Slow untuk semua kendaraan (2 MP)." },
   swamp:     { name: "Swamp",      pct: 2,  color: "#5b4a36", effect: "Tank: normal. Non-Tank: slow (2 MP)." },
   tallgrass: { name: "Tall Grass", pct: 2,  color: "#9db85c", effect: "Non-kendaraan unseen (default)." },
+  valley:    { name: "Valley",     pct: 7,  color: "#2a2d36", effect: "Tidak bisa dilewati sama sekali." },
   river:     { name: "River",      pct: 7,  color: "#4a90c4", effect: "Kendaraan wajib lewat Jembatan (belum ada)." },
   mountain:  { name: "Mountain",   pct: 4,  color: "#7a6a58", effect: "Movement selalu 1 MP. Range/JPD +30%." },
   sand:      { name: "Sand",       pct: 2,  color: "#c9b070", effect: "2 MP/tile." },
@@ -27,16 +29,16 @@ const TERRAIN = {
 // combat: bisa menyerang. vehicle/tank: dipakai rules-movement & rules-combat.
 // atk/def/hp/range/jpd kosong (null) untuk unit Non-Combat (tidak relevan/tidak menyerang).
 const UNITS = {
-  infantry:    { name: 'Infantry',        price: 15, spd: 7,  range: 5,  atk: 33, def: 15,  hp: 100, jpd: 10, vehicle: false, tank: false, combat: true,  hasFuel: false },
-  assault:     { name: 'Assault',         price: 30, spd: 10,  range: 3,  atk: 48, def: 20,  hp: 150, jpd: 10, vehicle: false, tank: false, combat: true,  hasFuel: false },
-  sniper:      { name: 'Sniper',          price: 30, spd: 6,  range: 8, atk: 48, def: 10,  hp: 80,  jpd: 40, vehicle: false, tank: false, combat: true,  hasFuel: false },
-  antitank:    { name: 'Anti-Tank',       price: 40, spd: 7,  range: 7,  atk: 48, def: 25,  hp: 150, jpd: 12, vehicle: false, tank: false, combat: true,  hasFuel: true, fuelMax: 30, fuelUse: 3 },
-  tanklapis:   { name: 'Tank Lapis Baja', price: 70, spd: 8,  range: 5,  atk: 63, def: 45, hp: 300, jpd: 13, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 5 },
-  tankcrusher: { name: 'Tank Crusher',    price: 70, spd: 8,  range: 6,  atk: 84, def: 35,  hp: 250, jpd: 13, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 4 },
-  montir:      { name: 'Montir',          price: 50, spd: 5,  range: 30, atk: 45, def: 25,  hp: 100, jpd: 10, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 20, fuelUse: 2 },
-  apc:         { name: 'APC',             price: 20, spd: 12, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 10, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 40, fuelUse: 2 },
+  infantry:    { name: 'Infantry',        price: 15, spd: 7,  range: 5,  atk: 33, def: 15,  hp: 100, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  assault:     { name: 'Assault',         price: 30, spd: 10,  range: 3,  atk: 48, def: 20,  hp: 150, jpd: 2, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  sniper:      { name: 'Sniper',          price: 30, spd: 6,  range: 8, atk: 48, def: 10,  hp: 80,  jpd: 4, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  antitank:    { name: 'Anti-Tank',       price: 40, spd: 7,  range: 6,  atk: 48, def: 25,  hp: 150, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: true, fuelMax: 30, fuelUse: 3 },
+  tanklapis:   { name: 'Tank Lapis Baja', price: 70, spd: 8,  range: 5,  atk: 63, def: 45, hp: 300, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 5 },
+  tankcrusher: { name: 'Tank Crusher',    price: 70, spd: 8,  range: 6,  atk: 84, def: 35,  hp: 250, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 4 },
+  montir:      { name: 'Montir',          price: 50, spd: 5,  range: 15, atk: 45, def: 25,  hp: 100, jpd: 5, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 20, fuelUse: 2 },
+  apc:         { name: 'APC',             price: 20, spd: 12, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 5, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 40, fuelUse: 2 },
 };
-const CORPS_DEF = { name: 'Corps', spd: 9, range: 0, atk: 0, def: 15, hp: 100, jpd: 10, vehicle: false, tank: false, combat: false, hasFuel: false };
+const CORPS_DEF = { name: 'Corps', spd: 9, range: 0, atk: 0, def: 15, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
 
 // ---------- Bangunan (Bagian 3) ----------
 // destructible:false untuk Garnisun (tidak bisa hancur, bukan objective).
@@ -65,6 +67,7 @@ let uidCounter = 1;
 let currentPlayerIdx = 0;
 let turnNumber = 1;
 let selectedUnit = null;
+let paused = false;        // tombol pause
 let buildingSeq = 1;        // urutan bangun bangunan (untuk prioritas serang otomatis)
 let phase = 'plan';          // 'plan' (rencana) | 'exec' (eksekusi otomatis)
 let planTimeLeft = PLAN_SECONDS, planTimer = null;

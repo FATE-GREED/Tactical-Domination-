@@ -151,7 +151,7 @@ function computeAttackable(unit) {
   const out = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      if (hexDistance(unit.r, unit.c, r, c) > def.range) continue;
+      if (hexDistance(unit.r, unit.c, r, c) > effectiveRange(unit)) continue;
       const target = describeTarget(r, c);
       if (!target) continue;
       if (target.ownerIdx === unit.owner) continue;

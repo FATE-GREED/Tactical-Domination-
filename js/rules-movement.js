@@ -21,6 +21,7 @@ function neighborsOf(r, c) {
 // Biaya MP masuk ke suatu tile terrain, tergantung tipe unit (Bagian 2)
 function moveCost(terrainKey, def) {
   switch (terrainKey) {
+    case 'valley': return Infinity;                           // tidak bisa dilewati sama sekali
     case 'mountain': return 1;                              // selalu 1 MP
     case 'road': return 1;                                   // normal; gratis terbatas ditangani di computeReachable (khusus Non-Combat)
     case 'sand': return 2;                                   // 2 MP/tile

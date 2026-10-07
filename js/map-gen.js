@@ -149,7 +149,7 @@ function placeRivers(grid, quota) {
   return placed;
 }
 
-function generateMap() {
+function generateMapOnce() {
   const grid = emptyGrid();
   const total = ROWS * COLS;
   const quotas = {};
@@ -158,6 +158,7 @@ function generateMap() {
   placeRivers(grid, quotas.river);
   placeLine(grid, quotas.road, 'road');
 
+  placeClusters(grid, quotas.valley, 4, 12, 'valley');
   placeClusters(grid, quotas.mountain, 7, 18, 'mountain');
   placeClusters(grid, quotas.forest, 7, 30, 'forest');
   placeClusters(grid, quotas.city, 7, 14, 'city');
@@ -170,5 +171,31 @@ function generateMap() {
   placeClusters(grid, quotas.swamp, 3, 8, 'swamp');
 
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (grid[r][c] === null) grid[r][c] = 'grass';
+  return grid;
+}
+
+// Kedua Markas harus bisa dihubungkan lewat darat (Valley memblokir, River boleh untuk infanteri)
+function mapConnected(grid) {
+  const midR = Math.floor(ROWS / 2), a = [midR, 10], b = [midR, COLS - 1 - 10];
+  const seen = new Set([a[0] * COLS + a[1]]);
+  const queue = [a];
+  while (queue.length) {
+    const [r, c] = queue.pop();
+    if (r === b[0] && c === b[1]) return true;
+    for (const [nr, nc] of neighborsOf(r, c)) {
+      const k = nr * COLS + nc;
+      if (seen.has(k) || grid[nr][nc] === 'valley') continue;
+      seen.add(k); queue.push([nr, nc]);
+    }
+  }
+  return false;
+}
+
+function generateMap() {
+  let grid = null;
+  for (let i = 0; i < 40; i++) {
+    grid = generateMapOnce();
+    if (mapConnected(grid)) break;
+  }
   return grid;
 }

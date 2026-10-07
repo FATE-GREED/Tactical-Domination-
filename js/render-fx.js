@@ -18,7 +18,7 @@ function shiftColor(hex, amt) {
 // Di-cache sekali per terrain (bukan per tile) supaya tetap ringan meski 4000 tile.
 // Render di resolusi 3x lalu diperkecil (supersampling) biar tajam di layar HP.
 let terrainSprites = {};
-const TERRAIN_SEED = { grass:1, forest:9, rocks:4, swamp:6, tallgrass:7, river:3, mountain:2, sand:8, road:10, ruins:11, city:12 };
+const TERRAIN_SEED = { valley:13, grass:1, forest:9, rocks:4, swamp:6, tallgrass:7, river:3, mountain:2, sand:8, road:10, ruins:11, city:12 };
 
 function mulberry32(seed) {
   return function () {
@@ -65,6 +65,19 @@ function drawWall(o, x, y, w, h, tilt, shade) {
 }
 
 const TERRAIN_DETAIL = {
+  valley(o, cx, cy, hs, rand) {
+    // Jurang gelap: bayangan dalam + retakan bergerigi
+    const g = o.createRadialGradient(cx, cy, hs * 0.1, cx, cy, hs * 0.95);
+    g.addColorStop(0, 'rgba(0,0,0,0.65)'); g.addColorStop(1, 'rgba(0,0,0,0.1)');
+    o.fillStyle = g; o.fillRect(cx - hs, cy - hs, hs * 2, hs * 2);
+    o.strokeStyle = 'rgba(120,125,140,0.5)'; o.lineWidth = hs * 0.04;
+    for (let i = 0; i < 4; i++) {
+      let x = cx + (rand() - 0.5) * hs * 1.2, y = cy - hs * 0.8;
+      o.beginPath(); o.moveTo(x, y);
+      for (let k = 0; k < 5; k++) { x += (rand() - 0.5) * hs * 0.35; y += hs * 0.35; o.lineTo(x, y); }
+      o.stroke();
+    }
+  },
   grass(o, cx, cy, hs, rand) {
     for (let i = 0; i < 7; i++) {
       const dx = (rand() - 0.5) * hs * 1.6, dy = (rand() - 0.5) * hs * 1.6;
@@ -185,7 +198,7 @@ const TERRAIN_DETAIL = {
 const TERRAIN_BASE_COLOR = {
   grass: '#6b9b3f', forest: '#556b45', rocks: '#8f8d84', swamp: '#5c6b4a',
   tallgrass: '#3f4f2a', river: '#4a7a8a', mountain: '#7d7568', sand: '#c9b077',
-  road: '#7a7367', ruins: '#a89a83', city: '#8f8574',
+  road: '#7a7367', ruins: '#a89a83', city: '#8f8574', valley: '#2a2d36',
 };
 
 function buildTerrainSprites() {

@@ -7,10 +7,17 @@
 function updateTimerUI() {
   const t = document.getElementById('timer');
   const b = document.getElementById('endturn');
-  if (phase === 'plan') {
+  const pb = document.getElementById('pauseBtn');
+  if (pb) pb.textContent = paused ? '▶ Lanjut' : '⏸ Pause';
+  if (paused) { t.textContent = '⏸ DIJEDA'; b.disabled = true; return; }
+  if (phase === 'plan' && currentPlayerIdx === HUMAN) {
     t.textContent = `⏱ ${planTimeLeft}s`;
     b.textContent = 'Eksekusi ▶';
     b.disabled = false;
+  } else if (phase === 'plan') {
+    t.textContent = 'Bot menyusun...';
+    b.textContent = 'Menunggu...';
+    b.disabled = true;
   } else {
     t.textContent = 'Eksekusi...';
     b.textContent = 'Berjalan...';
@@ -18,8 +25,39 @@ function updateTimerUI() {
   }
 }
 
+function togglePause() {
+  if (gameOver) return;
+  paused = !paused;
+  if (paused) { cancelActionMode(); closeAllPanels(); }
+  updateTimerUI();
+  renderTargetPanel();
+  draw();
+}
+
+// ---------- Log damage eksekusi (kanan atas, teks tanpa latar) ----------
+let dmgFeed = { lines: [], total: 0 };
+const DMG_COL = { ally: '#5aa9ff', foe: '#ff5f5f', dmg: '#c58cff' };
+function dmgFeedReset() { dmgFeed = { lines: [], total: 0 }; renderDmgFeed(); }
+function dmgFeedAdd(attacker, targetName, targetOwner, dmg) {
+  dmgFeed.lines.push({ a: unitName(attacker), aOwn: attacker.owner, t: targetName, tOwn: targetOwner, dmg });
+  dmgFeed.total += dmg;
+  renderDmgFeed();
+}
+function renderDmgFeed() {
+  const el = document.getElementById('dmgfeed');
+  if (!el) return;
+  if (!dmgFeed.lines.length) { el.innerHTML = ''; return; }
+  const col = o => (o === HUMAN ? DMG_COL.ally : DMG_COL.foe);
+  const rows = dmgFeed.lines.slice(-14).map(l =>
+    `<div><span style="color:${col(l.aOwn)}">${l.a}</span> → <span style="color:${col(l.tOwn)}">${l.t}</span> <span style="color:${DMG_COL.dmg}">${l.dmg}</span></div>`).join('');
+  el.innerHTML = rows + `<div class="dtotal">Total dmg<br><span style="color:${DMG_COL.dmg}">${dmgFeed.total}</span></div>`;
+}
+
 // ---------- Panel "Tujuan Unit" ----------
 function targetLabel(u) {
+  return targetLabelBase(u) + (u.locked ? ' 🔒' : '');
+}
+function targetLabelBase(u) {
   const def = defOf(u);
   if (u.buildOrder) return `Bangun ${BUILDING_TYPES[u.buildOrder.type].name} di (${u.buildOrder.r},${u.buildOrder.c})`;
   if (u.isBuilding) return `Membangun ${BUILDING_TYPES[u.buildType].name} (${u.buildTurnsRemaining} gil.)`;
@@ -51,11 +89,11 @@ function renderTargetPanel() {
   const el = document.getElementById('targetpanel');
   if (!el) return;
   if (!el.dataset.init) { el.classList.add('collapsed'); el.dataset.init = '1'; }
-  const mine = units.filter(u => u.owner === currentPlayerIdx).sort((a, b) => a.id - b.id);
+  const mine = units.filter(u => u.owner === HUMAN).sort((a, b) => a.id - b.id);
   const rows = mine.map(u => {
     const explicit = u.target || u.buildOrder || u.job !== 'idle';
     return `<div class="trow" data-focus="${u.id}"><b>${unitName(u)} #${u.id}</b> → ${targetLabel(u)}` +
-      (explicit && phase === 'plan' ? ` <button class="tx" data-reset="${u.id}" title="Batal / kembali default">✕</button>` : '') + `</div>`;
+      (explicit && canAct() ? ` <button class="tx" data-reset="${u.id}" title="Batal / kembali default">✕</button>` : '') + `</div>`;
   }).join('');
   el.innerHTML = `<div class="panel-header"><b>Tujuan Unit (${mine.length})</b><button class="collapse-btn" onclick="togglePanel('targetpanel')">${el.classList.contains('collapsed') ? '▾' : '▴'}</button></div>` +
     `<div class="panel-body">${rows || '<i>Belum ada unit</i>'}</div>`;
@@ -96,7 +134,7 @@ function openHexMenu(r, c) {
 function openBuildPanelAt(r, c) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
-  const owner = currentPlayerIdx;
+  const owner = HUMAN;
   const buildable = ['pom', 'pospemulihan', 'jembatan', 'barak', 'benteng'];
   let html = `<span class="close" id="deployclose">✕</span><h3>Bangun di hex (${r},${c})</h3>`;
   html += buildable.map(type => {
@@ -121,7 +159,7 @@ function drawOrderMarkers() {
   ctx.save();
   ctx.lineWidth = 1.5 / scale;
   for (const u of units) {
-    if (u.owner !== currentPlayerIdx || !u.target) continue;
+    if (u.owner !== HUMAN || !u.target) continue;
     const t = u.target;
     let tr, tc;
     if (t.kind === 'hex') { tr = t.r; tc = t.c; }

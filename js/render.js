@@ -104,7 +104,7 @@ function draw() {
     }
   }
 
-  if (phase === 'plan') drawOrderMarkers();
+  if (phase === 'plan' && currentPlayerIdx === HUMAN) drawOrderMarkers();
 
   const fxNeedsMore = renderFx();
   ctx.restore();
@@ -257,7 +257,7 @@ function openEntityPanel(r, c) {
   if (!target) { el.style.display = 'none'; return; }
   const owner = players[target.ownerIdx];
   let html = '<span class="close" id="entityclose">✕</span>';
-  const isMine = target.ownerIdx === currentPlayerIdx;
+  const isMine = target.ownerIdx === HUMAN;
   const buttons = []; // {id, label}
 
   if (target.kind === 'unit') {
@@ -278,8 +278,9 @@ function openEntityPanel(r, c) {
     }
 
     if (isMine) html += `<br><span style="color:#d7b56d">Tujuan: ${targetLabel(u)}</span><br>`;
-    if (isMine && phase === 'plan' && !(u.type === 'corps' && u.isBuilding)) {
+    if (isMine && canAct() && !(u.type === 'corps' && u.isBuilding)) {
       buttons.push({ id: 'targetBtn', label: 'Atur Target' });
+      buttons.push({ id: 'lockBtn', label: u.locked ? '🔓 Buka Kunci' : '🔒 Kunci Gerak' });
       if (!target.def.combat) {
         buttons.push({ id: 'jobIdleBtn', label: (u.job === 'idle' ? '✓ ' : '') + 'Nganggur' });
         buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
@@ -287,7 +288,7 @@ function openEntityPanel(r, c) {
       }
       if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
     }
-    if (isMine && phase === 'plan' && !u.attacked) {
+    if (isMine && canAct() && !u.attacked) {
       if ((u.type === 'apc' || u.type === 'corps') && !u.cargo && !(u.type === 'corps' && u.isBuilding)) {
         const nearPom = neighborsOf(u.r, u.c).some(([nr, nc]) => owner.buildings.some(b => b.type === 'pom' && b.r === nr && b.c === nc));
         const nearPos = neighborsOf(u.r, u.c).some(([nr, nc]) => owner.buildings.some(b => b.type === 'pospemulihan' && b.r === nr && b.c === nc));
@@ -318,7 +319,7 @@ function openEntityPanel(r, c) {
     html += `<h3 style="color:${owner.color}">${target.def.name} — ${owner.name}</h3>`;
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
     if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -20% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
-    if (isMine && phase === 'plan' && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
+    if (isMine && canAct() && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
   }
 
   if (buttons.length > 0) {
@@ -335,6 +336,7 @@ function openEntityPanel(r, c) {
   bind('jobIdleBtn', () => { setJob(target.obj, 'idle'); refresh(); });
   bind('jobFuelBtn', () => { setJob(target.obj, 'fuel'); refresh(); });
   bind('jobMedBtn', () => { setJob(target.obj, 'medical'); refresh(); });
+  bind('lockBtn', () => { target.obj.locked = !target.obj.locked; refresh(); });
   bind('resetBtn', () => { resetUnit(target.obj); refresh(); });
   bind('deployBtn', () => { el.style.display = 'none'; openDeployPanel(target.obj, owner); });
   bind('loadFuelBtn', () => runAndRefreshEntity(target.obj, () => loadCargo(target.obj, 'fuel'), r, c));

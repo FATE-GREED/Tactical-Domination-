@@ -12,7 +12,13 @@
 // Aturan dasar (damage, MP, terrain, supply, build) TIDAK diubah.
 // ====================================================================
 
-const sleep = ms => new Promise(res => setTimeout(res, ms));
+// sleep ikut berhenti selama game di-pause (eksekusi membeku di antara langkah)
+async function sleep(ms) {
+  await new Promise(res => setTimeout(res, ms));
+  while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));
+}
+// Pemain manusia boleh memberi perintah: fase rencana, giliran manusia, tidak pause
+function canAct() { return phase === 'plan' && currentPlayerIdx === HUMAN && !paused && !gameOver; }
 function defOf(u) { return u.type === 'corps' ? CORPS_DEF : UNITS[u.type]; }
 function unitName(u) { return u.type === 'corps' ? 'Corps' : UNITS[u.type].name; }
 function tileFree(u, r, c) { return (r === u.r && c === u.c) || !isTileBlocked(r, c); }
@@ -98,10 +104,24 @@ function orderBuild(owner, type, r, c) {
 }
 
 // ---------------------------------------------------------------
+// Deploy unit dari Barak (dipakai tombol Deploy & bot)
+// ---------------------------------------------------------------
+function doDeploy(key, barak, player) {
+  const def = UNITS[key];
+  if (player.barakSlots <= 0 || player.resources.kredit < def.price) return false;
+  const spot = emptyAdjacent(barak.r, barak.c, def);
+  if (!spot) return false;
+  player.resources.kredit -= def.price;
+  player.barakSlots--;
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
+  return true;
+}
+
+// ---------------------------------------------------------------
 // Pathfinding (Dijkstra pada seluruh map, biaya terrain = aturan lama)
 // Unit sekutu boleh dilewati (dengan penalti), musuh & bangunan tidak.
 // ---------------------------------------------------------------
-function findPath(u, goalFn) {
+function findPath(u, goalFn, extraBlocked, near) {
   const def = defOf(u);
   const key = (r, c) => r * COLS + c;
   const occ = new Map();
@@ -113,12 +133,17 @@ function findPath(u, goalFn) {
   const start = key(u.r, u.c);
   dist[start] = 0;
   const open = [{ r: u.r, c: u.c, d: 0 }];
+  let best = null, bestH = near ? hexDistance(u.r, u.c, near.r, near.c) : Infinity, bestD = 0;
   while (open.length) {
     let bi = 0;
     for (let i = 1; i < open.length; i++) if (open[i].d < open[bi].d) bi = i;
     const cur = open.splice(bi, 1)[0];
     const ck = key(cur.r, cur.c);
     if (cur.d > dist[ck]) continue;
+    if (near && tileFree(u, cur.r, cur.c)) {
+      const h = hexDistance(cur.r, cur.c, near.r, near.c);
+      if (h < bestH || (h === bestH && best && cur.d < bestD)) { best = ck; bestH = h; bestD = cur.d; }
+    }
     if (goalFn(cur.r, cur.c)) {
       const path = [];
       let k = ck;
@@ -130,6 +155,7 @@ function findPath(u, goalFn) {
       const nk = key(nr, nc);
       const o = occ.get(nk);
       if (o === 'enemy' || o === 'block') continue;
+      if (extraBlocked && extraBlocked.has(nk)) continue;
       let cost = tileMoveCost(nr, nc, def);
       if (cost === Infinity) continue;
       if (o === 'ally') cost += 2;
@@ -137,16 +163,25 @@ function findPath(u, goalFn) {
       if (nd < dist[nk]) { dist[nk] = nd; prev[nk] = ck; open.push({ r: nr, c: nc, d: nd }); }
     }
   }
+  // Tidak ada rute ke tujuan: maju sedekat mungkin (kalau memang lebih dekat dari posisi sekarang)
+  if (near && best !== null && best !== start) {
+    const path = [];
+    let k = best;
+    while (k !== start) { path.push([Math.floor(k / COLS), k % COLS]); k = prev[k]; }
+    path.reverse();
+    return path;
+  }
   return null;
 }
 
-// Jalani path selama MP cukup & tile tidak terhalang (aturan MP/road gratis non-combat tetap berlaku)
+// Jalani path selama MP cukup. Mengembalikan {moved, blockedAt}: blockedAt = tile yang
+// ternyata terisi (supaya pemanggil bisa mencari jalan memutar).
 async function moveAlongPath(u, path) {
   const def = defOf(u);
   const nonCombat = !def.combat;
-  let moved = false;
+  let moved = false, blockedAt = null;
   for (const [r, c] of path) {
-    if (isTileBlocked(r, c)) break;
+    if (isTileBlocked(r, c)) { blockedAt = [r, c]; break; }
     let cost = tileMoveCost(r, c, def);
     let free = false;
     if (mapData[r][c] === 'road' && nonCombat && u.roadFreeUsesLeft > 0) { cost = 0; free = true; }
@@ -159,15 +194,25 @@ async function moveAlongPath(u, path) {
     startMoveAnim(u, fr, fc, 80);
     await sleep(90);
   }
-  if (moved) { logAction(`${unitName(u)} #${u.id} bergerak ke (${u.r},${u.c})`); draw(); }
-  return moved;
+  return { moved, blockedAt };
 }
 
-async function moveToward(u, goalFn) {
-  if (u.mp <= 0) return false;
-  const path = findPath(u, goalFn);
-  if (!path || path.length === 0) return false;
-  return moveAlongPath(u, path);
+// Bergerak ke tujuan; kalau terhalang unit lain, hitung ulang jalur memutar.
+// `near` = titik acuan untuk fallback "sedekat mungkin" bila tujuan tak terjangkau.
+async function moveToward(u, goalFn, near) {
+  if (u.locked || u.mp <= 0) return false;      // kunci: unit tidak ikut bergerak
+  const extra = new Set();
+  let movedAny = false;
+  for (let attempt = 0; attempt < 8 && u.mp > 0; attempt++) {
+    const path = findPath(u, goalFn, extra, near);
+    if (!path || path.length === 0) break;
+    const res = await moveAlongPath(u, path);
+    if (res.moved) movedAny = true;
+    if (!res.blockedAt) break;
+    extra.add(res.blockedAt[0] * COLS + res.blockedAt[1]);
+  }
+  if (movedAny) { logAction(`${unitName(u)} #${u.id} bergerak ke (${u.r},${u.c})`); draw(); }
+  return movedAny;
 }
 
 // ---------------------------------------------------------------
@@ -192,8 +237,10 @@ async function autoAttack(u) {
   const pick = pickAutoTarget(u);
   if (!pick) return;
   const fr = u.r, fc = u.c;
+  const info = describeTarget(pick.r, pick.c);
   const res = applyAttack(u, pick.r, pick.c);
   if (!res.ok) return;
+  dmgFeedAdd(u, res.targetName, info ? info.ownerIdx : 1 - u.owner, res.damage);
   startAttackFx(fr, fc, pick.r, pick.c, res.damage);
   renderResourcePanels();
   draw();
@@ -210,7 +257,8 @@ function goalForTarget(u, tgt, reach) {
     const occupied = isTileBlocked(tgt.r, tgt.c) && !(u.r === tgt.r && u.c === tgt.c);
     return (r, c) => tileFree(u, r, c) && (occupied ? hexDistance(r, c, tgt.r, tgt.c) <= 1 : (r === tgt.r && c === tgt.c));
   }
-  return (r, c) => tileFree(u, r, c) && hexDistance(r, c, tgt.r, tgt.c) <= reach;
+  const def = defOf(u);
+  return (r, c) => tileFree(u, r, c) && hexDistance(r, c, tgt.r, tgt.c) <= (reach === 'range' ? rangeAtTile(def, r, c) : reach);
 }
 
 function clearReachedHex(u) {
@@ -220,14 +268,14 @@ function clearReachedHex(u) {
 async function execCombat(u) {
   applySemangatBesi(u);
   const tgt = resolveTarget(u);
-  if (tgt && u.mp > 0) await moveToward(u, goalForTarget(u, tgt, defOf(u).range));
+  if (tgt && u.mp > 0) await moveToward(u, goalForTarget(u, tgt, 'range'), tgt);
   clearReachedHex(u);
   await autoAttack(u);
 }
 
 async function execBuildOrder(u) {
   const o = u.buildOrder;
-  if (u.r !== o.r || u.c !== o.c) await moveToward(u, (r, c) => r === o.r && c === o.c && tileFree(u, r, c));
+  if (u.r !== o.r || u.c !== o.c) await moveToward(u, (r, c) => r === o.r && c === o.c && tileFree(u, r, c), o);
   if (u.r === o.r && u.c === o.c) {
     const res = startBuild(u, o.type);
     u.buildOrder = null; u.target = null;
@@ -256,7 +304,7 @@ async function execJob(u) {
     const srcs = p.buildings.filter(b => b.type === srcType).sort(byDist);
     if (!srcs.length) return;
     const s = srcs[0];
-    if (hexDistance(u.r, u.c, s.r, s.c) > 1) await moveToward(u, adj(s.r, s.c));
+    if (hexDistance(u.r, u.c, s.r, s.c) > 1) await moveToward(u, adj(s.r, s.c), s);
     if (hexDistance(u.r, u.c, s.r, s.c) === 1 && !u.attacked) {
       const res = loadCargo(u, ct);
       if (res.ok) { logAction(`${unitName(u)} #${u.id}: ${res.message}`); renderResourcePanels(); draw(); await sleep(250); }
@@ -269,7 +317,7 @@ async function execJob(u) {
   else needy.sort((a, b) => (a.hp / defOf(a).hp) - (b.hp / defOf(b).hp) || byDist(a, b));
   if (needy.length) {                                       // 2) ada yang butuh -> mendekat & isi
     const t = needy[0];
-    if (hexDistance(u.r, u.c, t.r, t.c) > 1) await moveToward(u, adj(t.r, t.c));
+    if (hexDistance(u.r, u.c, t.r, t.c) > 1) await moveToward(u, adj(t.r, t.c), t);
     if (units.includes(t) && hexDistance(u.r, u.c, t.r, t.c) === 1 && !u.attacked) {
       const res = isFuel ? performSupplyFuel(u, t) : performSupplyMedical(u, t);
       if (res.ok) { logAction(`${unitName(u)} #${u.id} → ${unitName(t)} #${t.id}: ${res.message}`); renderResourcePanels(); draw(); await sleep(300); }
@@ -278,7 +326,7 @@ async function execJob(u) {
   }
   // 3) tidak ada yang butuh -> ikuti unit terdekat
   const pool = units.filter(o => o !== u && o.owner === u.owner && (isFuel ? (defOf(o).vehicle && defOf(o).hasFuel) : defOf(o).combat)).sort(byDist);
-  if (pool.length && hexDistance(u.r, u.c, pool[0].r, pool[0].c) > 1) await moveToward(u, adj(pool[0].r, pool[0].c));
+  if (pool.length && hexDistance(u.r, u.c, pool[0].r, pool[0].c) > 1) await moveToward(u, adj(pool[0].r, pool[0].c), pool[0]);
 }
 
 async function execNonCombat(u) {
@@ -286,7 +334,7 @@ async function execNonCombat(u) {
   if (u.job === 'fuel' || u.job === 'medical') return execJob(u);
   if (u.target) {
     const tgt = resolveTarget(u);
-    if (tgt) await moveToward(u, goalForTarget(u, tgt, 1));
+    if (tgt) await moveToward(u, goalForTarget(u, tgt, 1), tgt);
     clearReachedHex(u);
   }
 }
@@ -298,17 +346,30 @@ function beginPlanning() {
   phase = 'plan';
   planTimeLeft = PLAN_SECONDS;
   clearInterval(planTimer);
-  planTimer = setInterval(() => {
-    if (gameOver) { clearInterval(planTimer); return; }
-    planTimeLeft--;
-    updateTimerUI();
-    if (planTimeLeft <= 0) runExecution();
-  }, 1000);
   updateTurnBar();
   updateTimerUI();
   renderResourcePanels();
   renderTargetPanel();
   draw();
+  if (currentPlayerIdx !== HUMAN) {            // giliran bot: susun rencana seketika, lalu eksekusi
+    const me = currentPlayerIdx;
+    setTimeout(async () => {
+      while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));
+      if (gameOver) return;
+      try { botTakeTurn(me); } catch (err) { console.warn('Bot gagal menyusun rencana:', err); }
+      renderTargetPanel(); draw();
+      await sleep(500);
+      runExecution();
+    }, 400);
+    return;
+  }
+  planTimer = setInterval(() => {
+    if (gameOver) { clearInterval(planTimer); return; }
+    if (paused) return;
+    planTimeLeft--;
+    updateTimerUI();
+    if (planTimeLeft <= 0) runExecution();
+  }, 1000);
 }
 
 async function runExecution() {
@@ -321,6 +382,7 @@ async function runExecution() {
   draw();
 
   const pIdx = currentPlayerIdx;
+  if (pIdx === HUMAN) dmgFeedReset();           // satu putaran = eksekusi manusia + bot
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;

@@ -78,7 +78,7 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
   // Sniper: Konsentrasi Tinggi (bonus berdasar jarak tembak vs Range)
   if (attackerUnit.type === 'sniper') {
     const dist = hexDistance(attackerUnit.r, attackerUnit.c, targetInfo.obj.r, targetInfo.obj.c);
-    const range = UNITS.sniper.range;
+    const range = effectiveRange(attackerUnit);
     if (dist === range) pct += 30;
     else if (dist === range - 1) pct += 20;
     else if (dist === range - 2) pct += 10;
@@ -86,7 +86,7 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
 
   // Tank Crusher: Penggila Perang (+5%/musuh dalam jangkauan, maks +20% pada 4 musuh — BOLEH bertahap)
   if (attackerUnit.type === 'tankcrusher') {
-    const range = UNITS.tankcrusher.range;
+    const range = effectiveRange(attackerUnit);
     let enemyCount = 0;
     for (const u of units) {
       if (u.owner === attackerUnit.owner) continue;

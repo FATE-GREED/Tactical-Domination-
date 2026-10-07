@@ -8,11 +8,12 @@
 
 function setupPlayersAndBuildings() {
   players = [
-    { id: 1, name: 'Pemain 1', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 50, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
-    { id: 2, name: 'Pemain 2', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 50, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
+    { id: 1, name: 'Pemain', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
+    { id: 2, name: 'Bot', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
   ];
   const place = (pIdx, type, r, c) => {
     mapData[r][c] = 'grass';
+    for (const [nr, nc] of neighborsOf(r, c)) if (mapData[nr][nc] === 'valley') mapData[nr][nc] = 'grass'; // jangan terkurung Valley
     players[pIdx].buildings.push({ r, c, type, hp: BUILDING_TYPES[type].hp, defDebuffTurns: 0, seq: buildingSeq++ });
   };
   const midR = Math.floor(ROWS / 2);
