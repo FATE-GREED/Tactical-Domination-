@@ -2,7 +2,7 @@
   "name": "Tactical Domination",
   "short_name": "Tac.Domination",
   "description": "Turn-based tactical strategy, hex grid, 2 pemain hot-seat.",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
