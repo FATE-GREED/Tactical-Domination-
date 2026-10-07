@@ -104,6 +104,7 @@ function draw() {
     }
   }
 
+  drawLanes();
   if (phase === 'plan' && currentPlayerIdx === HUMAN) drawOrderMarkers();
 
   const fxNeedsMore = renderFx();
@@ -226,6 +227,7 @@ function renderLog() {
 
 // ---------- Win Condition ----------
 function showGameOver() {
+  Sfx.end(winner === HUMAN);
   document.getElementById('winnerText').textContent = `${players[winner].name} Menang!`;
   document.getElementById('gameover').style.display = 'flex';
 }

@@ -192,7 +192,9 @@ async function moveAlongPath(u, path) {
     u.r = r; u.c = c;
     moved = true;
     startMoveAnim(u, fr, fc, 80);
+    Sfx.move(u);
     await sleep(90);
+    if (laneJoin(u)) break;                     // baru menginjak jalur -> langsung ikut jalur
   }
   return { moved, blockedAt };
 }
@@ -242,6 +244,9 @@ async function autoAttack(u) {
   if (!res.ok) return;
   dmgFeedAdd(u, res.targetName, info ? info.ownerIdx : 1 - u.owner, res.damage);
   startAttackFx(fr, fc, pick.r, pick.c, res.damage);
+  Sfx.shoot(u, info ? info.ownerIdx : 1 - u.owner, res);
+  if (res.destroyed && (u.owner === HUMAN || (info && info.ownerIdx === HUMAN) || !isUnitUnseen(u)))
+    killFeedAdd(unitName(u), u.owner, res.targetName, info ? info.ownerIdx : 1 - u.owner);
   renderResourcePanels();
   draw();
   logAction(`${unitName(u)} #${u.id} serang ${res.targetName}: ${res.damage} dmg${res.destroyed ? ' (HANCUR)' : ''}`);
@@ -265,10 +270,54 @@ function clearReachedHex(u) {
   if (u.target && u.target.kind === 'hex' && u.r === u.target.r && u.c === u.target.c) u.target = null;
 }
 
+// ---------------------------------------------------------------
+// Jalur (khusus sekutu): unit di tile jalur mengalir ke tile berikutnya sampai ujung, lalu kembali
+// ke perilaku default. Terhalang -> menuju tile jalur terdekat di depan (moveToward menghitung
+// jalan memutar). Di persimpangan, jalur diundi acak. Jalur yang sudah selesai tidak diikuti lagi.
+function laneOpts(u) {
+  const out = [];
+  for (const L of lanes) {
+    if ((u.laneDone || []).includes(L.id)) continue;
+    const i = L.tiles.findIndex(p => p[0] === u.r && p[1] === u.c);
+    if (i >= 0) out.push({ L, i });
+  }
+  return out;
+}
+function laneJoin(u) {
+  if (u.owner !== HUMAN || u.locked || u.lane || !lanes.length) return false;
+  const o = laneOpts(u).filter(x => x.i < x.L.tiles.length - 1);
+  if (!o.length) return false;
+  const p = o[Math.floor(Math.random() * o.length)];
+  u.lane = { id: p.L.id, idx: p.i };
+  return true;
+}
+async function execLane(u) {
+  if (u.owner !== HUMAN || u.locked || !lanes.length) return false;
+  if (!u.lane && !lanes.some(L => L.tiles.some(p => p[0] === u.r && p[1] === u.c))) u.laneDone = [];
+  for (let g = 0; g < 60 && u.mp > 0 && units.includes(u); g++) {
+    let opts = laneOpts(u);
+    for (const o of opts) if (o.i >= o.L.tiles.length - 1) { (u.laneDone = u.laneDone || []).push(o.L.id); if (u.lane && u.lane.id === o.L.id) u.lane = null; }
+    opts = opts.filter(o => o.i < o.L.tiles.length - 1);
+    if (u.lane && !lanes.some(l => l.id === u.lane.id)) u.lane = null;        // jalur dihapus pemain
+    if (opts.length > 1 || (opts.length === 1 && !u.lane)) {
+      const p = opts[Math.floor(Math.random() * opts.length)]; u.lane = { id: p.L.id, idx: p.i };
+    } else if (opts.length === 1) u.lane = { id: opts[0].L.id, idx: opts[0].i };
+    if (!u.lane) return false;
+    const L = lanes.find(l => l.id === u.lane.id), e = L.tiles[L.tiles.length - 1];
+    if (hexDistance(u.r, u.c, e[0], e[1]) <= 1 && isTileBlocked(e[0], e[1])) { (u.laneDone = u.laneDone || []).push(L.id); u.lane = null; continue; }
+    const ahead = new Set(L.tiles.slice(u.lane.idx + 1).map(p => p[0] * COLS + p[1]));
+    if (!(await moveToward(u, (r, c) => ahead.has(r * COLS + c) && tileFree(u, r, c), null))) break;
+    const j = L.tiles.findIndex(p => p[0] === u.r && p[1] === u.c);
+    if (j > u.lane.idx) u.lane.idx = j;
+  }
+  return !!u.lane;
+}
+
 async function execCombat(u) {
   applySemangatBesi(u);
+  const busy = await execLane(u);
   const tgt = resolveTarget(u);
-  if (tgt && u.mp > 0) await moveToward(u, goalForTarget(u, tgt, 'range'), tgt);
+  if (!busy && tgt && u.mp > 0) { await moveToward(u, goalForTarget(u, tgt, 'range'), tgt); if (u.lane) await execLane(u); }
   clearReachedHex(u);
   await autoAttack(u);
 }
@@ -330,6 +379,7 @@ async function execJob(u) {
 }
 
 async function execNonCombat(u) {
+  if (!u.buildOrder && u.job !== 'fuel' && u.job !== 'medical' && await execLane(u)) return;
   if (u.buildOrder) return execBuildOrder(u);
   if (u.job === 'fuel' || u.job === 'medical') return execJob(u);
   if (u.target) {
@@ -344,6 +394,7 @@ async function execNonCombat(u) {
 // ---------------------------------------------------------------
 function beginPlanning() {
   phase = 'plan';
+  if (currentPlayerIdx === HUMAN) Sfx.music('plan');
   planTimeLeft = PLAN_SECONDS;
   clearInterval(planTimer);
   updateTurnBar();
@@ -375,6 +426,7 @@ function beginPlanning() {
 async function runExecution() {
   if (phase !== 'plan' || gameOver) return;
   phase = 'exec';
+  Sfx.executeStart(); Sfx.music('battle');
   clearInterval(planTimer);
   cancelActionMode();
   closeAllPanels();
@@ -382,7 +434,8 @@ async function runExecution() {
   draw();
 
   const pIdx = currentPlayerIdx;
-  if (pIdx === HUMAN) dmgFeedReset();           // satu putaran = eksekusi manusia + bot
+  dmgFeedReset();                               // log damage dikosongkan di awal tiap eksekusi (sekutu / musuh)
+  if (laneMode) toggleLaneMode();
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;

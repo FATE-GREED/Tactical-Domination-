@@ -131,3 +131,9 @@ html, body {
 }
 #dmgfeed .dtotal { margin-top: 4px; color: #ddd; font-weight: bold; }
 #pauseBtn { margin-right: 6px; }
+
+#sndBtn { min-width: 40px; }
+#laneBtn.on { background: #2d6cdf; color: #fff; }
+#killfeed { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 30; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#killfeed .kill { background: rgba(0,0,0,0.72); padding: 5px 14px; border-radius: 6px; font-weight: bold; font-size: 15px; color: #fff; animation: killfade 3.2s forwards; }
+@keyframes killfade { 0% { opacity: 0; transform: translateY(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }

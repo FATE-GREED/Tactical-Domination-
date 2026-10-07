@@ -36,13 +36,15 @@ function clearLongPress() { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null
 function initInput() {
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   canvas.addEventListener('mousedown', e => {
+    if (laneMode && canAct()) { laneStart(e.clientX, e.clientY); return; }
     dragging = true; dragMoved = false;
     lastX = e.clientX; lastY = e.clientY;
     canvas.classList.add('dragging');
     armLongPress(e.clientX, e.clientY);
   });
-  window.addEventListener('mouseup', () => { dragging = false; clearLongPress(); canvas.classList.remove('dragging'); });
+  window.addEventListener('mouseup', () => { laneEnd(); dragging = false; clearLongPress(); canvas.classList.remove('dragging'); });
   window.addEventListener('mousemove', e => {
+    if (laneDraft) { laneMove(e.clientX, e.clientY); return; }
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) { dragMoved = true; clearLongPress(); }
@@ -60,10 +62,12 @@ function initInput() {
   canvas.addEventListener('click', onCanvasClick);
   document.getElementById('endturn').addEventListener('click', onEndTurnClick);
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
+  document.getElementById('laneBtn').addEventListener('click', toggleLaneMode);
   document.getElementById('restartBtn').addEventListener('click', () => location.reload());
 
   // ---------- Touch: pan 1 jari, pinch-zoom 2 jari, tahan lama ----------
   canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1 && laneMode && canAct()) { laneStart(e.touches[0].clientX, e.touches[0].clientY); return; }
     if (e.touches.length === 1) {
       dragging = true; dragMoved = false;
       lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
@@ -77,6 +81,7 @@ function initInput() {
   }, { passive: true });
 
   canvas.addEventListener('touchmove', e => {
+    if (laneDraft && e.touches.length === 1) { laneMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); return; }
     if (e.touches.length === 1 && dragging) {
       const t = e.touches[0];
       const dx = t.clientX - lastX, dy = t.clientY - lastY;
@@ -101,7 +106,7 @@ function initInput() {
     }
   }, { passive: false });
 
-  const endTouch = () => { dragging = false; clearLongPress(); canvas.classList.remove('dragging'); };
+  const endTouch = () => { laneEnd(); dragging = false; clearLongPress(); canvas.classList.remove('dragging'); };
   canvas.addEventListener('touchend', endTouch, { passive: true });
   canvas.addEventListener('touchcancel', endTouch, { passive: true });
 }
@@ -220,7 +225,7 @@ function handleOccupyPick(r, c) {
 }
 
 function onCanvasClick(e) {
-  if (gameOver) return;
+  if (gameOver || laneMode) return;
   if (dragMoved) return;
   if (Date.now() < suppressClickUntil) return;
   if (!canAct()) return;

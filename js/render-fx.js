@@ -369,6 +369,15 @@ function drawIcon(iconFn, cx, cy, size) {
 }
 
 // Gambar 1 unit lengkap (chip warna pemilik + border + ikon) di posisi (x,y) manapun
+// Bar HP di atas entitas: sekutu biru, musuh merah (panjang isi = sisa HP). Garnisun (HP tak hingga) tanpa bar.
+function drawHpBar(x, top, hp, max, mine) {
+  if (!isFinite(max) || max <= 0) return;
+  const w = HEX_SIZE, h = Math.max(HEX_SIZE * 0.16, 3 / scale), y = top - h - 1.5 / scale;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 0.5, y - 0.5, w + 1, h + 1);
+  ctx.fillStyle = mine ? '#5aa9ff' : '#ff5f5f';
+  ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, hp / max)), h);
+}
+
 function drawUnitSprite(u, x, y) {
   const owner = players[u.owner];
   ctx.beginPath();
@@ -379,6 +388,7 @@ function drawUnitSprite(u, x, y) {
   ctx.stroke();
   const iconFn = UNIT_ICONS[u.type];
   if (iconFn) drawIcon(iconFn, x, y, HEX_SIZE * 0.42);
+  drawHpBar(x, y - HEX_SIZE * 0.45, u.hp, defOf(u).hp, u.owner === HUMAN);
 }
 
 // Gambar 1 bangunan lengkap (chip bulat warna pemilik + ikon) di posisi (x,y)
@@ -388,6 +398,7 @@ function drawBuildingSprite(b, ownerColor, x, y) {
   ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5 / scale; ctx.stroke();
   const iconFn = BUILDING_ICONS[b.type];
   if (iconFn) drawIcon(iconFn, x, y, HEX_SIZE * 0.48);
+  drawHpBar(x, y - HEX_SIZE * 0.55, b.hp, BUILDING_TYPES[b.type].hp, players[HUMAN].buildings.includes(b));
 }
 
 // ---------- Animasi: gerak unit (tween linear singkat) ----------

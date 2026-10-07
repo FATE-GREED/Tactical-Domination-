@@ -28,6 +28,7 @@ function updateTimerUI() {
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
+  Sfx.duck(paused);
   if (paused) { cancelActionMode(); closeAllPanels(); }
   updateTimerUI();
   renderTargetPanel();
@@ -42,6 +43,18 @@ function dmgFeedAdd(attacker, targetName, targetOwner, dmg) {
   dmgFeed.lines.push({ a: unitName(attacker), aOwn: attacker.owner, t: targetName, tOwn: targetOwner, dmg });
   dmgFeed.total += dmg;
   renderDmgFeed();
+}
+// Notifikasi kill ala MOBA: "Infantry → Assault destroy!" (nama sekutu biru, musuh merah)
+function killFeedAdd(a, aOwn, t, tOwn) {
+  const el = document.getElementById('killfeed');
+  if (!el) return;
+  const col = o => (o === HUMAN ? DMG_COL.ally : DMG_COL.foe);
+  const d = document.createElement('div');
+  d.className = 'kill';
+  d.innerHTML = `<span style="color:${col(aOwn)}">${a}</span> → <span style="color:${col(tOwn)}">${t}</span> destroy!`;
+  el.appendChild(d);
+  while (el.children.length > 3) el.firstChild.remove();
+  setTimeout(() => d.remove(), 3200);
 }
 function renderDmgFeed() {
   const el = document.getElementById('dmgfeed');

@@ -31,11 +31,14 @@
 <div id="turnbar" class="panel">
   <span><span class="dot" id="turndot"></span><b id="turntext">Giliran Pemain 1</b> — Turn <span id="turnnum">1</span></span>
   <span id="timer" class="timer"></span>
+  <button id="laneBtn" title="Gambar jalur">🌊 Jalur</button>
+  <button id="sndBtn" title="Suara">🔊</button>
   <button id="pauseBtn">⏸ Pause</button>
   <button id="endturn">Eksekusi ▶</button>
 </div>
 
 <div id="dmgfeed"></div>
+<div id="killfeed"></div>
 <div id="targetpanel" class="panel"></div>
 <div id="deploy" class="panel"></div>
 <div id="entitypanel" class="panel"></div>
@@ -57,6 +60,7 @@
 
 <!-- Urutan penting: state dulu, lalu modul yang bergantung padanya, main.js paling akhir -->
 <script src="js/state.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/map-gen.js"></script>
 <script src="js/setup.js"></script>
 <script src="js/rules-movement.js"></script>
@@ -71,6 +75,7 @@
 <script src="js/render.js"></script>
 <script src="js/ui-orders.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/lanes.js"></script>
 <script src="js/input.js"></script>
 <script src="js/main.js"></script>
 
