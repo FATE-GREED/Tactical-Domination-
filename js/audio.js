@@ -95,7 +95,7 @@ const Sfx = (() => {
     executeStart() { play('execute-start', 0.8); },
     move(u) {
       const now = performance.now();
-      if (now - lastStep < 140 || !audible(u)) return;
+      if (now - lastStep < 150 || !audible(u)) return;
       lastStep = now;
       play(UNITS[u.type] && UNITS[u.type].vehicle ? 'move-vehicle' : 'move-foot', 0.5);
     },

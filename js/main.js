@@ -27,6 +27,9 @@ function startGame(opts) {
   initCanvas();                     // render.js — siapkan canvas & pertama kali draw
   initInput();                      // input.js  — pasang semua event listener
   document.getElementById('pauseBtn').addEventListener('click', togglePause);
+  document.getElementById('pmResume').addEventListener('click', togglePause);
+  document.getElementById('pmRestart').addEventListener('click', () => document.getElementById('restartBtn').click());
+  document.getElementById('pmLobby').addEventListener('click', () => document.getElementById('lobbyBtn').click());
 
   startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
 

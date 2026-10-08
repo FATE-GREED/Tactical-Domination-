@@ -5,6 +5,7 @@ let lanes = [], laneMode = false, laneDraft = null, laneSeq = 1;
 
 function toggleLaneMode() {
   if (!canAct() && !laneMode) return;
+  if (!laneMode && lockMode) toggleLockMode();   // hanya satu mode gambar yang aktif
   laneMode = !laneMode; laneDraft = null;
   const b = document.getElementById('laneBtn');
   b.classList.toggle('on', laneMode);

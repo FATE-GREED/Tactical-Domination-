@@ -44,7 +44,36 @@ function startBuild(corps, type) {
 // berikutnya (dicoba lagi tiap startTurn sampai ada ruang).
 function processBuildProgress(pIdx) {
   const p = players[pIdx];
-  for (const u of units.filter(u => u.owner === pIdx && u.isBuilding)) {
+
+  // --- Markas (2 Corps berdiri di samping tile Markas) ---
+  // Pesanan yang belum mulai tapi salah satu Corps gugur -> batal, tile dibebaskan.
+  for (const site of markasSites.filter(s => !s.started)) {
+    if (site.corpsIds.every(id => units.some(x => x.id === id))) continue;
+    markasSites = markasSites.filter(s => s !== site);
+    for (const id of site.corpsIds) {
+      const x = units.find(y => y.id === id);
+      if (x && x.buildOrder && x.buildOrder.site === site.id) { x.buildOrder = null; x.target = null; }
+    }
+  }
+  for (const site of markasSites.filter(s => s.owner === pIdx && s.started)) {
+    const mates = site.corpsIds.map(id => units.find(x => x.id === id));
+    const free = m => { m.isBuilding = false; m.buildType = null; m.buildTurnsRemaining = 0; m.buildSite = null; };
+    if (mates.some(m => !m)) {                       // salah satu Corps gugur -> proyek gugur
+      mates.forEach(m => { if (m) free(m); });
+      markasSites = markasSites.filter(s => s !== site);
+      continue;
+    }
+    if (site.turnsRemaining > 0) site.turnsRemaining--;
+    mates.forEach(m => { m.buildTurnsRemaining = site.turnsRemaining; });
+    if (site.turnsRemaining <= 0) {
+      markasSites = markasSites.filter(s => s !== site);
+      p.buildings.push({ r: site.r, c: site.c, type: 'markas', hp: BUILDING_TYPES.markas.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+      mates.forEach(free);                           // Corps sudah di tile samping, langsung bebas
+      logAction(`Markas selesai dibangun di (${site.r},${site.c}).`);
+    }
+  }
+
+  for (const u of units.filter(u => u.owner === pIdx && u.isBuilding && u.buildType !== 'markas')) {
     if (u.buildTurnsRemaining > 0) u.buildTurnsRemaining--;
     if (u.buildTurnsRemaining <= 0) {
       const spec = BUILDING_TYPES[u.buildType];
@@ -105,10 +134,18 @@ function loadCorpsIntoAPC(apc, corpsUnit) {
 }
 
 // Turunkan Corps dari APC ke tile kosong bersebelahan. 1 Action.
-function unloadCorpsFromAPC(apc) {
+// `prefer` (opsional {r,c}): tile tujuan; Corps diturunkan di tile kosong sebelah APC yang paling dekat dengannya.
+function unloadCorpsFromAPC(apc, prefer) {
   if (!apc.cargo || apc.cargo.type !== 'corps') return { ok: false, message: 'APC tidak membawa Corps.' };
   if (apc.attacked) return { ok: false, message: 'APC sudah memakai Action giliran ini.' };
-  const spot = emptyAdjacent(apc.r, apc.c, CORPS_DEF);
+  let spot = null;
+  if (prefer) {
+    spot = neighborsOf(apc.r, apc.c)
+      .filter(([nr, nc]) => !isTileBlocked(nr, nc) && tileMoveCost(nr, nc, CORPS_DEF) !== Infinity)
+      .sort((a, b) => hexDistance(a[0], a[1], prefer.r, prefer.c) - hexDistance(b[0], b[1], prefer.r, prefer.c))
+      .map(([nr, nc]) => ({ r: nr, c: nc }))[0] || null;
+  }
+  if (!spot) spot = emptyAdjacent(apc.r, apc.c, CORPS_DEF);
   if (!spot) return { ok: false, message: 'Tidak ada tile kosong di sekitar APC untuk menurunkan Corps.' };
   const corpsUnit = apc.cargo.unit;
   corpsUnit.r = spot.r; corpsUnit.c = spot.c;

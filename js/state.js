@@ -73,6 +73,8 @@ let phase = 'plan';          // 'plan' (rencana) | 'exec' (eksekusi otomatis)
 let planTimeLeft = PLAN_SECONDS, planTimer = null;
 let targetActor = null;      // unit yang sedang dipilihkan target (mode pilih target)
 let occupyHex = null;        // {r,c} hex untuk mode "tempati"
+let markasSites = [];        // lokasi Markas yang sedang dipesan/dibangun {id, owner, r, c, corpsIds, started, turnsRemaining}
+let siteSeq = 1;
 let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
 
 let gameOver = false;

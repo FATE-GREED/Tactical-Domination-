@@ -96,6 +96,8 @@ function draw() {
         const b = p.buildings.find(bb => bb.r === r && bb.c === c);
         if (b) drawBuildingSprite(b, p.color, x, y);
       }
+      const site = markasSites.find(s => s.r === r && s.c === c && s.owner === HUMAN);
+      if (site) drawSiteMarker(site, x, y);
       // unit (hanya digambar kalau terlihat oleh pemain yang sedang giliran, dan bukan yang sedang animasi gerak)
       const u = units.find(uu => uu.r === r && uu.c === c);
       if (u && isVisibleToCurrentPlayer(u) && !(moveAnim && moveAnim.unitId === u.id)) {
@@ -105,6 +107,7 @@ function draw() {
   }
 
   drawLanes();
+  drawLockLines();
   if (phase === 'plan' && currentPlayerIdx === HUMAN) drawOrderMarkers();
 
   const fxNeedsMore = renderFx();
@@ -236,7 +239,7 @@ function showGameOver() {
 function updateActionPanel() {
   const el = document.getElementById('actionpanel');
   const cancel = document.getElementById('cancelBtn');
-  if (!targetActor && !occupyHex && !specialActor) { el.style.display = 'none'; return; }
+  if (!targetActor && !occupyHex && !specialActor && !haulActor) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
   let text, btn = 'Batal';
   if (specialMode) {
@@ -244,6 +247,11 @@ function updateActionPanel() {
     text = labels[specialMode] || 'Pilih target...';
   } else if (targetActor) {
     text = `Target ${unitName(targetActor)} #${targetActor.id}: ketuk musuh, bangunan musuh, atau hex. Ketuk unit ini = default.`;
+  } else if (haulActor) {
+    text = haulCorps
+      ? `Angkut Corps #${haulCorps.id}: ketuk hex tujuan pengantaran, atau Selesai = tanpa tujuan (APC diam).`
+      : `Angkut: ketuk Corps sekutu yang akan diangkut APC #${haulActor.id}.`;
+    btn = haulCorps ? 'Selesai' : 'Batal';
   } else {
     text = `Tempati hex (${occupyHex.r},${occupyHex.c}): ketuk unit sendiri yang dikirim ke sana.`;
     btn = 'Selesai';
@@ -287,6 +295,7 @@ function openEntityPanel(r, c) {
         buttons.push({ id: 'jobIdleBtn', label: (u.job === 'idle' ? '✓ ' : '') + 'Nganggur' });
         buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
         buttons.push({ id: 'jobMedBtn', label: (u.job === 'medical' ? '✓ ' : '') + 'Isi Medical' });
+        if (u.type === 'apc') buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
       }
       if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
     }
@@ -338,7 +347,8 @@ function openEntityPanel(r, c) {
   bind('jobIdleBtn', () => { setJob(target.obj, 'idle'); refresh(); });
   bind('jobFuelBtn', () => { setJob(target.obj, 'fuel'); refresh(); });
   bind('jobMedBtn', () => { setJob(target.obj, 'medical'); refresh(); });
-  bind('lockBtn', () => { target.obj.locked = !target.obj.locked; refresh(); });
+  bind('jobHaulBtn', () => { el.style.display = 'none'; startHaulMode(target.obj); });
+  bind('lockBtn', () => { manualLockToggle(target.obj); refresh(); });
   bind('resetBtn', () => { resetUnit(target.obj); refresh(); });
   bind('deployBtn', () => { el.style.display = 'none'; openDeployPanel(target.obj, owner); });
   bind('loadFuelBtn', () => runAndRefreshEntity(target.obj, () => loadCargo(target.obj, 'fuel'), r, c));

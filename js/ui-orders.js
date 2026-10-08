@@ -28,6 +28,8 @@ function updateTimerUI() {
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
+  const pm = document.getElementById('pausemenu');
+  if (pm) pm.hidden = !paused;                 // menu pause: Restart / Lobby / Lanjutkan, memblokir semua sentuhan
   Sfx.duck(paused);
   if (paused) { cancelActionMode(); closeAllPanels(); }
   updateTimerUI();
@@ -77,6 +79,11 @@ function targetLabelBase(u) {
   if (!def.combat) {
     if (u.job === 'fuel') return 'Job: Isi Fuel';
     if (u.job === 'medical') return 'Job: Isi Medical';
+    if (u.job === 'angkut') {
+      const h = u.haul;
+      if (!h) return 'Job: Angkut Corps';
+      return h.dest ? `Job: Angkut Corps #${h.corpsId} → (${h.dest.r},${h.dest.c})` : `Job: Angkut Corps #${h.corpsId} (tanpa tujuan)`;
+    }
     if (!u.target) return 'Nganggur';
   }
   const t = u.target;
@@ -148,12 +155,12 @@ function openBuildPanelAt(r, c) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
   const owner = HUMAN;
-  const buildable = ['pom', 'pospemulihan', 'jembatan', 'barak', 'benteng'];
+  const buildable = ['markas', 'pom', 'pospemulihan', 'jembatan', 'barak', 'benteng'];
   let html = `<span class="close" id="deployclose">✕</span><h3>Bangun di hex (${r},${c})</h3>`;
   html += buildable.map(type => {
     const spec = BUILDING_TYPES[type];
     const why = buildOrderBlockReason(owner, type, r, c);
-    return `<div class="unitrow"><span>${spec.name} ${why ? '(' + why + ')' : '(' + spec.turnsRequired + ' giliran)'}</span><button data-build="${type}" ${why ? 'disabled' : ''}>Bangun</button></div>`;
+    return `<div class="unitrow"><span>${spec.name} ${why ? '(' + why + ')' : '(' + (spec.corpsRequired > 1 ? spec.corpsRequired + ' Corps, ' : '') + spec.turnsRequired + ' giliran)'}</span><button data-build="${type}" ${why ? 'disabled' : ''}>Bangun</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
@@ -186,10 +193,47 @@ function drawOrderMarkers() {
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(b.x, b.y, HEX_SIZE * 0.7, 0, Math.PI * 2); ctx.stroke();
   }
+  // Job Angkut: garis APC -> Corps yang dijemput -> tujuan
+  for (const u of units) {
+    if (u.owner !== HUMAN || u.job !== 'angkut' || !u.haul) continue;
+    const a = hexCenter(u.r, u.c);
+    const cu = units.find(x => x.id === u.haul.corpsId);
+    ctx.strokeStyle = 'rgba(120,230,160,0.9)';
+    ctx.setLineDash([5 / scale, 5 / scale]);
+    let from = a;
+    if (cu) {
+      const b = hexCenter(cu.r, cu.c);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]); ctx.beginPath(); ctx.arc(b.x, b.y, HEX_SIZE * 0.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([5 / scale, 5 / scale]);
+      from = b;
+    }
+    if (u.haul.dest) {
+      const d = hexCenter(u.haul.dest.r, u.haul.dest.c);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(d.x, d.y); ctx.stroke();
+      ctx.setLineDash([]); ctx.beginPath(); ctx.arc(d.x, d.y, HEX_SIZE * 0.7, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
   if (occupyHex) {
     const h = hexCenter(occupyHex.r, occupyHex.c);
     ctx.strokeStyle = '#7ec4e8'; ctx.lineWidth = 3 / scale;
     ctx.beginPath(); ctx.arc(h.x, h.y, HEX_SIZE * 0.85, 0, Math.PI * 2); ctx.stroke();
   }
+  ctx.restore();
+}
+
+// ---------- Penanda lokasi Markas yang sedang dipesan / dibangun (milik pemain) ----------
+function drawSiteMarker(site, x, y) {
+  ctx.save();
+  ctx.strokeStyle = PLAYER_COLORS[site.owner]; ctx.lineWidth = 2 / scale;
+  ctx.setLineDash([4 / scale, 3 / scale]);
+  ctx.beginPath();
+  hexCorners(x, y, HEX_SIZE - 2).forEach(([px, py], i) => i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
+  ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 0.6; ctx.fillStyle = PLAYER_COLORS[site.owner];
+  ctx.font = `bold ${HEX_SIZE * 0.9}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(site.started ? 'M' + site.turnsRemaining : 'M?', x, y);
   ctx.restore();
 }

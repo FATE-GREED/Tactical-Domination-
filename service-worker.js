@@ -1,7 +1,7 @@
 // Service Worker: cache semua file game saat pertama kali dibuka, supaya
 // bisa dimainkan offline setelahnya (khas PWA). Versi cache dinaikkan
 // manual kalau ada update file game.
-const CACHE_NAME = 'tactical-domination-v8-5';
+const CACHE_NAME = 'tactical-domination-v8-7';
 const ASSETS = [
   './',
   './manifest.json',
@@ -10,6 +10,7 @@ const ASSETS = [
   './js/state.js',
   './js/audio.js',
   './js/lanes.js',
+  './js/lockrows.js',
   './js/map-gen.js',
   './js/setup.js',
   './js/rules-movement.js',

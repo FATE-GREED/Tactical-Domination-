@@ -113,11 +113,32 @@
       </div>`;
   }
 
+  // ---------- Loading screen singkat sebelum game dimulai ----------
+  // startGame() sinkron & berat (generate peta), jadi garis dijalankan lewat transisi CSS
+  // lebih dulu, baru startGame() dipanggil. Tampil minimal MIN ms supaya terlihat.
+  const loading = $('loading'), ldFill = $('ldFill');
+  function showLoading(work) {
+    const MIN = 1400, t0 = performance.now();
+    loading.hidden = false; loading.classList.remove('hide');
+    ldFill.style.transition = 'none'; ldFill.style.transform = 'scaleX(0)';
+    void loading.offsetWidth;
+    ldFill.style.transition = `transform ${MIN * 0.85}ms cubic-bezier(.25,.6,.35,1)`;
+    ldFill.style.transform = 'scaleX(.9)';
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+      try { work(); } catch (err) { console.warn('startGame gagal:', err); }
+      setTimeout(() => {
+        ldFill.style.transition = 'transform .25s ease-out'; ldFill.style.transform = 'scaleX(1)';
+        setTimeout(() => {
+          loading.classList.add('hide');
+          setTimeout(() => { loading.hidden = true; }, 450);
+        }, 300);
+      }, Math.max(0, MIN - (performance.now() - t0)));
+    }, 40)));
+  }
+
   function enterGame(opts) {
     closeModal();
-    lobby.classList.add('leaving');
-    setTimeout(() => { lobby.style.display = 'none'; }, 380);
-    startGame(opts);
+    showLoading(() => { lobby.style.display = 'none'; startGame(opts); });
   }
 
   // ---------- Event ----------
@@ -153,7 +174,7 @@
   try { auto = sessionStorage.getItem('td-autostart') === '1'; sessionStorage.removeItem('td-autostart'); } catch (e) {}
   if (auto) {
     lobby.style.display = 'none';
-    startGame({ mode: 'bot', level: 'sulit' });
+    showLoading(() => startGame({ mode: 'bot', level: 'sulit' }));
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
   }

@@ -55,9 +55,25 @@ function resolveTarget(u) {
   return m ? { kind: 'building', r: m.r, c: m.c, obj: m, isDefault: true } : null;
 }
 
-function setUnitTarget(u, target) { u.target = target; u.buildOrder = null; if (!defOf(u).combat) u.job = 'idle'; }
-function resetUnit(u) { u.target = null; u.buildOrder = null; u.job = 'idle'; }
-function setJob(u, job) { u.job = job; u.target = null; u.buildOrder = null; }
+// Batalkan pesanan Markas milik Corps ini (pesanan Markas melibatkan 2 Corps, jadi pasangannya ikut batal)
+function cancelMarkasSite(site, u) {
+  if (site) {
+    markasSites = markasSites.filter(s => s !== site);
+    for (const id of site.corpsIds) {
+      const x = units.find(y => y.id === id);
+      if (x && x.buildOrder && x.buildOrder.site === site.id) { x.buildOrder = null; x.target = null; }
+    }
+  }
+  if (u) { u.buildOrder = null; u.target = null; }
+}
+function dropBuildOrder(u) {
+  if (u.buildOrder && u.buildOrder.type === 'markas') cancelMarkasSite(markasSites.find(s => s.id === u.buildOrder.site), u);
+}
+function setUnitTarget(u, target) { dropBuildOrder(u); u.target = target; u.buildOrder = null; u.haul = null; if (!defOf(u).combat) u.job = 'idle'; }
+function resetUnit(u) { dropBuildOrder(u); u.target = null; u.buildOrder = null; u.haul = null; u.job = 'idle'; }
+function setJob(u, job) { dropBuildOrder(u); u.job = job; u.target = null; u.buildOrder = null; u.haul = null; }
+// Job Angkut (APC): jemput Corps `corpsId`, antar ke `dest` ({r,c}) bila ada; tanpa tujuan APC diam.
+function setHaulJob(u, corpsId, dest) { dropBuildOrder(u); u.job = 'angkut'; u.target = null; u.buildOrder = null; u.haul = { corpsId, dest: dest || null }; }
 
 // ---------------------------------------------------------------
 // Perintah bangun (tekan lama hex -> Bangun)
@@ -75,6 +91,7 @@ function nearestIdleCorps(owner, r, c) {
   return best;
 }
 function pendingBuildCount(owner, type) {
+  if (type === 'markas') return markasSites.filter(s => s.owner === owner).length; // 1 pesanan = 2 Corps
   return units.filter(u => u.owner === owner && u.buildOrder && u.buildOrder.type === type).length;
 }
 // Cek apakah bangunan `type` boleh dipesan di hex (r,c). Mengembalikan alasan penolakan atau null.
@@ -91,12 +108,40 @@ function buildOrderBlockReason(owner, type, r, c) {
     if (terr !== 'grass') return 'butuh tile Grass';
     if (isTileBlocked(r, c)) return 'tile terisi';
   }
-  if (!nearestIdleCorps(owner, r, c)) return 'tidak ada Corps nganggur';
+  if (units.some(u => u.owner === owner && u.buildOrder && u.buildOrder.r === r && u.buildOrder.c === c)) return 'tile sudah dipesan';
+  if (type === 'markas') {
+    if (idleCorpsSorted(owner, r, c).length < spec.corpsRequired) return `butuh ${spec.corpsRequired} Corps nganggur`;
+    if (siteSlots(r, c, []).length < spec.corpsRequired) return 'ruang di sekitar tile kurang';
+  } else if (!nearestIdleCorps(owner, r, c)) return 'tidak ada Corps nganggur';
   return null;
+}
+function idleCorpsSorted(owner, r, c) {
+  return units.filter(u => isIdleCorps(u, owner)).sort((a, b) => hexDistance(a.r, a.c, r, c) - hexDistance(b.r, b.c, r, c));
+}
+// Tile kosong di samping (r,c) yang bisa dipijak Corps (tempat Corps berdiri saat membangun Markas)
+function siteSlots(r, c, taken) {
+  return neighborsOf(r, c)
+    .filter(([nr, nc]) => !isTileBlocked(nr, nc) && tileMoveCost(nr, nc, CORPS_DEF) !== Infinity && !taken.some(t => t[0] === nr && t[1] === nc))
+    .map(([nr, nc]) => ({ r: nr, c: nc }));
 }
 function orderBuild(owner, type, r, c) {
   const why = buildOrderBlockReason(owner, type, r, c);
   if (why) return { ok: false, message: `Tidak bisa membangun: ${why}.` };
+  if (type === 'markas') {                      // Markas: 2 Corps terdekat otomatis dipanggil, membangun di samping tile
+    const spec = BUILDING_TYPES.markas;
+    const cs = idleCorpsSorted(owner, r, c).slice(0, spec.corpsRequired);
+    const slots = siteSlots(r, c, []);
+    const site = { id: siteSeq++, owner, r, c, corpsIds: cs.map(x => x.id), started: false, turnsRemaining: spec.turnsRequired };
+    const used = [];
+    for (const cu of cs) {
+      const s = slots.filter(x => !used.includes(x)).sort((a, b) => hexDistance(cu.r, cu.c, a.r, a.c) - hexDistance(cu.r, cu.c, b.r, b.c))[0];
+      used.push(s);
+      cu.buildOrder = { type, r, c, slot: { r: s.r, c: s.c }, site: site.id };
+      cu.target = { kind: 'hex', r: s.r, c: s.c };
+    }
+    markasSites.push(site);
+    return { ok: true, message: `Corps #${cs.map(x => x.id).join(' & #')} berangkat membangun Markas di (${r},${c}).` };
+  }
   const corps = nearestIdleCorps(owner, r, c);
   corps.buildOrder = { type, r, c };
   corps.target = { kind: 'hex', r, c };
@@ -127,6 +172,7 @@ function findPath(u, goalFn, extraBlocked, near) {
   const occ = new Map();
   for (const o of units) if (o !== u) occ.set(key(o.r, o.c), o.owner === u.owner ? 'ally' : 'enemy');
   for (const p of players) for (const b of p.buildings) if (b.type !== 'jembatan') occ.set(key(b.r, b.c), 'block');
+  for (const s of markasSites) occ.set(key(s.r, s.c), 'block');
 
   const N = ROWS * COLS;
   const dist = new Array(N).fill(Infinity), prev = new Array(N).fill(-1);
@@ -191,9 +237,10 @@ async function moveAlongPath(u, path) {
     if (free) u.roadFreeUsesLeft--;
     u.r = r; u.c = c;
     moved = true;
-    startMoveAnim(u, fr, fc, 80);
+    startMoveAnim(u, fr, fc, 170);
     Sfx.move(u);
-    await sleep(90);
+    await sleep(180);
+    if (lockOnStep(u)) break;                   // menginjak Baris Kunci -> langsung terkunci (lockrows.js)
     if (laneJoin(u)) break;                     // baru menginjak jalur -> langsung ikut jalur
   }
   return { moved, blockedAt };
@@ -322,8 +369,38 @@ async function execCombat(u) {
   await autoAttack(u);
 }
 
+// Markas: 2 Corps berdiri di tile samping Markas; hitungan giliran baru mulai saat keduanya sudah tiba.
+async function execMarkasOrder(u) {
+  const o = u.buildOrder;
+  const site = markasSites.find(s => s.id === o.site);
+  const mate = site && units.find(x => x.id === site.corpsIds.find(id => id !== u.id));
+  if (!site || !mate) { cancelMarkasSite(site, u); return; }
+  const atSlot = x => x.buildOrder && x.r === x.buildOrder.slot.r && x.c === x.buildOrder.slot.c;
+  if (!atSlot(u)) {
+    let s = o.slot;
+    if (isTileBlocked(s.r, s.c)) {               // slot terisi unit lain -> cari tile samping lain
+      const taken = mate.buildOrder ? [[mate.buildOrder.slot.r, mate.buildOrder.slot.c]] : [];
+      const alt = siteSlots(site.r, site.c, taken).sort((a, b) => hexDistance(u.r, u.c, a.r, a.c) - hexDistance(u.r, u.c, b.r, b.c))[0];
+      if (alt) { o.slot = { r: alt.r, c: alt.c }; s = o.slot; u.target = { kind: 'hex', r: s.r, c: s.c }; }
+    }
+    await moveToward(u, (r, c) => r === s.r && c === s.c && tileFree(u, r, c), s);
+  }
+  if (atSlot(u) && atSlot(mate)) {
+    const spec = BUILDING_TYPES.markas;
+    for (const x of [u, mate]) {
+      x.isBuilding = true; x.buildType = 'markas'; x.buildSite = site.id; x.buildTurnsRemaining = spec.turnsRequired;
+      x.attacked = true; x.mp = 0; x.buildOrder = null; x.target = null;
+    }
+    site.started = true; site.turnsRemaining = spec.turnsRequired;
+    logAction(`Corps #${u.id} & #${mate.id}: mulai membangun Markas (${spec.turnsRequired} giliran).`);
+    renderResourcePanels(); draw();
+    await sleep(250);
+  }
+}
+
 async function execBuildOrder(u) {
   const o = u.buildOrder;
+  if (o.type === 'markas') return execMarkasOrder(u);
   if (u.r !== o.r || u.c !== o.c) await moveToward(u, (r, c) => r === o.r && c === o.c && tileFree(u, r, c), o);
   if (u.r === o.r && u.c === o.c) {
     const res = startBuild(u, o.type);
@@ -378,9 +455,42 @@ async function execJob(u) {
   if (pool.length && hexDistance(u.r, u.c, pool[0].r, pool[0].c) > 1) await moveToward(u, adj(pool[0].r, pool[0].c), pool[0]);
 }
 
+// Job Angkut (APC): jemput Corps terpilih -> antar ke tujuan -> turunkan. Tanpa tujuan APC diam.
+async function execHaul(u) {
+  const h = u.haul;
+  if (!h) { u.job = 'idle'; return; }
+  const adj = (tx, ty) => (r, c) => tileFree(u, r, c) && hexDistance(r, c, tx, ty) <= 1;
+  if (!(u.cargo && u.cargo.type === 'corps')) {
+    if (u.cargo) return;                                      // sedang membawa Fuel/Medical
+    const cu = units.find(x => x.id === h.corpsId && x.owner === u.owner);
+    if (!cu || cu.isBuilding || cu.cargo) {                   // Corps hilang / sibuk -> job batal
+      logAction(`APC #${u.id}: Corps #${h.corpsId} tidak tersedia, job angkut batal`);
+      resetUnit(u); return;
+    }
+    if (hexDistance(u.r, u.c, cu.r, cu.c) > 1) await moveToward(u, adj(cu.r, cu.c), cu);
+    if (units.includes(cu) && hexDistance(u.r, u.c, cu.r, cu.c) === 1 && !u.attacked) {
+      const res = loadCorpsIntoAPC(u, cu);
+      if (res.ok) { logAction(`APC #${u.id}: Corps #${cu.id} naik`); renderTargetPanel(); draw(); await sleep(250); }
+    }
+    return;
+  }
+  if (!h.dest) return;                                        // tanpa tujuan: APC diam
+  const d = h.dest;
+  if (hexDistance(u.r, u.c, d.r, d.c) > 1 && u.mp > 0) await moveToward(u, adj(d.r, d.c), d);
+  if (hexDistance(u.r, u.c, d.r, d.c) <= 1 && !u.attacked) {
+    const res = unloadCorpsFromAPC(u, d);
+    if (res.ok) {
+      logAction(`APC #${u.id}: Corps diturunkan di dekat (${d.r},${d.c})`);
+      u.job = 'idle'; u.haul = null;
+      renderTargetPanel(); draw(); await sleep(250);
+    }
+  }
+}
+
 async function execNonCombat(u) {
-  if (!u.buildOrder && u.job !== 'fuel' && u.job !== 'medical' && await execLane(u)) return;
+  if (!u.buildOrder && u.job !== 'fuel' && u.job !== 'medical' && u.job !== 'angkut' && await execLane(u)) return;
   if (u.buildOrder) return execBuildOrder(u);
+  if (u.job === 'angkut') return execHaul(u);
   if (u.job === 'fuel' || u.job === 'medical') return execJob(u);
   if (u.target) {
     const tgt = resolveTarget(u);
@@ -431,6 +541,8 @@ async function runExecution() {
   const pIdx = currentPlayerIdx;
   dmgFeedReset();                               // log damage dikosongkan di awal tiap eksekusi (sekutu / musuh)
   if (laneMode) toggleLaneMode();
+  if (lockMode) toggleLockMode();
+  if (pIdx === HUMAN) units.forEach(lockOnStep);   // unit yang sudah berdiri di tile Baris Kunci ikut terkunci
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;

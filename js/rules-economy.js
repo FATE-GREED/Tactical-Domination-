@@ -40,9 +40,10 @@ function spawnCorps(pIdx) {
 function startTurn(pIdx) {
   const p = players[pIdx];
   const markasCount = p.buildings.filter(b => b.type === 'markas').length;
+  const barakCount = p.buildings.filter(b => b.type === 'barak').length;
   const pomCount = p.buildings.filter(b => b.type === 'pom').length;
   const pospemulihanCount = p.buildings.filter(b => b.type === 'pospemulihan').length;
-  p.resources.kredit += 30 * markasCount;
+  p.resources.kredit += 30 * markasCount + 20 * barakCount; // Markas +30, tiap Barak +20
   p.resources.fuel += 50 * pomCount;
   p.resources.medical += 50 * pospemulihanCount;
   p.barakSlots = 2;

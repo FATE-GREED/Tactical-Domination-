@@ -17,6 +17,8 @@ let attackable = [];
 let specialMode = null;          // 'recovery' | 'supplyFuel' | 'supplyMedical'
 let specialActor = null;
 let specialTargets = [];
+let haulActor = null;            // APC yang sedang diatur job Angkut Corps
+let haulCorps = null;            // Corps yang sudah dipilih (langkah 2: pilih tujuan)
 let pendingTile = null;
 let iconHitboxes = { info: null, entity: null };
 let lpTimer = null, suppressClickUntil = 0;
@@ -37,14 +39,16 @@ function initInput() {
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   canvas.addEventListener('mousedown', e => {
     if (laneMode && canAct()) { laneStart(e.clientX, e.clientY); return; }
+    if (lockMode && canAct()) { lockStart(e.clientX, e.clientY); return; }
     dragging = true; dragMoved = false;
     lastX = e.clientX; lastY = e.clientY;
     canvas.classList.add('dragging');
     armLongPress(e.clientX, e.clientY);
   });
-  window.addEventListener('mouseup', () => { laneEnd(); dragging = false; clearLongPress(); canvas.classList.remove('dragging'); });
+  window.addEventListener('mouseup', () => { laneEnd(); lockEnd(); dragging = false; clearLongPress(); canvas.classList.remove('dragging'); });
   window.addEventListener('mousemove', e => {
     if (laneDraft) { laneMove(e.clientX, e.clientY); return; }
+    if (lockDraft) { lockMove(e.clientX, e.clientY); return; }
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) { dragMoved = true; clearLongPress(); }
@@ -63,6 +67,7 @@ function initInput() {
   document.getElementById('endturn').addEventListener('click', onEndTurnClick);
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
   document.getElementById('laneBtn').addEventListener('click', toggleLaneMode);
+  document.getElementById('lockLineBtn').addEventListener('click', toggleLockMode);
   // Main Lagi: muat ulang lalu langsung mulai ronde baru (lewati lobby). Lobby: muat ulang biasa.
   document.getElementById('restartBtn').addEventListener('click', () => {
     try { sessionStorage.setItem('td-autostart', '1'); } catch (e) {}
@@ -76,6 +81,7 @@ function initInput() {
   // ---------- Touch: pan 1 jari, pinch-zoom 2 jari, tahan lama ----------
   canvas.addEventListener('touchstart', e => {
     if (e.touches.length === 1 && laneMode && canAct()) { laneStart(e.touches[0].clientX, e.touches[0].clientY); return; }
+    if (e.touches.length === 1 && lockMode && canAct()) { lockStart(e.touches[0].clientX, e.touches[0].clientY); return; }
     if (e.touches.length === 1) {
       dragging = true; dragMoved = false;
       lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
@@ -90,6 +96,7 @@ function initInput() {
 
   canvas.addEventListener('touchmove', e => {
     if (laneDraft && e.touches.length === 1) { laneMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); return; }
+    if (lockDraft && e.touches.length === 1) { lockMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); return; }
     if (e.touches.length === 1 && dragging) {
       const t = e.touches[0];
       const dx = t.clientX - lastX, dy = t.clientY - lastY;
@@ -114,7 +121,7 @@ function initInput() {
     }
   }, { passive: false });
 
-  const endTouch = () => { laneEnd(); dragging = false; clearLongPress(); canvas.classList.remove('dragging'); };
+  const endTouch = () => { laneEnd(); lockEnd(); dragging = false; clearLongPress(); canvas.classList.remove('dragging'); };
   canvas.addEventListener('touchend', endTouch, { passive: true });
   canvas.addEventListener('touchcancel', endTouch, { passive: true });
 }
@@ -154,7 +161,7 @@ function closeAllPanels() {
 function onLongPress(x, y) {
   const tile = tileFromScreen(x, y);
   if (!tile) return;
-  if (targetActor || occupyHex || specialMode) return;
+  if (targetActor || occupyHex || specialMode || haulActor) return;
   pendingTile = null;
   closeAllPanels();
   const own = units.find(u => u.r === tile.r && u.c === tile.c && u.owner === HUMAN);
@@ -184,6 +191,45 @@ function startOccupyMode(r, c) {
   updateActionPanel();
   draw();
 }
+// ---------- Job Angkut Corps (APC): 1) pilih Corps, 2) (opsional) pilih tujuan ----------
+function startHaulMode(apc) {
+  cancelActionMode();
+  if (apc.cargo && apc.cargo.type !== 'corps') { alert('APC sedang membawa Fuel/Medical, tidak bisa mengangkut Corps.'); return; }
+  haulActor = apc; haulCorps = null; selectedUnit = apc; pendingTile = null;
+  if (apc.cargo) {                              // sudah membawa Corps -> langsung pilih tujuan
+    haulCorps = apc.cargo.unit;
+    setHaulJob(apc, haulCorps.id, null);
+    renderTargetPanel();
+  }
+  closeAllPanels();
+  updateActionPanel();
+  draw();
+}
+function finishHaul() {
+  haulActor = null; haulCorps = null; selectedUnit = null;
+  updateActionPanel(); renderTargetPanel(); draw();
+}
+function handleHaulPick(r, c) {
+  const apc = haulActor;
+  if (!haulCorps) {                             // langkah 1: pilih Corps sekutu
+    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && u.type === 'corps');
+    if (!cu) return;
+    if (cu.isBuilding) { alert('Corps ini sedang membangun.'); return; }
+    if (cu.cargo) { alert('Corps yang sedang membawa muatan tidak bisa diangkut.'); return; }
+    resetUnit(cu);                              // Corps berhenti dan menunggu dijemput
+    setHaulJob(apc, cu.id, null);
+    haulCorps = cu;
+    logAction(`APC #${apc.id} → angkut Corps #${cu.id}`);
+    updateActionPanel(); renderTargetPanel(); draw();
+    return;
+  }
+  if (r === apc.r && c === apc.c) { finishHaul(); return; }   // ketuk APC = tanpa tujuan
+  if (tileMoveCost(r, c, CORPS_DEF) === Infinity) { alert('Corps tidak bisa diturunkan di hex ini.'); return; }
+  apc.haul.dest = { r, c };
+  logAction(`APC #${apc.id}: antar Corps #${haulCorps.id} ke (${r},${c})`);
+  finishHaul();
+}
+
 function finishTargetMode() {
   targetActor = null; selectedUnit = null;
   updateActionPanel();
@@ -233,7 +279,7 @@ function handleOccupyPick(r, c) {
 }
 
 function onCanvasClick(e) {
-  if (gameOver || laneMode) return;
+  if (gameOver || laneMode || lockMode) return;
   if (dragMoved) return;
   if (Date.now() < suppressClickUntil) return;
   if (!canAct()) return;
@@ -252,6 +298,7 @@ function onCanvasClick(e) {
   const { r, c } = tile;
 
   // 1) Mode tempati / pilih target
+  if (haulActor) { handleHaulPick(r, c); return; }
   if (occupyHex) { handleOccupyPick(r, c); return; }
   if (targetActor) { handleTargetPick(r, c); return; }
 
@@ -288,7 +335,7 @@ function onCanvasClick(e) {
 function cancelActionMode() {
   selectedUnit = null; reachable.clear(); attackMode = false; attackable = [];
   specialMode = null; specialActor = null; specialTargets = [];
-  targetActor = null; occupyHex = null;
+  targetActor = null; occupyHex = null; haulActor = null; haulCorps = null;
   updateActionPanel();
   draw();
 }

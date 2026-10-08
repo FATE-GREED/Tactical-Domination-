@@ -181,3 +181,26 @@ html, body {
 /* Layar akhir: dua tombol berdampingan */
 #gameover .go-btns { display: flex; gap: 10px; justify-content: center; }
 #gameover button { padding: 6px 18px; font-size: 13px; }
+
+/* ---------- v8.6: Baris Kunci ---------- */
+#lockLineBtn.on { background: #d9822b; color: #fff; }
+#turnbar { overflow-x: auto; scrollbar-width: none; }
+#turnbar::-webkit-scrollbar { display: none; }
+
+
+/* ---------- v8.7: Menu pause (memblokir semua sentuhan) ---------- */
+#pausemenu {
+  position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center;
+  background: rgba(8,10,6,.72); touch-action: none;
+}
+#pausemenu[hidden] { display: none; }
+#pausemenu .pm-box {
+  display: flex; flex-direction: column; gap: 10px; min-width: 200px; padding: 16px 22px; text-align: center;
+  background: rgba(30,34,22,.96); border: 1px solid #6b9b3f; border-radius: 8px;
+}
+#pausemenu h2 { margin: 0 0 4px; font-size: 15px; color: #eee; }
+#pausemenu button {
+  padding: 8px 18px; font-size: 13px; color: #eee; cursor: pointer; border-radius: 5px;
+  background: rgba(74,107,58,.75); border: 1px solid #6b9b3f;
+}
+#pausemenu button.pm-main { background: #4a6b3a; border-color: #9bd06b; font-weight: bold; }

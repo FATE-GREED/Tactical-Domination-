@@ -49,6 +49,7 @@ function hasBridgeAt(r, c) {
 // Apakah tile ini memblokir gerak/penempatan unit? Jembatan SENGAJA tidak
 // dihitung sebagai penghalang (pengecualian aturan 1 tile = 1 occupant).
 function isTileBlocked(r, c) {
+  if (markasSites.some(s => s.r === r && s.c === c)) return true; // tile lokasi Markas dicadangkan selama dipesan/dibangun
   if (units.some(u => u.r === r && u.c === c)) return true;
   for (const p of players) {
     const b = p.buildings.find(bb => bb.r === r && bb.c === c);
