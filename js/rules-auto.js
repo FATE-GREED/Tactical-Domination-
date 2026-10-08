@@ -414,13 +414,8 @@ function beginPlanning() {
     }, 400);
     return;
   }
-  planTimer = setInterval(() => {
-    if (gameOver) { clearInterval(planTimer); return; }
-    if (paused) return;
-    planTimeLeft--;
-    updateTimerUI();
-    if (planTimeLeft <= 0) runExecution();
-  }, 1000);
+  // v8.5: fase rencana pemain tanpa batas waktu — tidak ada hitung mundur;
+  // eksekusi berjalan saat pemain menekan tombol Eksekusi.
 }
 
 async function runExecution() {

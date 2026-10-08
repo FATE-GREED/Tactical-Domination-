@@ -7,7 +7,7 @@ html, body {
 #canvas.dragging { cursor: grabbing; }
 
 .panel {
-  position: fixed; background: rgba(20,24,18,0.92); border: 1px solid #3a4a2f;
+  position: fixed; background: rgba(20,24,18,0.6); border: 1px solid #3a4a2f;
   border-radius: 6px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
 }
 
@@ -91,11 +91,11 @@ html, body {
 #actionlog .entry:last-child { border-bottom: none; }
 
 #gameover {
-  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   align-items: center; justify-content: center; z-index: 100;
 }
 #gameover .box {
-  background: #1b1f18; border: 2px solid #6b9b3f; border-radius: 10px;
+  background: rgba(27,31,24,0.8); border: 2px solid #6b9b3f; border-radius: 10px;
   padding: 30px 40px; text-align: center; max-width: 320px;
 }
 #gameover h2 { margin: 0 0 10px; color: #d7b56d; font-size: 22px; }
@@ -137,3 +137,47 @@ html, body {
 #killfeed { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 30; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #killfeed .kill { background: rgba(0,0,0,0.72); padding: 5px 14px; border-radius: 6px; font-weight: bold; font-size: 15px; color: #fff; animation: killfade 3.2s forwards; }
 @keyframes killfade { 0% { opacity: 0; transform: translateY(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- v8.5: UI ringkas, rapat ke pinggir, latar agak transparan ---------- */
+.panel { padding: 4px 8px; font-size: 12px; line-height: 1.35; border-radius: 5px; }
+.panel.collapsed { padding: 2px 6px; font-size: 10px; }
+
+/* Bar giliran: satu baris tipis di paling atas */
+#turnbar {
+  top: 2px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 2px 8px; font-size: 11px; max-width: calc(100vw - 8px);
+}
+#turnbar b { font-size: 12px; }
+#turnbar .dot { width: 8px; height: 8px; margin-right: 4px; }
+#turnbar .timer { min-width: 0; font-size: 11px; }
+#timer:empty { display: none; }
+#turnbar button, #endturn {
+  background: rgba(74,107,58,0.75); border: 1px solid #6b9b3f; color: #eee;
+  padding: 1px 7px; border-radius: 4px; cursor: pointer; font-size: 11px; line-height: 1.5; margin: 0;
+}
+#laneBtn.on { background: #2d6cdf; color: #fff; }
+#sndBtn { min-width: 0; }
+#pauseBtn { margin-right: 0; }
+
+/* Panel resource tepat di bawah bar giliran, menempel ke pinggir */
+#resLeft { top: 28px; left: 3px; min-width: 0; font-size: 11px; }
+#resRight { top: 28px; right: 3px; min-width: 0; font-size: 11px; }
+#targetpanel { top: 100px; left: 3px; max-width: 220px; font-size: 10.5px; }
+#dmgfeed { top: 100px; right: 6px; }
+#killfeed { top: 28px; }
+#deploy, #entitypanel { top: 30px; min-width: 220px; font-size: 11px; }
+#deploy button, #entitypanel button { padding: 1px 8px; font-size: 10.5px; }
+#entitypanel .entityactions { gap: 5px; margin-top: 5px; }
+
+/* Bawah: rapat ke pinggir */
+#hud { bottom: 3px; left: 3px; }
+#legend { bottom: 3px; right: 3px; }
+#actionlog { bottom: 3px; }
+#info { bottom: 26px; left: 3px; }
+#actionpanel { bottom: 34px; gap: 6px; }
+#actionpanel button { padding: 1px 9px; font-size: 11px; }
+
+/* Layar akhir: dua tombol berdampingan */
+#gameover .go-btns { display: flex; gap: 10px; justify-content: center; }
+#gameover button { padding: 6px 18px; font-size: 13px; }

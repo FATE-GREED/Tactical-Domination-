@@ -63,7 +63,15 @@ function initInput() {
   document.getElementById('endturn').addEventListener('click', onEndTurnClick);
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
   document.getElementById('laneBtn').addEventListener('click', toggleLaneMode);
-  document.getElementById('restartBtn').addEventListener('click', () => location.reload());
+  // Main Lagi: muat ulang lalu langsung mulai ronde baru (lewati lobby). Lobby: muat ulang biasa.
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    try { sessionStorage.setItem('td-autostart', '1'); } catch (e) {}
+    location.reload();
+  });
+  document.getElementById('lobbyBtn').addEventListener('click', () => {
+    try { sessionStorage.removeItem('td-autostart'); } catch (e) {}
+    location.reload();
+  });
 
   // ---------- Touch: pan 1 jari, pinch-zoom 2 jari, tahan lama ----------
   canvas.addEventListener('touchstart', e => {

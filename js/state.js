@@ -7,7 +7,7 @@
 // ---------- Konfigurasi Peta ----------
 const HUMAN = 0, BOT = 1; // mode lawan bot: Pemain 1 = manusia (kiri), Pemain 2 = bot (kanan)
 const ROWS = 40, COLS = 60, HALF_COLS = COLS / 2, HEX_SIZE = 18;
-const PLAN_SECONDS = 50; // durasi fase rencana tiap giliran
+const PLAN_SECONDS = Infinity; // v8.5: fase rencana tanpa batas waktu (berakhir saat tombol Eksekusi ditekan)
 
 // ---------- Terrain (Bagian 2 dokumen desain) ----------
 const TERRAIN = {

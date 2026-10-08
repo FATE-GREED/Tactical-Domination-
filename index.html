@@ -4,13 +4,91 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1b1f18">
+<meta name="theme-color" content="#262917">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Tactical Domination</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/lobby.css">
 </head>
 <body>
+
+<!-- ===================== LOBBY ===================== -->
+<div id="lobby">
+  <div class="lb-bg"></div>
+  <img class="lb-cmd" src="img/commander.webp" alt="Komandan" draggable="false">
+  <div class="lb-shade"></div>
+
+  <header class="lb-top">
+    <div class="lb-brand">
+      <img class="lb-logo" src="img/logo-banner.webp" alt="Tactical Domination" draggable="false">
+      <div class="lb-dev"><span class="lb-fg" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4h10v3.2H6.6v3.1H12v3.1H6.6V20H3V4zm11.5 5H21v3.2h-3.4v2.1H21V17c0 1.7-1.3 3-3 3h-3.5c-1.7 0-3-1.3-3-3v-4.8c0-1.700 1.300-3.200 3-3.200z"/></svg></span>FATE GREED</div>
+    </div>
+    <div class="lb-currency">
+      <button class="lb-pill" data-dev><i class="lb-coin"></i><span>125.430</span><b>+</b></button>
+      <button class="lb-pill" data-dev><i class="lb-gem lb-gem-p"></i><span>8.750</span><b>+</b></button>
+      <button class="lb-pill" data-dev><i class="lb-gem lb-gem-b"></i><span>2.460</span><b>+</b></button>
+      <button class="lb-gear" data-dev aria-label="Pengaturan">
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.7 7.7 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.600 7.600 0 0 0-1.700-1L15 3.200h-4l-.4 2.700c-.6.2-1.200.6-1.700 1l-2.500-1-2 3.500L6.600 11a7.700 7.700 0 0 0 0 2l-2.100 1.600 2 3.500 2.500-1c.5.400 1.100.8 1.700 1l.4 2.700h4l.4-2.700c.6-.2 1.200-.6 1.700-1l2.500 1 2-3.500L19.400 13zM13 15.500a3.500 3.500 0 1 1 0-7 3.500 3.500 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="lb-side" aria-label="Menu samping">
+    <button class="lb-sq" data-dev>
+      <span class="lb-dot"></span>
+      <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="none" stroke="#d7b56d" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#d7b56d"/><path d="M24 6v8M24 34v8M6 24h8M34 24h8M11.300 11.300l5.700 5.700M31 31l5.700 5.700M11.300 36.700 17 31M31 17l5.700-5.700" stroke="#d7b56d" stroke-width="3" stroke-linecap="round"/></svg>
+      <em>Spin</em>
+    </button>
+    <button class="lb-sq" data-dev>
+      <span class="lb-dot"></span>
+      <svg viewBox="0 0 48 48"><rect x="7" y="10" width="34" height="31" rx="3" fill="#2c2f2a" stroke="#c9c2b0" stroke-width="2.500"/><path d="M7 19h34" stroke="#c9c2b0" stroke-width="2.500"/><path d="M15 6v8M33 6v8" stroke="#d7b56d" stroke-width="3" stroke-linecap="round"/><path d="m24 23 2.600 5.300 5.800.8-4.200 4.100 1 5.800L24 36.200l-5.200 2.800 1-5.800-4.200-4.100 5.800-.8z" fill="#c9c2b0"/></svg>
+      <em>Event</em>
+    </button>
+    <button class="lb-sq" data-dev>
+      <svg viewBox="0 0 48 48"><path d="M6 20h36v20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V20z" fill="#3a3d30" stroke="#c9c2b0" stroke-width="2.500"/><path d="M8 12h32l2 8H6z" fill="#4a4c3a" stroke="#c9c2b0" stroke-width="2.500"/><path d="M24 24l2 4 4 .6-3 3 .8 4.200L24 33.800l-3.800 2 .8-4.200-3-3 4-.6z" fill="#d7b56d"/></svg>
+      <em>Inventory</em>
+    </button>
+  </nav>
+
+  <nav class="lb-bottom" aria-label="Menu utama">
+    <button class="lb-tab" data-dev>
+      <svg viewBox="0 0 64 48"><path d="M8 30c0-9 10-18 24-18s24 9 24 18H8z" fill="#2f3a4c" stroke="#aab4c6" stroke-width="2"/><path d="M6 30h52v6c0 3-3 5-6 5H12c-3 0-6-2-6-5v-6z" fill="#1f2735" stroke="#aab4c6" stroke-width="2"/><path d="m32 17 2.200 4.500 5 .7-3.600 3.500.9 5L32 28.300l-4.500 2.400.9-5-3.600-3.500 5-.7z" fill="#d7b56d"/></svg>
+      <em>Komandan</em>
+    </button>
+    <button class="lb-tab" data-open="tile">
+      <svg viewBox="0 0 64 48"><path d="M32 4l13 7.500v15L32 34 19 26.500v-15z" fill="#6b9b3f" stroke="#c9e0a0" stroke-width="2"/><path d="M13 22l13 7.500v15L13 52-0 44.500v-15z" transform="translate(6 -8) scale(.9)" fill="#2f5233" stroke="#c9e0a0" stroke-width="2"/><path d="M51 22l13 7.500v15L51 52 38 44.500v-15z" transform="translate(-8 -8) scale(.9)" fill="#8d8d85" stroke="#d6d6cc" stroke-width="2"/></svg>
+      <em>Tile</em>
+    </button>
+    <button class="lb-tab" data-open="unit">
+      <svg viewBox="0 0 64 48"><rect x="10" y="26" width="40" height="11" rx="5" fill="#4d5a3a" stroke="#c9d5a8" stroke-width="2"/><path d="M18 26v-7h22l4 7z" fill="#5c6b44" stroke="#c9d5a8" stroke-width="2"/><path d="M40 22h20" stroke="#c9d5a8" stroke-width="4" stroke-linecap="round"/><circle cx="17" cy="35" r="3" fill="#2b3320"/><circle cx="30" cy="35" r="3" fill="#2b3320"/><circle cx="43" cy="35" r="3" fill="#2b3320"/></svg>
+      <em>Unit</em>
+    </button>
+    <button class="lb-tab" data-open="bangunan">
+      <svg viewBox="0 0 64 48"><path d="M10 40V22l22-12 22 12v18z" fill="#6f6a58" stroke="#d3cdb6" stroke-width="2"/><path d="M10 22l22 12 22-12" fill="none" stroke="#d3cdb6" stroke-width="2"/><path d="M32 34v8" stroke="#d3cdb6" stroke-width="2"/><rect x="26" y="4" width="12" height="8" fill="#8a8470" stroke="#d3cdb6" stroke-width="2"/></svg>
+      <em>Bangunan</em>
+    </button>
+    <button class="lb-tab lb-start" id="lbStartBtn">
+      <svg viewBox="0 0 64 48"><path d="M32 3l5.800 12 13 1.800-9.400 9.200 2.200 13L32 32.800 20.400 39l2.200-13-9.400-9.200 13-1.800z" fill="#d7b56d" stroke="#fff0c2" stroke-width="2"/><path d="M4 16c8 0 14 3 18 9M60 16c-8 0-14 3-18 9" fill="none" stroke="#d7b56d" stroke-width="3" stroke-linecap="round"/></svg>
+      <em>Mulai</em>
+    </button>
+  </nav>
+
+  <div id="lbModal" class="lb-modal" hidden>
+    <div class="lb-box" role="dialog" aria-modal="true" aria-labelledby="lbModalTitle">
+      <div class="lb-box-head">
+        <h2 id="lbModalTitle"></h2>
+        <button class="lb-x" id="lbModalClose" aria-label="Tutup">✕</button>
+      </div>
+      <div class="lb-box-body" id="lbModalBody"></div>
+    </div>
+  </div>
+  <div id="lbToast" class="lb-toast" role="status" aria-live="polite">Dalam tahap pengembangan</div>
+</div>
+
+<!-- ===================== GAME ===================== -->
+<div id="game" style="display:none">
+
 
 <canvas id="canvas"></canvas>
 
@@ -23,7 +101,7 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>v8 — Lawan Bot (Sulit)</small><br>
+    <small>v8.5 — Lawan Bot (Sulit)</small><br>
     <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
@@ -54,9 +132,14 @@
   <div class="box">
     <h2 id="winnerText">Pemain 1 Menang!</h2>
     <p>Seluruh Markas lawan telah hancur.</p>
-    <button id="restartBtn">Main Lagi</button>
+    <div class="go-btns">
+      <button id="restartBtn">Main Lagi</button>
+      <button id="lobbyBtn">Lobby</button>
+    </div>
   </div>
 </div>
+
+</div><!-- /#game -->
 
 <!-- Urutan penting: state dulu, lalu modul yang bergantung padanya, main.js paling akhir -->
 <script src="js/state.js"></script>
@@ -78,6 +161,7 @@
 <script src="js/lanes.js"></script>
 <script src="js/input.js"></script>
 <script src="js/main.js"></script>
+<script src="js/lobby.js"></script>
 
 </body>
 </html>

@@ -1,36 +1,52 @@
 // ====================================================================
-// main.js — Titik masuk aplikasi. Menghubungkan semua modul dengan
-// urutan inisialisasi yang benar. Tidak ada logika aturan/render di
-// sini, hanya orkestrasi.
+// main.js — Titik masuk GAME (bukan lobby). Menghubungkan semua modul
+// dengan urutan inisialisasi yang benar. Tidak ada logika aturan/render
+// di sini, hanya orkestrasi.
+//
+// Game TIDAK jalan otomatis lagi: lobby.js memanggil startGame() saat
+// pemain menekan Mulai -> Bot Sulit. Layar akhir (input.js) punya dua
+// tombol: 'Main Lagi' (reload + tanda td-autostart, lobby.js langsung
+// memulai game) dan 'Lobby' (reload biasa, kembali ke lobby).
 // ====================================================================
 
-mapData = generateMap();          // map-gen.js (40x60, tanpa simetri)
-setupPlayersAndBuildings();       // setup.js
+let gameStarted = false;
 
-currentPlayerIdx = Math.random() < 0.5 ? 0 : 1;
-turnNumber = 1;
+function startGame(opts) {
+  if (gameStarted) return;
+  gameStarted = true;
+  // opts (mis. { mode: 'bot', level: 'sulit' }) disiapkan untuk mode lain nanti.
 
-initCanvas();                     // render.js — siapkan canvas & pertama kali draw
-initInput();                      // input.js  — pasang semua event listener
-document.getElementById('pauseBtn').addEventListener('click', togglePause);
+  document.getElementById('game').style.display = 'block'; // canvas butuh ukuran nyata sebelum initCanvas
 
-startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
+  mapData = generateMap();          // map-gen.js (40x60, tanpa simetri)
+  setupPlayersAndBuildings();       // setup.js
 
-// Pusatkan kamera ke Markas pemain manusia
-(function centerOnStartingMarkas() {
-  const m = getBuilding(players[HUMAN], 'markas');
-  if (!m) return;
-  const { x, y } = hexCenter(m.r, m.c);
-  camX = canvas.width / 2 - x * scale;
-  camY = canvas.height / 2 - y * scale;
-})();
+  currentPlayerIdx = Math.random() < 0.5 ? 0 : 1;
+  turnNumber = 1;
 
-renderLegend();
-renderResourcePanels();
-updateActionPanel();
-renderLog();
-logAction('Permainan dimulai.');
-beginPlanning();                  // rules-auto.js — fase rencana 30 detik pertama
+  initCanvas();                     // render.js — siapkan canvas & pertama kali draw
+  initInput();                      // input.js  — pasang semua event listener
+  document.getElementById('pauseBtn').addEventListener('click', togglePause);
+
+  startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
+
+  // Pusatkan kamera ke Markas pemain manusia
+  (function centerOnStartingMarkas() {
+    const m = getBuilding(players[HUMAN], 'markas');
+    if (!m) return;
+    const { x, y } = hexCenter(m.r, m.c);
+    camX = canvas.width / 2 - x * scale;
+    camY = canvas.height / 2 - y * scale;
+  })();
+
+  renderLegend();
+  renderResourcePanels();
+  updateActionPanel();
+  renderLog();
+  logAction('Permainan dimulai.');
+  Sfx.music('plan');                // musik lobby berganti ke musik fase rencana
+  beginPlanning();                  // rules-auto.js — fase rencana pertama
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

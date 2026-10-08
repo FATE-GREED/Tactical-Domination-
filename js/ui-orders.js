@@ -9,9 +9,9 @@ function updateTimerUI() {
   const b = document.getElementById('endturn');
   const pb = document.getElementById('pauseBtn');
   if (pb) pb.textContent = paused ? '▶ Lanjut' : '⏸ Pause';
-  if (paused) { t.textContent = '⏸ DIJEDA'; b.disabled = true; return; }
+  if (paused) { t.textContent = '⏸ Dijeda'; b.disabled = true; return; }
   if (phase === 'plan' && currentPlayerIdx === HUMAN) {
-    t.textContent = `⏱ ${planTimeLeft}s`;
+    t.textContent = ''; // tanpa batas waktu: label timer disembunyikan (#timer:empty)
     b.textContent = 'Eksekusi ▶';
     b.disabled = false;
   } else if (phase === 'plan') {

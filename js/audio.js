@@ -6,7 +6,7 @@ const Sfx = (() => {
     'shoot-rocket': 2, 'shoot-cannon': 3, 'shoot-mortar': 2, 'hit': 3,
     'explosion-small': 2, 'explosion-big': 2, 'execute-start': 1, 'win': 1, 'lose': 1,
   };
-  const MUSIC = { plan: 'bgm-plan', battle: 'bgm-battle' };
+  const MUSIC = { plan: 'bgm-plan', battle: 'bgm-battle', lobby: 'bgm-battle' }; // lobby memakai backsound pertandingan
   const SHOOT = { infantry: 'rifle', assault: 'auto', sniper: 'sniper', antitank: 'rocket',
     tanklapis: 'cannon', tankcrusher: 'cannon', montir: 'mortar' };
   const MODES = [['🔊', 'Semua suara', 1, 1], ['🎵', 'Musik saja', 1, 0], ['🔔', 'Efek saja', 0, 1], ['🔇', 'Senyap', 0, 0]];
@@ -27,7 +27,7 @@ const Sfx = (() => {
       const names = n > 1 ? Array.from({ length: n }, (_, i) => `${base}-${i + 1}`) : [base];
       buf[base] = (await Promise.all(names.map(load))).filter(Boolean);
     }
-    for (const t of Object.values(MUSIC)) buf[t] = [await load(t)].filter(Boolean);
+    for (const t of new Set(Object.values(MUSIC))) buf[t] = [await load(t)].filter(Boolean);
     if (wantTrack) music(wantTrack);
   }
   function unlock() {
