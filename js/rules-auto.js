@@ -7,16 +7,18 @@
 //   - Eksekusi: unit diproses berurutan sesuai urutan deploy (id kecil
 //     dulu). Tiap unit bergerak menuju targetnya (pathfinding, dibatasi
 //     MP seperti aturan lama), lalu menyerang otomatis.
-//   - Prioritas serang: Markas > Bangunan (terdekat, lebih dulu dibangun,
-//     HP paling sedikit) > Unit (terdekat, lebih dulu deploy) > acak.
+//   - Prioritas serang (v8.9): Benteng (taunt) > Markas > Bangunan lain (terdekat, lebih dulu
+//     dibangun, HP paling sedikit) > Unit (terdekat, lebih dulu deploy) > acak.
 // Aturan dasar (damage, MP, terrain, supply, build) TIDAK diubah.
 // ====================================================================
 
 // sleep ikut berhenti selama game di-pause (eksekusi membeku di antara langkah)
-async function sleep(ms) {
+async function wait(ms) {
   await new Promise(res => setTimeout(res, ms));
   while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));
 }
+// v8.9: kecepatan normal = 2x lebih lambat; tombol 2x mengembalikan kecepatan lama (Settings.timeScale)
+async function sleep(ms) { return wait(ms * Settings.timeScale()); }
 // Pemain manusia boleh memberi perintah: fase rencana, giliran manusia, tidak pause
 function canAct() { return phase === 'plan' && currentPlayerIdx === HUMAN && !paused && !gameOver; }
 function defOf(u) { return u.type === 'corps' ? CORPS_DEF : UNITS[u.type]; }
@@ -69,9 +71,9 @@ function cancelMarkasSite(site, u) {
 function dropBuildOrder(u) {
   if (u.buildOrder && u.buildOrder.type === 'markas') cancelMarkasSite(markasSites.find(s => s.id === u.buildOrder.site), u);
 }
-function setUnitTarget(u, target) { dropBuildOrder(u); u.target = target; u.buildOrder = null; u.haul = null; if (!defOf(u).combat) u.job = 'idle'; }
-function resetUnit(u) { dropBuildOrder(u); u.target = null; u.buildOrder = null; u.haul = null; u.job = 'idle'; }
-function setJob(u, job) { dropBuildOrder(u); u.job = job; u.target = null; u.buildOrder = null; u.haul = null; }
+function setUnitTarget(u, target) { dropBuildOrder(u); u.focus = null; u.target = target; u.buildOrder = null; u.haul = null; if (!defOf(u).combat) u.job = 'idle'; }
+function resetUnit(u) { dropBuildOrder(u); u.focus = null; u.target = null; u.buildOrder = null; u.haul = null; u.job = 'idle'; }
+function setJob(u, job) { dropBuildOrder(u); u.focus = null; u.job = job; u.target = null; u.buildOrder = null; u.haul = null; }
 // Job Angkut (APC): jemput Corps `corpsId`, antar ke `dest` ({r,c}) bila ada; tanpa tujuan APC diam.
 function setHaulJob(u, corpsId, dest) { dropBuildOrder(u); u.job = 'angkut'; u.target = null; u.buildOrder = null; u.haul = { corpsId, dest: dest || null }; }
 
@@ -157,6 +159,7 @@ function doDeploy(key, barak, player) {
   const spot = emptyAdjacent(barak.r, barak.c, def);
   if (!spot) return false;
   player.resources.kredit -= def.price;
+  Stats.use(player, 'kredit', def.price);
   player.barakSlots--;
   units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
   return true;
@@ -260,7 +263,7 @@ async function moveToward(u, goalFn, near) {
     if (!res.blockedAt) break;
     extra.add(res.blockedAt[0] * COLS + res.blockedAt[1]);
   }
-  if (movedAny) { logAction(`${unitName(u)} #${u.id} bergerak ke (${u.r},${u.c})`); draw(); }
+  if (movedAny) { logAction(`${unitName(u)} #${u.id} bergerak ke (${u.r},${u.c})`, 'combat'); draw(); }
   return movedAny;
 }
 
@@ -272,8 +275,8 @@ function pickAutoTarget(u) {
     const info = describeTarget(t.r, t.c);
     const d = hexDistance(u.r, u.c, t.r, t.c);
     let cat, k1, k2 = 0;
-    if (info.kind === 'building') { cat = info.obj.type === 'markas' ? 0 : 1; k1 = info.obj.seq || 0; k2 = info.obj.hp; }
-    else { cat = 2; k1 = info.obj.id; }
+    if (info.kind === 'building') { cat = info.obj.type === 'benteng' ? 0 : info.obj.type === 'markas' ? 1 : 2; k1 = info.obj.seq || 0; k2 = info.obj.hp; }  // Benteng = taunt
+    else { cat = 3; k1 = info.obj.id; }
     return { r: t.r, c: t.c, cat, d, k1, k2, rnd: Math.random() };
   });
   if (!cands.length) return null;
@@ -296,7 +299,7 @@ async function autoAttack(u) {
     killFeedAdd(unitName(u), u.owner, res.targetName, info ? info.ownerIdx : 1 - u.owner);
   renderResourcePanels();
   draw();
-  logAction(`${unitName(u)} #${u.id} serang ${res.targetName}: ${res.damage} dmg${res.destroyed ? ' (HANCUR)' : ''}`);
+  logAction(`${unitName(u)} #${u.id} serang ${res.targetName}: ${res.damage} dmg${res.destroyed ? ' (HANCUR)' : ''}`, 'combat');
   await sleep(520);
 }
 
@@ -411,6 +414,28 @@ async function execBuildOrder(u) {
   }
 }
 
+// ---- Fokus supply (v8.9) ----
+const FOCUS_SUPPLY_R = 15;   // hanya mengisi unit dalam radius ini dari titik fokus
+const FOCUS_LEASH_R = 20;    // supplier berusaha tidak lebih jauh dari ini (kecuali pergi isi ulang)
+function focusAnchor(u) {
+  const f = u.focus; if (!f) return null;
+  if (f.unitId != null) {
+    const t = units.find(x => x.id === f.unitId && x.owner === u.owner);
+    if (!t) { u.focus = null; return null; }
+    return { r: t.r, c: t.c };
+  }
+  return { r: f.r, c: f.c };
+}
+// Corps/APC ber-job isi fuel/medical yang sedang menganggur -> diberi tanda (!)
+function supplyIdle(u) {
+  if (u.owner !== HUMAN || u.isBuilding || defOf(u).combat || (u.job !== 'fuel' && u.job !== 'medical')) return false;
+  const ct = u.job === 'fuel' ? 'fuel' : 'medical', p = players[u.owner];
+  if (u.cargo && u.cargo.type !== ct) return false;
+  if (!u.cargo) return p.resources[ct] <= 0 || !p.buildings.some(b => b.type === (ct === 'fuel' ? 'pom' : 'pospemulihan'));
+  const a = focusAnchor(u);
+  return !units.some(o => o !== u && o.owner === u.owner && needsSupply(o, ct) && (!a || hexDistance(a.r, a.c, o.r, o.c) <= FOCUS_SUPPLY_R));
+}
+
 function needsSupply(o, cargoType) {
   const d = defOf(o);
   return cargoType === 'fuel' ? (d.hasFuel && o.fuel <= 0) : (o.hp < d.hp);
@@ -438,7 +463,9 @@ async function execJob(u) {
     return;
   }
 
-  const needy = units.filter(o => o !== u && o.owner === u.owner && needsSupply(o, ct));
+  const anchor = focusAnchor(u);                            // v8.9: fokus ke unit/hex pilihan pemain
+  const nearF = (o, lim) => !anchor || hexDistance(anchor.r, anchor.c, o.r, o.c) <= lim;
+  const needy = units.filter(o => o !== u && o.owner === u.owner && needsSupply(o, ct) && nearF(o, FOCUS_SUPPLY_R));
   if (isFuel) needy.sort(byDist);
   else needy.sort((a, b) => (a.hp / defOf(a).hp) - (b.hp / defOf(b).hp) || byDist(a, b));
   if (needy.length) {                                       // 2) ada yang butuh -> mendekat & isi
@@ -451,8 +478,9 @@ async function execJob(u) {
     return;
   }
   // 3) tidak ada yang butuh -> ikuti unit terdekat
-  const pool = units.filter(o => o !== u && o.owner === u.owner && (isFuel ? (defOf(o).vehicle && defOf(o).hasFuel) : defOf(o).combat)).sort(byDist);
+  const pool = units.filter(o => o !== u && o.owner === u.owner && (isFuel ? (defOf(o).vehicle && defOf(o).hasFuel) : defOf(o).combat) && nearF(o, FOCUS_LEASH_R)).sort(byDist);
   if (pool.length && hexDistance(u.r, u.c, pool[0].r, pool[0].c) > 1) await moveToward(u, adj(pool[0].r, pool[0].c), pool[0]);
+  else if (!pool.length && anchor && hexDistance(u.r, u.c, anchor.r, anchor.c) > FOCUS_LEASH_R) await moveToward(u, adj(anchor.r, anchor.c), anchor);   // jangan menjauh >20 tile dari fokus (kecuali isi ulang)
 }
 
 // Job Angkut (APC): jemput Corps terpilih -> antar ke tujuan -> turunkan. Tanpa tujuan APC diam.
@@ -519,6 +547,7 @@ function beginPlanning() {
       if (gameOver) return;
       try { botTakeTurn(me); } catch (err) { console.warn('Bot gagal menyusun rencana:', err); }
       renderTargetPanel(); draw();
+      await wait((Settings.get('enemyDelay') || 0) * 1000);   // jeda sebelum musuh bergerak (Pengaturan)
       await sleep(500);
       runExecution();
     }, 400);

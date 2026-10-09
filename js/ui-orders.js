@@ -8,19 +8,19 @@ function updateTimerUI() {
   const t = document.getElementById('timer');
   const b = document.getElementById('endturn');
   const pb = document.getElementById('pauseBtn');
-  if (pb) pb.textContent = paused ? '▶ Lanjut' : '⏸ Pause';
+  if (pb) pb.textContent = paused ? '▶' : '⏸';
   if (paused) { t.textContent = '⏸ Dijeda'; b.disabled = true; return; }
   if (phase === 'plan' && currentPlayerIdx === HUMAN) {
     t.textContent = ''; // tanpa batas waktu: label timer disembunyikan (#timer:empty)
-    b.textContent = 'Eksekusi ▶';
+    b.textContent = '▶'; b.title = 'Eksekusi';
     b.disabled = false;
   } else if (phase === 'plan') {
     t.textContent = 'Bot menyusun...';
-    b.textContent = 'Menunggu...';
+    b.textContent = '⏳'; b.title = 'Menunggu...';
     b.disabled = true;
   } else {
     t.textContent = 'Eksekusi...';
-    b.textContent = 'Berjalan...';
+    b.textContent = '⚔'; b.title = 'Berjalan...';
     b.disabled = true;
   }
 }
@@ -77,8 +77,9 @@ function targetLabelBase(u) {
   if (u.buildOrder) return `Bangun ${BUILDING_TYPES[u.buildOrder.type].name} di (${u.buildOrder.r},${u.buildOrder.c})`;
   if (u.isBuilding) return `Membangun ${BUILDING_TYPES[u.buildType].name} (${u.buildTurnsRemaining} gil.)`;
   if (!def.combat) {
-    if (u.job === 'fuel') return 'Job: Isi Fuel';
-    if (u.job === 'medical') return 'Job: Isi Medical';
+    const fs = u.focus ? (u.focus.unitId != null ? ` • fokus #${u.focus.unitId}` : ` • fokus (${u.focus.r},${u.focus.c})`) : '';
+    if (u.job === 'fuel') return 'Job: Isi Fuel' + fs;
+    if (u.job === 'medical') return 'Job: Isi Medical' + fs;
     if (u.job === 'angkut') {
       const h = u.haul;
       if (!h) return 'Job: Angkut Corps';
@@ -108,6 +109,7 @@ function focusOnTile(r, c) {
 function renderTargetPanel() {
   const el = document.getElementById('targetpanel');
   if (!el) return;
+  if (typeof renderSidebar === 'function') renderSidebar();
   if (!el.dataset.init) { el.classList.add('collapsed'); el.dataset.init = '1'; }
   const mine = units.filter(u => u.owner === HUMAN).sort((a, b) => a.id - b.id);
   const rows = mine.map(u => {
@@ -192,6 +194,15 @@ function drawOrderMarkers() {
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(b.x, b.y, HEX_SIZE * 0.7, 0, Math.PI * 2); ctx.stroke();
+  }
+  // Fokus supply: garis putus-putus kuning dari supplier ke unit/hex fokus
+  for (const u of units) {
+    if (u.owner !== HUMAN || !u.focus) continue;
+    const f = focusAnchor(u); if (!f) continue;
+    const a = hexCenter(u.r, u.c), b = hexCenter(f.r, f.c);
+    ctx.strokeStyle = 'rgba(255,200,80,0.9)'; ctx.setLineDash([4 / scale, 4 / scale]);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.setLineDash([]); ctx.beginPath(); ctx.arc(b.x, b.y, HEX_SIZE * 0.55, 0, Math.PI * 2); ctx.stroke();
   }
   // Job Angkut: garis APC -> Corps yang dijemput -> tujuan
   for (const u of units) {

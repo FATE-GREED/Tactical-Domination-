@@ -7,7 +7,7 @@ html, body {
 #canvas.dragging { cursor: grabbing; }
 
 .panel {
-  position: fixed; background: rgba(20,24,18,0.6); border: 1px solid #3a4a2f;
+  position: fixed; background: rgba(20,24,18,var(--panel-a,0.6)); border: 1px solid #3a4a2f;
   border-radius: 6px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
 }
 
@@ -204,3 +204,61 @@ html, body {
   background: rgba(74,107,58,.75); border: 1px solid #6b9b3f;
 }
 #pausemenu button.pm-main { background: #4a6b3a; border-color: #9bd06b; font-weight: bold; }
+
+/* ================= v8.9: HUD sesuai sketsa ================= */
+:root { --row2: 32px; }
+@media (max-width: 480px) { :root { --row2: 60px; } }
+
+body.hide-dmg #dmgfeed, body.hide-act #actionlog, body.hide-kill #killfeed { display: none !important; }
+
+/* Baris atas: sumber daya Pemain (kiri) | pause + waktu + kecepatan (tengah) | sumber daya Bot + HP Markas (kanan) */
+#resLeft, #resRight { top: 3px; min-width: 0; padding: 2px 7px; font-size: 11px; line-height: 1.35; white-space: nowrap; }
+#resLeft { left: 3px; right: auto; }
+#resRight { right: 3px; left: auto; text-align: right; }
+#resLeft .rs-s, #resRight .rs-s { color: #999; }
+@media (max-width: 600px) { .rs-s { display: none; } }
+.mk-bar { height: 5px; margin-top: 2px; background: rgba(0,0,0,0.6); border: 1px solid rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden; }
+.mk-bar i { display: block; height: 100%; background: #ff5f5f; }
+
+#turnbar { top: 3px; padding: 2px 8px; gap: 6px; }
+@media (max-width: 480px) { #turnbar { top: 32px; } }
+#turnbar #turntext { display: none; }
+#turnbar .matchtime { font-size: 12px; font-variant-numeric: tabular-nums; color: #e6e6e6; }
+#turnbar button { padding: 1px 8px; font-size: 12px; }
+#speedBtn.on { background: #d9822b; color: #fff; }
+
+/* Panel samping kiri */
+#sidebar {
+  position: fixed; top: var(--row2); left: 3px; z-index: 20; width: 70px;
+  display: flex; flex-direction: column; gap: 4px; padding: 4px; font-size: 10.5px; line-height: 1.25;
+}
+#sidebar .sb-turn { text-align: center; color: #ddd; border-bottom: 1px solid #333c2b; padding-bottom: 2px; }
+#sidebar .sb-turn b { color: #ffd966; font-size: 13px; }
+#sidebar .sb-row { display: flex; justify-content: space-between; align-items: center; color: #bbb; gap: 4px; }
+#sidebar .sb-row b { color: #fff; font-weight: bold; font-size: 11px; }
+#sidebar button {
+  width: 100%; padding: 3px 2px; font-size: 10.5px; line-height: 1.2; border-radius: 4px;
+  background: rgba(74,107,58,0.75); border: 1px solid #6b9b3f; color: #eee; cursor: pointer;
+}
+#sidebar #deployOpenBtn { font-size: 16px; font-weight: bold; padding: 1px 2px; }
+#laneBtn.on { background: #2d6cdf; color: #fff; }
+#lockLineBtn.on { background: #d9822b; color: #fff; }
+
+/* Tombol Eksekusi: bulat, kanan bawah */
+#endturn {
+  position: fixed; right: 12px; bottom: 12px; z-index: 25; width: 50px; height: 50px; padding: 0; margin: 0;
+  border-radius: 50%; font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  background: rgba(74,107,58,0.9); border: 2px solid #9bd06b; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+#endturn:disabled { background: rgba(60,64,56,0.8); border-color: #555; color: #aaa; }
+
+/* Log & panel lain menyesuaikan */
+#actionlog { top: var(--row2); bottom: auto; left: 78px; right: auto; transform: none; max-width: min(46vw, 300px); max-height: 32vh; overflow: auto; }
+#killfeed { top: var(--row2); }
+#dmgfeed { top: calc(var(--row2) + 14px); right: 6px; }
+#targetpanel { top: auto; bottom: 68px; left: auto; right: 3px; max-width: 230px; max-height: 40vh; overflow: auto; }
+#info { bottom: 28px; left: 3px; }
+#hud { bottom: 3px; left: 3px; }
+#legend { bottom: 3px; right: 70px; }
+#deploy, #entitypanel { top: var(--row2); }
+#gameover .go-btns { flex-wrap: wrap; }

@@ -46,6 +46,9 @@ function startTurn(pIdx) {
   p.resources.kredit += 30 * markasCount + 20 * barakCount; // Markas +30, tiap Barak +20
   p.resources.fuel += 50 * pomCount;
   p.resources.medical += 50 * pospemulihanCount;
+  Stats.earn(pIdx, 'kredit', 30 * markasCount + 20 * barakCount);
+  Stats.earn(pIdx, 'fuel', 50 * pomCount);
+  Stats.earn(pIdx, 'medical', 50 * pospemulihanCount);
   p.barakSlots = 2;
 
   if (p.infantrySpiritTurns > 0) p.infantrySpiritTurns--;        // Semangat Perjuangan meluruh

@@ -1,0 +1,40 @@
+/* v8.9 — layar Pengaturan */
+#settings { position: fixed; inset: 0; z-index: 9000; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; }
+#settings[hidden] { display: none; }
+#settings .st-box { width: min(94vw, 460px); max-height: 88vh; display: flex; flex-direction: column; background: #1b1f18; border: 1px solid #4a6b3a; border-radius: 10px; color: #e6e6e6; font-size: 13px; overflow: hidden; }
+#settings .st-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid #333c2b; }
+#settings h3 { margin: 0; font-size: 15px; }
+#settings .st-x { background: none; border: none; color: #ccc; font-size: 16px; padding: 2px 8px; }
+#settings .st-body { overflow-y: auto; padding: 4px 12px 8px; -webkit-overflow-scrolling: touch; }
+#settings h4 { margin: 12px 0 4px; font-size: 12px; color: #a8d08d; border-bottom: 1px solid #333c2b; padding-bottom: 3px; }
+#settings .st-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+#settings .st-l { flex: 1; min-width: 0; }
+#settings .st-row input[type=range] { flex: 1.3; min-width: 0; }
+#settings .st-val { width: 42px; text-align: right; font-weight: normal; color: #cfd8c4; }
+#settings select { background: #11140f; color: #eee; border: 1px solid #4a6b3a; border-radius: 4px; padding: 3px 6px; }
+#settings input[type=color] { width: 44px; height: 26px; border: 1px solid #4a6b3a; background: none; padding: 0; }
+#settings .st-tg input { width: 20px; height: 20px; }
+#settings .st-note { display: block; color: #999; margin: 2px 0 4px; }
+#settings .st-track { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+#settings .st-mv { background: #2d3a24; border: 1px solid #4a6b3a; color: #eee; border-radius: 4px; padding: 1px 8px; }
+#settings .st-foot { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid #333c2b; }
+#settings .st-foot button { background: #2d3a24; border: 1px solid #4a6b3a; color: #eee; border-radius: 6px; padding: 6px 14px; }
+#settings .st-foot .st-close { background: #4a6b3a; border-color: #9bd06b; font-weight: bold; }
+
+/* v8.9 — layar Rincian */
+#rincian { position: fixed; inset: 0; z-index: 8000; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; }
+#rincian[hidden] { display: none; }
+#rincian .rc-box { width: min(94vw, 440px); max-height: 90vh; display: flex; flex-direction: column; background: rgba(27,31,24,0.94); border: 1px solid #4a6b3a; border-radius: 10px; color: #e6e6e6; font-size: 12.5px; overflow: hidden; }
+#rincian .rc-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #333c2b; }
+#rincian .rc-title { flex: 1; font-size: 15px; }
+#rincian .rc-swap, #rincian .rc-close { background: #2d3a24; border: 1px solid #4a6b3a; color: #eee; border-radius: 6px; padding: 4px 10px; font-size: 12px; }
+#rincian .rc-x { background: none; border: none; color: #ccc; font-size: 16px; }
+#rincian .rc-win { display: none; text-align: center; font-size: 16px; font-weight: bold; color: #ffd966; padding: 6px 0 0; }
+#rincian .rc-time { text-align: center; color: #999; font-size: 11px; padding: 4px 0; }
+#rincian .rc-body { overflow-y: auto; padding: 2px 14px 8px; -webkit-overflow-scrolling: touch; }
+#rincian .rc-h { margin: 10px 0 3px; color: #a8d08d; font-weight: bold; border-bottom: 1px solid #333c2b; padding-bottom: 2px; }
+#rincian .rc-row, #rincian .rc-sub { display: flex; justify-content: space-between; padding: 2px 0; }
+#rincian .rc-ind { padding-left: 14px; color: #cfd8c4; }
+#rincian .rc-sub { padding-left: 30px; color: #aab4a0; }
+#rincian .rc-none { color: #666; }
+#rincian .rc-foot { padding: 8px 12px; border-top: 1px solid #333c2b; text-align: right; }

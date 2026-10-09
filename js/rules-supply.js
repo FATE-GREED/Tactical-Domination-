@@ -113,6 +113,7 @@ function loadCargo(unit, cargoType) {
   const amount = Math.min(cap, p.resources[cargoType]);
   if (amount <= 0) return { ok: false, message: `Tidak ada ${cargoType} tersisa di pool.` };
   p.resources[cargoType] -= amount;
+  Stats.use(p, cargoType, amount);
   unit.cargo = { type: cargoType, amount };
   unit.attacked = true; unit.mp = 0;
   return { ok: true, message: `Memuat ${amount} ${cargoType}.` };
@@ -186,6 +187,7 @@ function performRecovery(healer, targetUnit) {
   if (healed <= 0) return { ok: false, message: 'Medical pool habis.' };
   targetUnit.hp += healed;
   p.resources.medical -= healed;
+  Stats.use(p, 'medical', healed);
   healer.attacked = true; healer.mp = 0;
   return { ok: true, message: `Recovery +${healed} HP.` };
 }
@@ -240,6 +242,7 @@ function selfRefuel(unit) {
   if (given <= 0) return { ok: false, message: 'Fuel pool habis.' };
   unit.fuel += given;
   p.resources.fuel -= given;
+  Stats.use(p, 'fuel', given);
   unit.attacked = true; unit.mp = 0;
   return { ok: true, message: `Isi ulang +${given} Fuel.` };
 }

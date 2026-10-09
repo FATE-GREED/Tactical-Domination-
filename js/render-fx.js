@@ -243,6 +243,25 @@ function buildTerrainSprites() {
 
     terrainSprites[key] = { canvas: off, size: dispSize };
   }
+  loadTileSprites(); // ganti sprite prosedural dengan tile gambar begitu selesai dimuat
+}
+
+// ---------- Tile gambar hex (img/tiles/<terrain>.webp, 168x192, pointy-top, transparan) ----------
+// Satu tile per jenis terrain. Sprite prosedural di atas tetap jadi cadangan
+// sampai gambarnya selesai dimuat (atau kalau gagal dimuat).
+function loadTileSprites() {
+  for (const key in TERRAIN) {
+    const img = new Image();
+    img.onload = () => {
+      const off = document.createElement('canvas');
+      off.width = img.naturalWidth; off.height = img.naturalHeight;
+      off.getContext('2d').drawImage(img, 0, 0);
+      // sedikit lebih besar dari hex supaya tidak ada celah tipis antar tile
+      terrainSprites[key] = { canvas: off, w: hexW * 1.04, h: hexH * 1.02, isTile: true };
+      draw();
+    };
+    img.src = 'img/tiles/' + key + '.webp';
+  }
 }
 
 // ---------- Ikon vektor unit (digambar di ruang koordinat -1..1, putih) ----------
@@ -371,25 +390,14 @@ function drawIcon(iconFn, cx, cy, size) {
 // Gambar 1 unit lengkap (chip warna pemilik + border + ikon) di posisi (x,y) manapun
 // Bar HP di atas entitas: sekutu biru, musuh merah (panjang isi = sisa HP). Garnisun (HP tak hingga) tanpa bar.
 function drawHpBar(x, top, hp, max, mine) {
-  if (!isFinite(max) || max <= 0) return;
+  if (!Settings.get('showHp') || !isFinite(max) || max <= 0) return;
   const w = HEX_SIZE, h = Math.max(HEX_SIZE * 0.16, 3 / scale), y = top - h - 1.5 / scale;
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 0.5, y - 0.5, w + 1, h + 1);
   ctx.fillStyle = mine ? '#5aa9ff' : '#ff5f5f';
   ctx.fillRect(x - w / 2, y, w * Math.max(0, Math.min(1, hp / max)), h);
 }
 
-function drawUnitSprite(u, x, y) {
-  const owner = players[u.owner];
-  ctx.beginPath();
-  ctx.rect(x - HEX_SIZE * 0.45, y - HEX_SIZE * 0.45, HEX_SIZE * 0.9, HEX_SIZE * 0.9);
-  ctx.fillStyle = owner.color; ctx.fill();
-  ctx.strokeStyle = (selectedUnit === u) ? '#fff' : '#111';
-  ctx.lineWidth = (selectedUnit === u ? 2.5 : 1.5) / scale;
-  ctx.stroke();
-  const iconFn = UNIT_ICONS[u.type];
-  if (iconFn) drawIcon(iconFn, x, y, HEX_SIZE * 0.42);
-  drawHpBar(x, y - HEX_SIZE * 0.45, u.hp, defOf(u).hp, u.owner === HUMAN);
-}
+// drawUnitSprite(u, x, y) kini ada di unit-art.js (grafik unit dari v7).
 
 // Gambar 1 bangunan lengkap (chip bulat warna pemilik + ikon) di posisi (x,y)
 function drawBuildingSprite(b, ownerColor, x, y) {
@@ -404,14 +412,14 @@ function drawBuildingSprite(b, ownerColor, x, y) {
 // ---------- Animasi: gerak unit (tween linear singkat) ----------
 let moveAnim = null; // {unitId, fromR, fromC, toR, toC, startTime, duration}
 function startMoveAnim(unit, fromR, fromC, duration = 220) {
-  moveAnim = { unitId: unit.id, fromR, fromC, toR: unit.r, toC: unit.c, startTime: performance.now(), duration };
+  moveAnim = { unitId: unit.id, fromR, fromC, toR: unit.r, toC: unit.c, startTime: performance.now(), duration: duration * Settings.timeScale() };
   requestAnimationFrame(draw);
 }
 
 // ---------- Animasi: efek serangan (tracer + flash + angka damage melayang) ----------
 let attackFx = null; // {fromR,fromC,toR,toC,damage,startTime,duration}
 function startAttackFx(fromR, fromC, toR, toC, damage) {
-  attackFx = { fromR, fromC, toR, toC, damage, startTime: performance.now(), duration: 450 };
+  attackFx = { fromR, fromC, toR, toC, damage, startTime: performance.now(), duration: 450 * Settings.timeScale() };
   requestAnimationFrame(draw);
 }
 

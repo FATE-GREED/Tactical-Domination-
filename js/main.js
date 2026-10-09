@@ -20,12 +20,14 @@ function startGame(opts) {
 
   mapData = generateMap();          // map-gen.js (40x60, tanpa simetri)
   setupPlayersAndBuildings();       // setup.js
+  Stats.init();                     // stats.js — statistik pertandingan mulai dari nol
 
   currentPlayerIdx = Math.random() < 0.5 ? 0 : 1;
   turnNumber = 1;
 
   initCanvas();                     // render.js — siapkan canvas & pertama kali draw
   initInput();                      // input.js  — pasang semua event listener
+  initHud();                        // hud.js    — sidebar, kecepatan, rincian, pengaturan
   document.getElementById('pauseBtn').addEventListener('click', togglePause);
   document.getElementById('pmResume').addEventListener('click', togglePause);
   document.getElementById('pmRestart').addEventListener('click', () => document.getElementById('restartBtn').click());

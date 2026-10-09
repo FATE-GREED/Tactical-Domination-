@@ -16,7 +16,7 @@ function toggleLockMode() {
   lockMode = !lockMode; lockDraft = null;
   const b = document.getElementById('lockLineBtn');
   b.classList.toggle('on', lockMode);
-  b.textContent = lockMode ? '🔒 Baris: ON' : '🔒 Baris';
+  b.textContent = lockMode ? '🔒 Baris ON' : '🔒 Baris OFF';
   draw();
 }
 
@@ -100,7 +100,7 @@ function drawLockLines() {
     if (!tiles.length) return;
     const pts = tiles.map(p => hexCenter(p[0], p[1]));
     ctx.save();
-    ctx.strokeStyle = `rgba(255,140,60,${a})`;
+    ctx.strokeStyle = Settings.hexA(Settings.get('lockColor'), a);
     ctx.lineWidth = Math.max(HEX_SIZE * 0.18, 3 / scale); ctx.lineJoin = 'round';
     ctx.setLineDash([HEX_SIZE * 0.5, HEX_SIZE * 0.3]);
     ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke();

@@ -57,7 +57,8 @@ function draw() {
       const terr = TERRAIN[mapData[r][c]];
       const sprite = terrainSprites[mapData[r][c]];
       if (sprite) {
-        ctx.drawImage(sprite.canvas, x - sprite.size / 2, y - sprite.size / 2, sprite.size, sprite.size);
+        if (sprite.isTile) ctx.drawImage(sprite.canvas, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
+        else ctx.drawImage(sprite.canvas, x - sprite.size / 2, y - sprite.size / 2, sprite.size, sprite.size);
       } else {
         const pts = hexCorners(x, y, HEX_SIZE - 0.6);
         ctx.beginPath();
@@ -87,7 +88,7 @@ function draw() {
       if (specialMode && specialTargets.some(t => t.r === r && t.c === c)) { ctx.fillStyle = 'rgba(80,180,255,0.45)'; ctx.fill(); }
 
       pathHex();
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.strokeStyle = sprite && sprite.isTile ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 1 / scale;
       ctx.stroke();
 
@@ -148,6 +149,7 @@ function updateTurnBar() {
   const p = players[currentPlayerIdx];
   document.getElementById('turntext').textContent = `Giliran ${p.name}`;
   document.getElementById('turnnum').textContent = turnNumber;
+  const sbt = document.getElementById('sbTurn'); if (sbt) sbt.textContent = turnNumber;
   document.getElementById('turndot').style.background = p.color;
   updateTimerUI();
 }
@@ -173,13 +175,21 @@ function togglePanel(id) {
 }
 
 function resourceHtml(p) {
-  return `<b style="color:${p.color}">${p.name}</b><br>
-    Kredit: ${p.resources.kredit} &nbsp; Fuel: ${p.resources.fuel} &nbsp; Medical: ${p.resources.medical}<br>
-    <small style="color:#999">Corps: ${p.corps.count}/10 ${p.corps.timer ? '(next in ' + p.corps.timer + ' turn)' : ''} • Slot Barak: ${p.barakSlots}/2</small>`;
+  const i = players.indexOf(p), r = p.resources;
+  let h = `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
+    ` <small class="rs-s">C${p.corps.count}/10${p.corps.timer ? '+' + p.corps.timer : ''} · B${p.barakSlots}/2</small>`;
+  if (i !== HUMAN) {                                   // bar HP seluruh Markas musuh
+    const maxHp = BUILDING_TYPES.markas.hp, alive = p.buildings.filter(b => b.type === 'markas');
+    const lost = (Stats.data[i] && Stats.data[i].bldLost.markas) || 0;
+    const total = (alive.length + lost) * maxHp, cur = alive.reduce((a, b) => a + b.hp, 0);
+    h += `<div class="mk-bar" title="HP seluruh Markas: ${cur}/${total}"><i style="width:${total ? Math.round(cur / total * 100) : 0}%"></i></div>`;
+  }
+  return h;
 }
 function renderResourcePanels() {
   document.getElementById('resLeft').innerHTML = resourceHtml(players[0]);
   document.getElementById('resRight').innerHTML = resourceHtml(players[1]);
+  if (typeof renderSidebar === 'function') renderSidebar();
 }
 
 // Panel info tile (dari ikon "i") — hanya terrain, tidak lagi mencampur unit/bangunan
@@ -211,7 +221,8 @@ function showGenericResult(message) {
 }
 
 // ---------- Log Aksi ----------
-function logAction(msg) {
+function logAction(msg, kind) {
+  if (kind === 'combat') return;               // log aktivitas hanya non-combat (serangan ada di log damage)
   actionLog.unshift({ turn: turnNumber, player: currentPlayerIdx, msg });
   if (actionLog.length > 20) actionLog.pop();
   renderLog();
@@ -233,13 +244,14 @@ function showGameOver() {
   Sfx.end(winner === HUMAN);
   document.getElementById('winnerText').textContent = `${players[winner].name} Menang!`;
   document.getElementById('gameover').style.display = 'flex';
+  Rincian.open();                               // rincian pertandingan muncul saat game berakhir
 }
 
 // Panel aksi bawah: muncul saat unit sedang menunggu tujuan gerak / target serang / target supply
 function updateActionPanel() {
   const el = document.getElementById('actionpanel');
   const cancel = document.getElementById('cancelBtn');
-  if (!targetActor && !occupyHex && !specialActor && !haulActor) { el.style.display = 'none'; return; }
+  if (!targetActor && !occupyHex && !specialActor && !haulActor && !focusActor) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
   let text, btn = 'Batal';
   if (specialMode) {
@@ -247,6 +259,8 @@ function updateActionPanel() {
     text = labels[specialMode] || 'Pilih target...';
   } else if (targetActor) {
     text = `Target ${unitName(targetActor)} #${targetActor.id}: ketuk musuh, bangunan musuh, atau hex. Ketuk unit ini = default.`;
+  } else if (focusActor) {
+    text = `Fokus supply ${unitName(focusActor)} #${focusActor.id}: ketuk unit sekutu atau hex yang diprioritaskan (radius 15 tile). Ketuk unit ini = hapus fokus.`;
   } else if (haulActor) {
     text = haulCorps
       ? `Angkut Corps #${haulCorps.id}: ketuk hex tujuan pengantaran, atau Selesai = tanpa tujuan (APC diam).`
@@ -296,6 +310,7 @@ function openEntityPanel(r, c) {
         buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
         buttons.push({ id: 'jobMedBtn', label: (u.job === 'medical' ? '✓ ' : '') + 'Isi Medical' });
         if (u.type === 'apc') buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
+        if (u.job === 'fuel' || u.job === 'medical') buttons.push({ id: 'focusBtn', label: u.focus ? '🎯 Ubah Fokus' : '🎯 Fokus Unit' });
       }
       if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
     }
@@ -347,6 +362,7 @@ function openEntityPanel(r, c) {
   bind('jobIdleBtn', () => { setJob(target.obj, 'idle'); refresh(); });
   bind('jobFuelBtn', () => { setJob(target.obj, 'fuel'); refresh(); });
   bind('jobMedBtn', () => { setJob(target.obj, 'medical'); refresh(); });
+  bind('focusBtn', () => { el.style.display = 'none'; startFocusMode(target.obj); });
   bind('jobHaulBtn', () => { el.style.display = 'none'; startHaulMode(target.obj); });
   bind('lockBtn', () => { manualLockToggle(target.obj); refresh(); });
   bind('resetBtn', () => { resetUnit(target.obj); refresh(); });

@@ -97,7 +97,9 @@ function applyAttack(attackerUnit, targetR, targetC) {
   if (target.kind === 'building' && target.def.destructible === false) return { ok: false, message: 'Garnisun tidak bisa dihancurkan.' };
 
   const damage = computeDamage(attackerUnit, target);
+  const hpBefore = target.obj.hp;
   target.obj.hp -= damage;
+  Stats.dmg(attackerUnit.owner, attackerUnit.type, target.kind, Math.min(damage, hpBefore));
 
   let destroyed = false;
   if (target.obj.hp <= 0) {
@@ -105,8 +107,10 @@ function applyAttack(attackerUnit, targetR, targetC) {
     if (target.kind === 'unit') {
       if (target.obj.type === 'infantry') players[target.ownerIdx].infantrySpiritTurns = 2; // Semangat Perjuangan
       units = units.filter(u => u.id !== target.obj.id);
+      Stats.unitLost(target.ownerIdx, target.obj.type);
     } else {
       const p = players[target.ownerIdx];
+      Stats.bldLost(target.ownerIdx, target.obj.type);
       p.buildings = p.buildings.filter(b => b !== target.obj);
       checkWinCondition();
     }
@@ -124,12 +128,15 @@ function applyAttack(attackerUnit, targetR, targetC) {
     for (const [nr, nc] of neighborsOf(targetR, targetC)) {
       const other = units.find(u => u.r === nr && u.c === nc && u.owner !== attackerUnit.owner);
       if (!other) continue;
+      const otherBefore = other.hp;
       other.hp -= splashDmg;
+      Stats.dmg(attackerUnit.owner, attackerUnit.type, 'unit', Math.min(splashDmg, otherBefore));
       let otherDestroyed = false;
       if (other.hp <= 0) {
         otherDestroyed = true;
         if (other.type === 'infantry') players[other.owner].infantrySpiritTurns = 2;
         units = units.filter(u => u.id !== other.id);
+        Stats.unitLost(other.owner, other.type);
       }
       splashResults.push({ r: nr, c: nc, damage: splashDmg, destroyed: otherDestroyed });
     }

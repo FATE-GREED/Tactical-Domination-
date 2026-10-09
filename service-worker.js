@@ -1,14 +1,19 @@
 // Service Worker: cache semua file game saat pertama kali dibuka, supaya
 // bisa dimainkan offline setelahnya (khas PWA). Versi cache dinaikkan
 // manual kalau ada update file game.
-const CACHE_NAME = 'tactical-domination-v8-7';
+const CACHE_NAME = 'tactical-domination-v8-9-hex';
 const ASSETS = [
   './',
   './manifest.json',
   './css/style.css',
   './css/lobby.css',
+  './css/settings.css',
   './js/state.js',
+  './js/settings.js',
+  './js/stats.js',
   './js/audio.js',
+  './js/unit-art.js',
+  './js/hud.js',
   './js/lanes.js',
   './js/lockrows.js',
   './js/map-gen.js',
@@ -35,6 +40,18 @@ const ASSETS = [
   './img/lobby-bg.webp',
   './img/logo-banner.webp',
   './img/logo.webp',
+  './img/tiles/grass.webp',
+  './img/tiles/tallgrass.webp',
+  './img/tiles/forest.webp',
+  './img/tiles/swamp.webp',
+  './img/tiles/river.webp',
+  './img/tiles/rocks.webp',
+  './img/tiles/mountain.webp',
+  './img/tiles/road.webp',
+  './img/tiles/sand.webp',
+  './img/tiles/city.webp',
+  './img/tiles/ruins.webp',
+  './img/tiles/valley.webp',
 ];
 
 // Audio disimpan 'seadanya': kalau ada file yang hilang/diganti nama, instalasi

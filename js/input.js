@@ -17,6 +17,7 @@ let attackable = [];
 let specialMode = null;          // 'recovery' | 'supplyFuel' | 'supplyMedical'
 let specialActor = null;
 let specialTargets = [];
+let focusActor = null;           // Corps/APC supplier yang sedang memilih unit/hex fokus
 let haulActor = null;            // APC yang sedang diatur job Angkut Corps
 let haulCorps = null;            // Corps yang sudah dipilih (langkah 2: pilih tujuan)
 let pendingTile = null;
@@ -52,7 +53,8 @@ function initInput() {
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) { dragMoved = true; clearLongPress(); }
-    camX += dx; camY += dy; lastX = e.clientX; lastY = e.clientY; draw();
+    const k = Settings.get('panSens') / 100;      // sensitivitas geser layar (Pengaturan)
+    camX += dx * k; camY += dy * k; lastX = e.clientX; lastY = e.clientY; draw();
   });
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
@@ -102,7 +104,8 @@ function initInput() {
       const dx = t.clientX - lastX, dy = t.clientY - lastY;
       if (Math.abs(dx) > 6 || Math.abs(dy) > 6) { dragMoved = true; clearLongPress(); }
       if (dragMoved) {
-        camX += dx; camY += dy;
+        const k = Settings.get('panSens') / 100;
+        camX += dx * k; camY += dy * k;
         lastX = t.clientX; lastY = t.clientY;
         draw();
       }
@@ -161,7 +164,7 @@ function closeAllPanels() {
 function onLongPress(x, y) {
   const tile = tileFromScreen(x, y);
   if (!tile) return;
-  if (targetActor || occupyHex || specialMode || haulActor) return;
+  if (targetActor || occupyHex || specialMode || haulActor || focusActor) return;
   pendingTile = null;
   closeAllPanels();
   const own = units.find(u => u.r === tile.r && u.c === tile.c && u.owner === HUMAN);
@@ -191,6 +194,24 @@ function startOccupyMode(r, c) {
   updateActionPanel();
   draw();
 }
+// ---------- Fokus supply (Corps/APC job isi fuel/medical): ketuk unit sekutu / hex fokus ----------
+function startFocusMode(u) {
+  cancelActionMode();
+  focusActor = u; selectedUnit = u; pendingTile = null;
+  closeAllPanels(); updateActionPanel(); draw();
+}
+function handleFocusPick(r, c) {
+  const u = focusActor;
+  if (r === u.r && c === u.c) { u.focus = null; logAction(`${unitName(u)} #${u.id}: fokus supply dilepas`); }
+  else {
+    const t = units.find(x => x.r === r && x.c === c && x.owner === u.owner);
+    u.focus = t ? { unitId: t.id } : { r, c };
+    logAction(`${unitName(u)} #${u.id}: fokus supply ke ${t ? unitName(t) + ' #' + t.id : 'hex (' + r + ',' + c + ')'}`);
+  }
+  focusActor = null; selectedUnit = null;
+  updateActionPanel(); renderTargetPanel(); draw();
+}
+
 // ---------- Job Angkut Corps (APC): 1) pilih Corps, 2) (opsional) pilih tujuan ----------
 function startHaulMode(apc) {
   cancelActionMode();
@@ -299,6 +320,7 @@ function onCanvasClick(e) {
 
   // 1) Mode tempati / pilih target
   if (haulActor) { handleHaulPick(r, c); return; }
+  if (focusActor) { handleFocusPick(r, c); return; }
   if (occupyHex) { handleOccupyPick(r, c); return; }
   if (targetActor) { handleTargetPick(r, c); return; }
 
@@ -335,7 +357,7 @@ function onCanvasClick(e) {
 function cancelActionMode() {
   selectedUnit = null; reachable.clear(); attackMode = false; attackable = [];
   specialMode = null; specialActor = null; specialTargets = [];
-  targetActor = null; occupyHex = null; haulActor = null; haulCorps = null;
+  targetActor = null; occupyHex = null; haulActor = null; haulCorps = null; focusActor = null;
   updateActionPanel();
   draw();
 }

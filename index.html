@@ -10,6 +10,7 @@
 <title>Tactical Domination</title>
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/lobby.css">
+<link rel="stylesheet" href="css/settings.css">
 </head>
 <body>
 
@@ -109,20 +110,35 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>v8.7 — Lawan Bot (Sulit)</small><br>
+    <small>v8.9 — Lawan Bot (Sulit)</small><br>
     <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
 
+<!-- Bar atas tengah: pause, waktu pertandingan, kecepatan -->
 <div id="turnbar" class="panel">
-  <span><span class="dot" id="turndot"></span><b id="turntext">Giliran Pemain 1</b> — Turn <span id="turnnum">1</span></span>
+  <span class="dot" id="turndot"></span>
+  <b id="turntext">Giliran Pemain 1</b><span id="turnnum" hidden>1</span>
   <span id="timer" class="timer"></span>
-  <button id="laneBtn" title="Gambar jalur">🌊 Jalur</button>
-  <button id="lockLineBtn" title="Gambar baris kunci">🔒 Baris</button>
-  <button id="sndBtn" title="Suara">🔊</button>
-  <button id="pauseBtn">⏸ Pause</button>
-  <button id="endturn">Eksekusi ▶</button>
+  <button id="pauseBtn" title="Pause">⏸</button>
+  <span id="matchtime" class="matchtime">00:00</span>
+  <button id="speedBtn" title="Kecepatan eksekusi">▶ 1x</button>
 </div>
+
+<!-- Panel samping kiri -->
+<div id="sidebar" class="panel">
+  <div class="sb-turn">Turn <b id="sbTurn">1</b></div>
+  <button id="laneBtn" title="Gambar jalur">🌊 Jalur OFF</button>
+  <button id="lockLineBtn" title="Gambar baris kunci">🔒 Baris OFF</button>
+  <div class="sb-row" title="Corps menganggur / total"><span>Corps</span><b id="sbCorps">0/0</b></div>
+  <div class="sb-row" title="APC menganggur / total"><span>APC</span><b id="sbApc">0/0</b></div>
+  <button id="deployOpenBtn" title="Deploy unit dari Barak">+</button>
+  <div class="sb-row" title="Corps (C) dan APC (A) yang bertugas isi Fuel"><span>⛽</span><b id="sbFuel">C0 A0</b></div>
+  <div class="sb-row" title="Corps (C) dan APC (A) yang bertugas isi Medical"><span>✚</span><b id="sbMed">C0 A0</b></div>
+  <button id="rincianBtn" title="Rincian pertandingan">📊 Rincian</button>
+</div>
+
+<button id="endturn" title="Eksekusi">▶</button>
 
 <div id="dmgfeed"></div>
 <div id="killfeed"></div>
@@ -142,6 +158,7 @@
     <h2>Permainan Dijeda</h2>
     <button id="pmRestart">Restart</button>
     <button id="pmLobby">Lobby</button>
+    <button id="pmSettings">Pengaturan</button>
     <button id="pmResume" class="pm-main">Lanjutkan</button>
   </div>
 </div>
@@ -151,6 +168,7 @@
     <h2 id="winnerText">Pemain 1 Menang!</h2>
     <p>Seluruh Markas lawan telah hancur.</p>
     <div class="go-btns">
+      <button id="goRincianBtn">Rincian</button>
       <button id="restartBtn">Main Lagi</button>
       <button id="lobbyBtn">Lobby</button>
     </div>
@@ -161,6 +179,8 @@
 
 <!-- Urutan penting: state dulu, lalu modul yang bergantung padanya, main.js paling akhir -->
 <script src="js/state.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/stats.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/map-gen.js"></script>
 <script src="js/setup.js"></script>
@@ -173,11 +193,13 @@
 <script src="js/rules-win.js"></script>
 <script src="js/rules-auto.js"></script>
 <script src="js/render-fx.js"></script>
+<script src="js/unit-art.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui-orders.js"></script>
 <script src="js/bot.js"></script>
 <script src="js/lanes.js"></script>
 <script src="js/lockrows.js"></script>
+<script src="js/hud.js"></script>
 <script src="js/input.js"></script>
 <script src="js/main.js"></script>
 <script src="js/lobby.js"></script>

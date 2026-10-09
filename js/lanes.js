@@ -9,7 +9,7 @@ function toggleLaneMode() {
   laneMode = !laneMode; laneDraft = null;
   const b = document.getElementById('laneBtn');
   b.classList.toggle('on', laneMode);
-  b.textContent = laneMode ? '🌊 Jalur: ON' : '🌊 Jalur';
+  b.textContent = laneMode ? '🌊 Jalur ON' : '🌊 Jalur OFF';
   draw();
 }
 function laneTry(t) {
@@ -43,7 +43,7 @@ function drawLanes() {
   const paint = (tiles, a) => {
     if (!tiles.length) return;
     const pts = tiles.map(p => hexCenter(p[0], p[1]));
-    ctx.strokeStyle = `rgba(90,169,255,${a})`; ctx.fillStyle = `rgba(150,205,255,${a})`;
+    ctx.strokeStyle = Settings.hexA(Settings.get('laneColor'), a); ctx.fillStyle = Settings.hexA(shiftColor(Settings.get('laneColor'), 45), a);
     ctx.lineWidth = Math.max(HEX_SIZE * 0.22, 3 / scale); ctx.lineJoin = 'round';
     ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke();
     ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, HEX_SIZE * 0.3, 0, Math.PI * 2); ctx.fill();
