@@ -243,25 +243,6 @@ function buildTerrainSprites() {
 
     terrainSprites[key] = { canvas: off, size: dispSize };
   }
-  loadTileSprites(); // ganti sprite prosedural dengan tile gambar begitu selesai dimuat
-}
-
-// ---------- Tile gambar hex (img/tiles/<terrain>.webp, 168x192, pointy-top, transparan) ----------
-// Satu tile per jenis terrain. Sprite prosedural di atas tetap jadi cadangan
-// sampai gambarnya selesai dimuat (atau kalau gagal dimuat).
-function loadTileSprites() {
-  for (const key in TERRAIN) {
-    const img = new Image();
-    img.onload = () => {
-      const off = document.createElement('canvas');
-      off.width = img.naturalWidth; off.height = img.naturalHeight;
-      off.getContext('2d').drawImage(img, 0, 0);
-      // sedikit lebih besar dari hex supaya tidak ada celah tipis antar tile
-      terrainSprites[key] = { canvas: off, w: hexW * 1.04, h: hexH * 1.02, isTile: true };
-      draw();
-    };
-    img.src = 'img/tiles/' + key + '.webp';
-  }
 }
 
 // ---------- Ikon vektor unit (digambar di ruang koordinat -1..1, putih) ----------

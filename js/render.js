@@ -57,8 +57,7 @@ function draw() {
       const terr = TERRAIN[mapData[r][c]];
       const sprite = terrainSprites[mapData[r][c]];
       if (sprite) {
-        if (sprite.isTile) ctx.drawImage(sprite.canvas, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
-        else ctx.drawImage(sprite.canvas, x - sprite.size / 2, y - sprite.size / 2, sprite.size, sprite.size);
+        ctx.drawImage(sprite.canvas, x - sprite.size / 2, y - sprite.size / 2, sprite.size, sprite.size);
       } else {
         const pts = hexCorners(x, y, HEX_SIZE - 0.6);
         ctx.beginPath();
@@ -88,7 +87,7 @@ function draw() {
       if (specialMode && specialTargets.some(t => t.r === r && t.c === c)) { ctx.fillStyle = 'rgba(80,180,255,0.45)'; ctx.fill(); }
 
       pathHex();
-      ctx.strokeStyle = sprite && sprite.isTile ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.25)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 1 / scale;
       ctx.stroke();
 

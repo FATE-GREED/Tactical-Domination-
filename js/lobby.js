@@ -42,9 +42,9 @@
 
   // ---------- Katalog: Tile ----------
   function tileHTML() {
-    const rows = Object.entries(TERRAIN).map(([k, t]) => `
+    const rows = Object.values(TERRAIN).map(t => `
       <article class="card">
-        <div class="hex" style="background:${t.color} url(img/tiles/${k}.webp) center/cover"></div>
+        <div class="hex" style="background:${t.color}"></div>
         <div class="card-main">
           <h3>${t.name} <small>${t.pct}% peta</small></h3>
           <p>${t.effect}</p>
