@@ -25,7 +25,7 @@ function effectiveJPD(unit) {
   if (def.combat && terr === 'mountain') jpd = effectiveRange(unit); // di Mountain: JPD = Rng saat ini
   if (unit.type === 'sniper') {
     const noAlliesNear = !units.some(e => e !== unit && e.owner === unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
-    if (noAlliesNear) jpd += 3;
+    if (noAlliesNear) jpd = Math.ceil(jpd * 1.5 - 1e-9);   // Sang Pengamat: JPD +50%
   }
   return jpd;
 }

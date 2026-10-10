@@ -15,7 +15,7 @@
 function effectiveSpeed(unit) {
   const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   let spd = def.spd;
-  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = def.spd + 4; // Dikejar Waktu (bonus tetap +4 dari SPD dasar)
+  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = def.spd + 5; // Dikejar Waktu (bonus tetap +5 dari SPD dasar)
   if (unit.type === 'corps' && !unit.cargo) spd += 2;                             // Jangan Menganggur
   if (unit.type === 'assault' && isUnitUnseen(unit)) {                            // Serangan Kejut: SPD+2 saat unseen
     const enemyWithin5 = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
@@ -24,17 +24,17 @@ function effectiveSpeed(unit) {
   return spd;
 }
 
-// ---------- Anti-Tank: Semangat Besi (+2 MP sekali/giliran jika bersebelahan kendaraan) ----------
+// ---------- Anti-Tank: Semangat Besi (+2 MP sekali/giliran jika ada kendaraan dalam jarak 2 tile) ----------
 // Dipanggil dari input.js saat unit mulai dipilih untuk bergerak (startMoveMode).
 function applySemangatBesi(unit) {
   if (unit.type !== 'antitank' || unit.semangatBesiUsed) return;
-  const adjacentVehicle = neighborsOf(unit.r, unit.c).some(([nr, nc]) => {
-    const o = units.find(u => u.r === nr && u.c === nc);
-    if (!o) return false;
-    const d = o.type === 'corps' ? CORPS_DEF : UNITS[o.type];
-    return d.vehicle;
+  // Ada kendaraan (sekutu MAUPUN musuh) dalam jarak 2 tile
+  const nearVehicle = units.some(o => {
+    if (o.id === unit.id || o.type === 'corps') return false;
+    if (hexDistance(unit.r, unit.c, o.r, o.c) > 2) return false;
+    return !!UNITS[o.type].vehicle;
   });
-  if (adjacentVehicle) {
+  if (nearVehicle) {
     unit.mp += 2;
     unit.semangatBesiUsed = true;
   }
@@ -54,12 +54,10 @@ function infantryGroupSize(unit) {
   return visited.size;
 }
 
-// ---------- Tank Lapis Baja: Sang Pelindung (proteksi ke SEKUTU adjacent, bukan diri sendiri) ----------
-function hasAdjacentAllyProtector(unit) {
-  return neighborsOf(unit.r, unit.c).some(([nr, nc]) => {
-    const other = units.find(u => u.r === nr && u.c === nc);
-    return other && other.id !== unit.id && other.owner === unit.owner && other.type === 'tanklapis';
-  });
+// ---------- Tank Lapis Baja: Sang Pelindung (proteksi ke SEKUTU dalam jangkauan 2 tile, bukan diri sendiri) ----------
+function hasAdjacentAllyProtector(unit) {   // nama lama dipertahankan; jangkauan kini 2 tile
+  return units.some(other => other.id !== unit.id && other.owner === unit.owner && other.type === 'tanklapis' &&
+    hexDistance(unit.r, unit.c, other.r, other.c) <= 2);
 }
 
 // ---------- Kontribusi % ATK dari kemampuan unik milik attacker ----------

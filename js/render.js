@@ -197,7 +197,7 @@ function togglePanel(id) {
 function resourceHtml(p) {
   const i = players.indexOf(p), r = p.resources;
   let h = `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
-    ` <small class="rs-s">C${p.corps.count}/10${p.corps.timer ? '+' + p.corps.timer : ''} · B${p.barakSlots}/2</small>`;
+    ` <small class="rs-s">C${p.corps.count}/10${p.corps.timer ? '+' + p.corps.timer : ''} · B${totalBarakSlots(p)}/${2 * p.buildings.filter(b => b.type === 'barak').length}</small>`;
   if (i !== HUMAN) {                                   // bar HP seluruh Markas musuh
     const maxHp = BUILDING_TYPES.markas.hp, alive = p.buildings.filter(b => b.type === 'markas');
     const lost = (Stats.data[i] && Stats.data[i].bldLost.markas) || 0;
@@ -400,9 +400,9 @@ function runAndRefreshEntity(unit, actionFn, r, c) {
 function openDeployPanel(barak, player) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
-  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy dari Barak — slot tersisa: ' + player.barakSlots + '</h3>';
+  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3>';
   html += Object.entries(UNITS).map(([key, def]) => {
-    const disabled = (player.barakSlots <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
+    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
     return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
   }).join('');
   el.innerHTML = html;

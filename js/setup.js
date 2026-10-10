@@ -8,8 +8,8 @@
 
 function setupPlayersAndBuildings() {
   players = [
-    { id: 1, name: 'Pemain', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
-    { id: 2, name: 'Bot', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, barakSlots: 2, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
+    { id: 1, name: 'Pemain', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
+    { id: 2, name: 'Bot', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
   ];
   const place = (pIdx, type, r, c) => {
     const tiles = footprintShapes(type, r, c)[0] || [[r, c]];           // Markas 7 tile, bangunan lain 3 tile (footprint.js)

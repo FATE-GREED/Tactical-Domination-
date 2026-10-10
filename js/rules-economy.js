@@ -9,27 +9,42 @@ function getBuilding(player, type) { return player.buildings.find(b => b.type ==
 function inTerritory(player, r, c) {
   const m = getBuilding(player, 'markas');
   if (!m) return false;
-  return r >= m.r - 10 && r < m.r + 10 && c >= m.c - 10 && c < m.c + 10;
+  return r >= m.r - 5 && r < m.r + 5 && c >= m.c - 5 && c < m.c + 5;   // Territory 10x10
 }
 
-// Jadwal waktu tunggu produksi Corps ke-n (Bagian 3)
+// Jadwal waktu tunggu produksi Corps ke-n (n = jumlah Corps setelah produksi): 1 -> langsung, 2 -> 1, 3 -> 2, 4+ -> tetap 3
 function corpsWait(n) {
+  if (n <= 1) return 0;
   if (n === 2) return 1;
   if (n === 3) return 2;
-  if (n === 4) return 3;
-  if (n === 5) return 4;
-  if (n >= 6 && n <= 10) return 5;
-  return null;
+  return 3;
 }
+const MAX_CORPS = 10;   // maksimal Corps yang hidup bersamaan
+
+// Jumlah Corps pemain yang masih hidup (termasuk yang sedang membangun / naik APC)
+function corpsAlive(pIdx) {
+  let n = 0;
+  for (const u of units) {
+    if (u.owner !== pIdx) continue;
+    if (u.type === 'corps') n++;
+    else if (u.cargo && u.cargo.type === 'corps') n++;
+  }
+  return n;
+}
+
+// Slot deploy: tiap Barak punya 2 slot sendiri per giliran
+function barakSlots(b) { return b.slots === undefined ? 2 : b.slots; }
+function totalBarakSlots(p) { return p.buildings.filter(b => b.type === 'barak').reduce((a, b) => a + barakSlots(b), 0); }
 
 function spawnCorps(pIdx) {
   const p = players[pIdx];
   const g = getBuilding(p, 'garnisun');
-  if (!g) return;
+  if (!g) return false;
   const spot = emptyAdjacentBuilding(g, CORPS_DEF);
-  if (!spot) return; // tidak ada ruang, coba lagi giliran berikutnya
+  if (!spot) return false; // tidak ada ruang, coba lagi giliran berikutnya
   units.push({ id: uidCounter++, owner: pIdx, type: 'corps', r: spot.r, c: spot.c, mp: CORPS_DEF.spd, fuel: 0, hp: CORPS_DEF.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
-  p.corps.count++;
+  p.corps.count = corpsAlive(pIdx);
+  return true;
 }
 
 // Dipanggil setiap kali giliran berpindah ke pemain pIdx:
@@ -49,7 +64,7 @@ function startTurn(pIdx) {
   Stats.earn(pIdx, 'kredit', 30 * markasCount + 20 * barakCount);
   Stats.earn(pIdx, 'fuel', 50 * pomCount);
   Stats.earn(pIdx, 'medical', 50 * pospemulihanCount);
-  p.barakSlots = 2;
+  for (const b of p.buildings) if (b.type === 'barak') b.slots = 2;   // 2 slot deploy PER Barak
 
   if (p.infantrySpiritTurns > 0) p.infantrySpiritTurns--;        // Semangat Perjuangan meluruh
   for (const b of p.buildings) if (b.defDebuffTurns > 0) b.defDebuffTurns--; // Penghancur Bangunan meluruh
@@ -108,16 +123,24 @@ function startTurn(pIdx) {
     u.mp = (def.hasFuel && u.fuel <= 0) ? 0 : spd;
   }
 
-  if (p.corps.count < 10) {
-    if (p.corps.timer === null) {
-      spawnCorps(pIdx); // Corps pertama langsung
-      if (p.corps.count < 10) p.corps.timer = corpsWait(p.corps.count + 1);
-    } else {
-      p.corps.timer--;
-      if (p.corps.timer <= 0) {
-        spawnCorps(pIdx);
-        if (p.corps.count < 10) p.corps.timer = corpsWait(p.corps.count + 1);
-      }
+  // Produksi Corps: jeda 1,2,3 lalu tetap 3 giliran; maks 10 Corps hidup bersamaan.
+  // Kalau Corps mati dan jumlahnya di bawah 10, hitungan giliran produksi dimulai lagi.
+  p.corps.count = corpsAlive(pIdx);
+  const scheduleNext = () => {
+    p.corps.count = corpsAlive(pIdx);
+    p.corps.timer = p.corps.count >= MAX_CORPS ? null : corpsWait(p.corps.count + 1);
+  };
+  if (p.corps.count >= MAX_CORPS) {
+    p.corps.timer = null;
+  } else if (p.corps.timer === null) {
+    const w = corpsWait(p.corps.count + 1);
+    if (w === 0) { if (spawnCorps(pIdx)) scheduleNext(); }   // Corps pertama (atau semua Corps gugur): langsung
+    else p.corps.timer = w;                                   // mulai menghitung giliran dari sekarang
+  } else {
+    p.corps.timer--;
+    if (p.corps.timer <= 0) {
+      if (spawnCorps(pIdx)) scheduleNext();
+      else p.corps.timer = 0;                                 // belum ada ruang: coba lagi giliran depan
     }
   }
 }

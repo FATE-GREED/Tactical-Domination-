@@ -102,8 +102,8 @@ function processBuildProgress(pIdx) {
 
 // ---------- Cargo: muat / bongkar ----------
 function cargoCapacity(unit, cargoType) {
-  if (unit.type === 'apc') return cargoType === 'fuel' ? 100 : cargoType === 'medical' ? 20 : 1;
-  if (unit.type === 'corps') return cargoType === 'fuel' ? 50 : cargoType === 'medical' ? 10 : 0;
+  if (unit.type === 'apc') return cargoType === 'fuel' ? 100 : cargoType === 'medical' ? 50 : 1;
+  if (unit.type === 'corps') return cargoType === 'fuel' ? 50 : cargoType === 'medical' ? 50 : 0;
   return 0;
 }
 

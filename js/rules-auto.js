@@ -152,12 +152,12 @@ function orderBuild(owner, type, r, c, tiles) {
 // ---------------------------------------------------------------
 function doDeploy(key, barak, player) {
   const def = UNITS[key];
-  if (player.barakSlots <= 0 || player.resources.kredit < def.price) return false;
+  if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return false;
   const spot = emptyAdjacentBuilding(barak, def);
   if (!spot) return false;
   player.resources.kredit -= def.price;
   Stats.use(player, 'kredit', def.price);
-  player.barakSlots--;
+  barak.slots = barakSlots(barak) - 1;
   units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
   return true;
 }

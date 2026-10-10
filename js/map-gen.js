@@ -1,7 +1,7 @@
 // ====================================================================
-// map-gen.js — Menghasilkan mapData 40x60 (TANPA simetri).
+// map-gen.js — Menghasilkan mapData 30x45 (TANPA simetri).
 // Sungai: garis berkelok yang membelah map dari titik dekat tengah
-// (bisa bergeser sampai 20 tile) ke pinggir map, arah acak (vertikal,
+// (bisa bergeser sampai 15 tile) ke pinggir map, arah acak (vertikal,
 // horizontal, serong), kadang terputus. Sisa kuota River dibuat sungai
 // baru sampai habis.
 // ====================================================================
@@ -138,7 +138,7 @@ function placeRivers(grid, quota) {
   const cx = (COLS - 1) * hexW / 2, cy = (ROWS - 1) * vertSpacing / 2;
   let placed = 0;
   for (let k = 0; k < 14 && placed < quota; k++) {
-    const dist = Math.random() * 20, ang = Math.random() * Math.PI * 2;
+    const dist = Math.random() * 15, ang = Math.random() * Math.PI * 2;
     let x = cx + Math.cos(ang) * dist * hexW;
     let y = cy + Math.sin(ang) * dist * vertSpacing;
     y = Math.max(2 * vertSpacing, Math.min((ROWS - 3) * vertSpacing, y));

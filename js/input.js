@@ -382,7 +382,7 @@ function startSpecialMode(actor, mode) {
 function onDeployClick(key, barak, player) {
   if (!canAct()) return;
   const def = UNITS[key];
-  if (player.barakSlots <= 0 || player.resources.kredit < def.price) return;
+  if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return;
   if (!doDeploy(key, barak, player)) { alert('Tidak ada tile kosong di sekitar Barak untuk deploy.'); return; }
   renderResourcePanels();
   renderTargetPanel();

@@ -6,7 +6,7 @@
 
 // ---------- Konfigurasi Peta ----------
 const HUMAN = 0, BOT = 1; // mode lawan bot: Pemain 1 = manusia (kiri), Pemain 2 = bot (kanan)
-const ROWS = 40, COLS = 60, HALF_COLS = COLS / 2, HEX_SIZE = 18;
+const ROWS = 30, COLS = 45, HALF_COLS = COLS / 2, HEX_SIZE = 18;
 const PLAN_SECONDS = Infinity; // v8.5: fase rencana tanpa batas waktu (berakhir saat tombol Eksekusi ditekan)
 
 // ---------- Terrain (Bagian 2 dokumen desain) ----------
@@ -29,16 +29,16 @@ const TERRAIN = {
 // combat: bisa menyerang. vehicle/tank: dipakai rules-movement & rules-combat.
 // atk/def/hp/range/jpd kosong (null) untuk unit Non-Combat (tidak relevan/tidak menyerang).
 const UNITS = {
-  infantry:    { name: 'Infantry',        price: 15, spd: 7,  range: 5,  atk: 33, def: 15,  hp: 100, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
-  assault:     { name: 'Assault',         price: 30, spd: 10,  range: 3,  atk: 48, def: 20,  hp: 150, jpd: 2, vehicle: false, tank: false, combat: true,  hasFuel: false },
-  sniper:      { name: 'Sniper',          price: 30, spd: 6,  range: 8, atk: 48, def: 10,  hp: 80,  jpd: 4, vehicle: false, tank: false, combat: true,  hasFuel: false },
-  antitank:    { name: 'Anti-Tank',       price: 40, spd: 7,  range: 6,  atk: 48, def: 25,  hp: 150, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: true, fuelMax: 30, fuelUse: 3 },
-  tanklapis:   { name: 'Tank Lapis Baja', price: 70, spd: 8,  range: 5,  atk: 63, def: 45, hp: 300, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 5 },
-  tankcrusher: { name: 'Tank Crusher',    price: 70, spd: 8,  range: 6,  atk: 84, def: 35,  hp: 250, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 4 },
-  montir:      { name: 'Montir',          price: 50, spd: 5,  range: 15, atk: 45, def: 25,  hp: 100, jpd: 5, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 20, fuelUse: 2 },
-  apc:         { name: 'APC',             price: 20, spd: 12, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 5, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 40, fuelUse: 2 },
+  infantry   : { name: 'Infantry',        price: 15, spd: 8,  range: 6,  atk: 33, def: 15,  hp: 100, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  assault    : { name: 'Assault',         price: 30, spd: 11, range: 4,  atk: 48, def: 20,  hp: 150, jpd: 2, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  sniper     : { name: 'Sniper',          price: 30, spd: 7,  range: 9,  atk: 48, def: 10,  hp: 80,  jpd: 4, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  antitank   : { name: 'Anti-Tank',       price: 40, spd: 8,  range: 7,  atk: 48, def: 25,  hp: 150, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  tanklapis  : { name: 'Tank Lapis Baja', price: 70, spd: 9,  range: 6,  atk: 63, def: 45, hp: 300, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 5 },
+  tankcrusher: { name: 'Tank Crusher',    price: 70, spd: 9,  range: 7,  atk: 84, def: 35,  hp: 250, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 4 },
+  montir     : { name: 'Montir',          price: 50, spd: 6,  range: 16, atk: 45, def: 25,  hp: 100, jpd: 5, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 20, fuelUse: 2 },
+  apc        : { name: 'APC',             price: 20, spd: 13, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 5, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 40, fuelUse: 2 },
 };
-const CORPS_DEF = { name: 'Corps', spd: 9, range: 0, atk: 0, def: 15, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
+const CORPS_DEF = { name: 'Corps', spd: 10, range: 0, atk: 0, def: 15, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
 
 // ---------- Bangunan (Bagian 3) ----------
 // destructible:false untuk Garnisun (tidak bisa hancur, bukan objective).
@@ -74,14 +74,14 @@ const UNIT_ABILITIES = {
   ],
   sniper: [
     ['Konsentrasi Tinggi', 'Bonus ATK menurut jarak tembak: tepat di Range +30%, Range −1 +20%, Range −2 +10%.'],
-    ['JPD +3 saat sendirian', 'Jarak pandang bertambah 3 bila tidak ada sekutu dalam radius 5 tile.'],
+    ['Sang Pengamat', 'JPD naik 50% bila tidak ada sekutu di sekitar dalam jarak 5 tile.'],
   ],
   antitank: [
-    ['Semangat Besi', 'MP +2 (sekali per giliran) bila bersebelahan dengan kendaraan.'],
+    ['Semangat Besi', 'MP +2 (sekali per giliran) bila ada kendaraan (sekutu maupun musuh) dalam jarak 2 tile.'],
     ['Ayo Ledakkan', 'Serangan ke kendaraan memberi damage 2x (serangan tambahan).'],
   ],
   tanklapis: [
-    ['Sang Pelindung', 'Sekutu yang bersebelahan dengan tank ini mendapat DEF +20% (tidak berlaku untuk dirinya sendiri).'],
+    ['Sang Pelindung', 'Sekutu dalam jangkauan 2 tile dari tank ini mendapat DEF +20% (tidak berlaku untuk dirinya sendiri).'],
     ['Pejuang Bertahan', 'DEF +50% saat HP di bawah 50%.'],
   ],
   tankcrusher: [
@@ -93,7 +93,7 @@ const UNIT_ABILITIES = {
     ['Perusak Formasi', 'Splash 50% damage ke unit musuh yang bersebelahan dengan target (bila target utama adalah unit).'],
   ],
   apc: [
-    ['Dikejar Waktu', 'SPD +4 saat membawa Corps.'],
+    ['Dikejar Waktu', 'SPD +5 saat membawa Corps.'],
     ['Kurir Setia', 'DEF +20% saat membawa muatan.'],
   ],
   corps: [

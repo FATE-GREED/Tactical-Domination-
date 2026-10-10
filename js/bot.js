@@ -57,7 +57,7 @@ function botDeploy(me) {
   const mine = () => units.filter(u => u.owner === me);
   const hasPom = p.buildings.some(b => b.type === 'pom');
 
-  for (let guard = 0; guard < 4 && p.barakSlots > 0; guard++) {
+  for (let guard = 0; guard < 4 && totalBarakSlots(p) > 0; guard++) {
     const w = { infantry: 2, assault: 2, sniper: 1.6, antitank: 1.2, tanklapis: 2, tankcrusher: 1.6, montir: 0.8, apc: 0 };
     if (tanks > 0) { w.antitank += 3 * tanks; w.tankcrusher += 1.5 * tanks; }
     if (snipers > 0) w.assault += 2 * snipers;
@@ -73,7 +73,7 @@ function botDeploy(me) {
       if (score > bestScore) { bestScore = score; bestKey = key; }
     }
     if (!bestKey) break;
-    if (!doDeploy(bestKey, baraks[0], p) && !(baraks[1] && doDeploy(bestKey, baraks[1], p))) break;
+    if (!baraks.some(b => doDeploy(bestKey, b, p))) break;
   }
 }
 
