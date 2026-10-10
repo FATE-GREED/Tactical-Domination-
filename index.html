@@ -17,7 +17,7 @@
 <!-- ===================== LOBBY ===================== -->
 <div id="lobby">
   <div class="lb-bg"></div>
-  <img class="lb-cmd" src="img/commander.webp" alt="Komandan" draggable="false">
+  <img class="lb-cmd" src="img/cmd/lobby.webp" alt="Jenderal John" draggable="false">
   <div class="lb-shade"></div>
 
   <header class="lb-top">
@@ -53,7 +53,7 @@
   </nav>
 
   <nav class="lb-bottom" aria-label="Menu utama">
-    <button class="lb-tab" data-dev>
+    <button class="lb-tab" data-open="komandan">
       <svg viewBox="0 0 64 48"><path d="M8 30c0-9 10-18 24-18s24 9 24 18H8z" fill="#2f3a4c" stroke="#aab4c6" stroke-width="2"/><path d="M6 30h52v6c0 3-3 5-6 5H12c-3 0-6-2-6-5v-6z" fill="#1f2735" stroke="#aab4c6" stroke-width="2"/><path d="m32 17 2.200 4.500 5 .7-3.600 3.500.9 5L32 28.300l-4.500 2.400.9-5-3.600-3.500 5-.7z" fill="#d7b56d"/></svg>
       <em>Komandan</em>
     </button>
@@ -114,7 +114,7 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>v9.2 — Lawan Bot (Sulit)</small><br>
+    <small>v9.3 — Lawan Bot (Sulit)</small><br>
     <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
@@ -185,6 +185,7 @@
 
 <!-- Urutan penting: state dulu, lalu modul yang bergantung padanya, main.js paling akhir -->
 <script src="js/state.js"></script>
+<script src="js/commanders.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/footprint.js"></script>

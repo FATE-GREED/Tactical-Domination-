@@ -1,7 +1,7 @@
 // Service Worker: cache semua file game saat pertama kali dibuka, supaya
 // bisa dimainkan offline setelahnya (khas PWA). Versi cache dinaikkan
 // manual kalau ada update file game.
-const CACHE_NAME = 'tactical-domination-v9-2';
+const CACHE_NAME = 'tactical-domination-v9-3';
 const ASSETS = [
   './',
   './manifest.json',
@@ -9,6 +9,7 @@ const ASSETS = [
   './css/lobby.css',
   './css/settings.css',
   './js/state.js',
+  './js/commanders.js',
   './js/settings.js',
   './js/stats.js',
   './js/footprint.js',
@@ -38,11 +39,14 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
-  './img/commander.webp',
+  './img/cmd/lobby.webp',
   './img/lobby-bg.webp',
   './img/logo-banner.webp',
   './img/logo.webp',
 ];
+
+// Gambar komandan (20 file, total <1 MB): di-cache seadanya, kegagalan tidak membatalkan instalasi.
+const CMD_ASSETS = Array.from({ length: 20 }, (_, i) => './img/cmd/c' + String(i + 1).padStart(2, '0') + '.webp');
 
 // Audio disimpan 'seadanya': kalau ada file yang hilang/diganti nama, instalasi
 // PWA tidak boleh gagal, jadi file audio di-cache terpisah dan kegagalannya diabaikan.
@@ -96,7 +100,9 @@ self.addEventListener('install', event => {
       if (!res.ok) throw new Error('Gagal cache ' + url);
       await cache.put(url, await cleanResponse(res));
     })).then(() => Promise.all(AUDIO_ASSETS.map(url =>
-      fetch(url, { cache: 'reload' }).then(r => r.ok && cache.put(url, r)).catch(() => {}))))
+      fetch(url, { cache: 'reload' }).then(r => r.ok && cache.put(url, r)).catch(() => {})))
+      .then(() => Promise.all(CMD_ASSETS.map(url =>
+      fetch(url, { cache: 'reload' }).then(r => r.ok && cache.put(url, r)).catch(() => {})))))
     )
   );
   self.skipWaiting();

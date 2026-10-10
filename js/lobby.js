@@ -119,6 +119,27 @@
     return `<div class="grid g-unit">${cards}</div>`;
   }
 
+  // ---------- Katalog: Komandan (v9.3) ----------
+  // Belum berpengaruh ke permainan; efek hanya ditampilkan sebagai info.
+  function commanderCard(c) {
+    const fx = c.effect
+      ? `<div class="cm-fx"><b>${c.effect.name}</b><span>${c.effect.text}</span>${c.effect.active ? '' : '<i>Belum aktif</i>'}</div>`
+      : '';
+    return `
+      <article class="card cm">
+        <div class="cm-pic"><img src="${c.img}" alt="${c.name}" loading="lazy" decoding="async" draggable="false"></div>
+        <div class="cm-info">
+          <h3>${c.name}</h3>
+          <div class="tags">${tag(c.rank)}${tag(c.sex)}${tag('Seragam ' + c.uniform)}</div>
+          <p>${c.desc}</p>
+          ${fx}
+        </div>
+      </article>`;
+  }
+  function commanderHTML() {
+    return `<p class="note">Komandan belum memengaruhi permainan.</p><div class="grid g-cmd">${COMMANDERS.map(commanderCard).join('')}</div>`;
+  }
+
   // ---------- Modal Mulai ----------
   function startHTML() {
     return `
@@ -171,6 +192,7 @@
       if (k === 'unit') openModal('Unit', unitHTML(), true);
       if (k === 'kemampuan') openModal('Kemampuan', abilityHTML(), true);
       if (k === 'bangunan') openModal('Bangunan', buildingHTML(), true);
+      if (k === 'komandan') openModal('Komandan', commanderHTML(), true);
       return;
     }
 
