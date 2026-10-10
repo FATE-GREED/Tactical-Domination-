@@ -37,25 +37,37 @@ function moveCost(terrainKey, def) {
 // Cari occupant (unit ATAU bangunan) di suatu tile, atau null jika kosong
 function occupantAt(r, c) {
   for (const u of units) if (u.r === r && u.c === c) return u;
-  for (const p of players) for (const b of p.buildings) if (b.r === r && b.c === c) return b;
-  return null;
+  return buildingAt(r, c);
+
 }
 
 // Ada Jembatan di tile ini? (Bagian 3: Jembatan boleh coexist dengan occupant lain di River)
 function hasBridgeAt(r, c) {
-  return players.some(p => p.buildings.some(b => b.type === 'jembatan' && b.r === r && b.c === c));
+  const b = buildingAt(r, c);
+  return !!(b && b.type === 'jembatan');
 }
 
 // Apakah tile ini memblokir gerak/penempatan unit? Jembatan SENGAJA tidak
 // dihitung sebagai penghalang (pengecualian aturan 1 tile = 1 occupant).
-function isTileBlocked(r, c) {
-  if (markasSites.some(s => s.r === r && s.c === c)) return true; // tile lokasi Markas dicadangkan selama dipesan/dibangun
-  if (units.some(u => u.r === r && u.c === c)) return true;
-  for (const p of players) {
-    const b = p.buildings.find(bb => bb.r === r && bb.c === c);
-    if (b && b.type !== 'jembatan') return true;
+// v9.0: tile yang dicadangkan proyek bangunan (footprint Markas 7 tile / bangunan 3 tile) ikut memblokir.
+// `self` = unit yang bertanya: cadangan miliknya sendiri tidak memblokir dirinya.
+function reservedBy(r, c, self) {
+  const selfSite = self && (self.buildOrder ? self.buildOrder.site : self.buildSite);
+  for (const s of markasSites) if (s.id !== selfSite && s.tiles && tileIn(s.tiles, r, c)) return true;
+  for (const x of units) {
+    if (x === self) continue;
+    let t = null;
+    if (x.buildOrder && x.buildOrder.tiles && x.buildOrder.type !== 'markas' && x.buildOrder.type !== 'renov') t = x.buildOrder.tiles;
+    else if (x.isBuilding && x.buildTiles && x.buildType !== 'markas' && x.buildType !== 'renov') t = x.buildTiles;
+    if (t && tileIn(t, r, c)) return true;
   }
   return false;
+}
+function isTileBlocked(r, c, self) {
+  if (reservedBy(r, c, self)) return true;
+  if (units.some(u => u.r === r && u.c === c)) return true;
+  const b = buildingAt(r, c);
+  return !!(b && b.type !== 'jembatan');
 }
 
 // Biaya masuk tile untuk unit `def`, sudah memperhitungkan Jembatan
@@ -103,7 +115,7 @@ function computeReachable(unit) {
     const curKey = `${cur.r},${cur.c},${cur.f}`;
     if (dist.get(curKey) < cur.cost) continue;
     for (const [nr, nc] of neighborsOf(cur.r, cur.c)) {
-      if (isTileBlocked(nr, nc) && !(nr === unit.r && nc === unit.c)) continue;
+      if (isTileBlocked(nr, nc, unit) && !(nr === unit.r && nc === unit.c)) continue;
       let cost = tileMoveCost(nr, nc, def);
       let nf = cur.f;
       if (mapData[nr][nc] === 'road' && isNonCombat && cur.f < maxFree) {

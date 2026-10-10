@@ -40,6 +40,19 @@ function drawIconCircle(x, y, r, color, label) {
   ctx.fillText(label, x, y);
 }
 
+// v9.0: seluruh tile dalam jarak pandang (JPD efektif) unit sekutu mana pun
+function radarTiles() {
+  const set = new Set();
+  for (const u of units) {
+    if (u.owner !== HUMAN) continue;
+    const j = effectiveJPD(u);
+    for (let r = Math.max(0, u.r - j); r <= Math.min(ROWS - 1, u.r + j); r++)
+      for (let c = Math.max(0, u.c - j); c <= Math.min(COLS - 1, u.c + j); c++)
+        if (hexDistance(u.r, u.c, r, c) <= j) set.add(r * COLS + c);
+  }
+  return set;
+}
+
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#12140f';
@@ -47,6 +60,7 @@ function draw() {
   ctx.save();
   ctx.translate(camX, camY);
   ctx.scale(scale, scale);
+  const radar = radarOn ? radarTiles() : null;
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -78,6 +92,8 @@ function draw() {
       pathHex();
       for (const p of players) if (inTerritory(p, r, c)) { ctx.fillStyle = p.color + '33'; ctx.fill(); break; }
 
+      if (radar && radar.has(r * COLS + c)) { pathHex(); ctx.fillStyle = 'rgba(168,85,247,0.34)'; ctx.fill(); }   // v9.0 Radar: ungu seperti territory
+
       const rk = r + ',' + c;
       pathHex();
       if (reachable.has(rk)) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fill(); }
@@ -91,28 +107,33 @@ function draw() {
       ctx.lineWidth = 1 / scale;
       ctx.stroke();
 
-      // bangunan
-      for (const p of players) {
-        const b = p.buildings.find(bb => bb.r === r && bb.c === c);
-        if (b) drawBuildingSprite(b, p.color, x, y);
-      }
-      const site = markasSites.find(s => s.r === r && s.c === c && s.owner === HUMAN);
-      if (site) drawSiteMarker(site, x, y);
-      // unit (hanya digambar kalau terlihat oleh pemain yang sedang giliran, dan bukan yang sedang animasi gerak)
-      const u = units.find(uu => uu.r === r && uu.c === c);
-      if (u && isVisibleToCurrentPlayer(u) && !(moveAnim && moveAnim.unitId === u.id)) {
-        drawUnitSprite(u, x, y);
-      }
+      // v9.1: tint warna pemilik di tiap tile footprint bangunan.
+      // Gambar bangunan & unit digambar di drawEntityLayers() (building-art.js) setelah semua tile.
+      const bb = buildingAt(r, c);
+      if (bb) { const bcol = players[buildingOwnerIdx(bb)].color; pathHex(); ctx.fillStyle = Settings.hexA(bcol, 0.22); ctx.fill(); }
     }
   }
 
+  drawEntityLayers(); // bangunan + unit (building-art.js), di atas semua tile
   drawLanes();
   drawLockLines();
+  drawFootprints();     // footprint.js: pratinjau + proyek bangunan berjalan
   if (phase === 'plan' && currentPlayerIdx === HUMAN) drawOrderMarkers();
 
   const fxNeedsMore = renderFx();
   ctx.restore();
   if (fxNeedsMore) requestAnimationFrame(draw);
+
+  // v9.0: tombol Mata ditahan -> semburat merah + label
+  if (enemyView) {
+    ctx.fillStyle = 'rgba(200,40,40,0.10)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.fillStyle = '#ffb3ae';
+    ctx.fillText('👁 Pandangan musuh terhadap unit kita', canvas.width / 2, canvas.height - 24);
+    ctx.restore();
+  }
 
   // ---------- Ikon interaksi (screen-space, ukuran tetap walau zoom) ----------
   iconHitboxes.info = null;
@@ -220,23 +241,10 @@ function showGenericResult(message) {
 }
 
 // ---------- Log Aksi ----------
-function logAction(msg, kind) {
-  if (kind === 'combat') return;               // log aktivitas hanya non-combat (serangan ada di log damage)
-  actionLog.unshift({ turn: turnNumber, player: currentPlayerIdx, msg });
-  if (actionLog.length > 20) actionLog.pop();
-  renderLog();
-}
-function renderLog() {
-  const el = document.getElementById('actionlog');
-  if (!el.dataset.initialized) { el.classList.add('collapsed'); el.dataset.initialized = '1'; }
-  const p = players;
-  const bodyHtml = actionLog.map(e =>
-    `<div class="entry"><span style="color:${p[e.player].color}">T${e.turn} ${p[e.player].name}</span>: ${e.msg}</div>`
-  ).join('');
-  el.innerHTML = `<div class="panel-header"><b>Log Aksi</b><button class="collapse-btn" onclick="togglePanel('actionlog')">▾</button></div><div class="panel-body">${bodyHtml}</div>`;
-  const btn = el.querySelector('.collapse-btn');
-  if (btn) btn.textContent = el.classList.contains('collapsed') ? '▾' : '▴';
-}
+// v9.0: panel "Log Aksi" lama dihapus. Log aktivitas kini bergaya log damage (teks + angka, tanpa latar)
+// dan diisi lewat actAdd() di ui-orders.js. logAction() dipertahankan sebagai no-op agar pemanggil lama tetap aman.
+function logAction(msg, kind) { /* tidak ditampilkan lagi (v9.0) */ }
+function renderLog() { if (typeof renderActFeed === 'function') renderActFeed(); }
 
 // ---------- Win Condition ----------
 function showGameOver() {
@@ -315,8 +323,8 @@ function openEntityPanel(r, c) {
     }
     if (isMine && canAct() && !u.attacked) {
       if ((u.type === 'apc' || u.type === 'corps') && !u.cargo && !(u.type === 'corps' && u.isBuilding)) {
-        const nearPom = neighborsOf(u.r, u.c).some(([nr, nc]) => owner.buildings.some(b => b.type === 'pom' && b.r === nr && b.c === nc));
-        const nearPos = neighborsOf(u.r, u.c).some(([nr, nc]) => owner.buildings.some(b => b.type === 'pospemulihan' && b.r === nr && b.c === nc));
+        const nearPom = !!adjacentBuildingOfType(u, 'pom');
+        const nearPos = !!adjacentBuildingOfType(u, 'pospemulihan');
         if (nearPom && owner.resources.fuel > 0) buttons.push({ id: 'loadFuelBtn', label: 'Muat Fuel' });
         if (nearPos && owner.resources.medical > 0) buttons.push({ id: 'loadMedicalBtn', label: 'Muat Medical' });
       }

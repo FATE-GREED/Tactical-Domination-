@@ -54,6 +54,7 @@ function isUnitUnseen(unit) {
 
 // Apakah unit ini boleh terlihat/diinteraksi oleh pemain yang sedang giliran
 function isVisibleToCurrentPlayer(unit) {
-  if (unit.owner === HUMAN) return true; // mode lawan bot: sudut pandang selalu pemain manusia
+  // v9.0: tombol Mata ditahan -> unit sekutu yang tak terlihat musuh (unseen) ikut disembunyikan
+  if (unit.owner === HUMAN) return !(enemyView && isUnitUnseen(unit)); // mode lawan bot: sudut pandang selalu pemain manusia
   return !isUnitUnseen(unit);
 }

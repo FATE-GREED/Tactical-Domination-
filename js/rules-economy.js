@@ -26,7 +26,7 @@ function spawnCorps(pIdx) {
   const p = players[pIdx];
   const g = getBuilding(p, 'garnisun');
   if (!g) return;
-  const spot = emptyAdjacent(g.r, g.c, CORPS_DEF);
+  const spot = emptyAdjacentBuilding(g, CORPS_DEF);
   if (!spot) return; // tidak ada ruang, coba lagi giliran berikutnya
   units.push({ id: uidCounter++, owner: pIdx, type: 'corps', r: spot.r, c: spot.c, mp: CORPS_DEF.spd, fuel: 0, hp: CORPS_DEF.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
   p.corps.count++;

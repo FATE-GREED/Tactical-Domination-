@@ -381,13 +381,16 @@ function drawHpBar(x, top, hp, max, mine) {
 // drawUnitSprite(u, x, y) kini ada di unit-art.js (grafik unit dari v7).
 
 // Gambar 1 bangunan lengkap (chip bulat warna pemilik + ikon) di posisi (x,y)
+// (x,y) = titik tengah bangunan (buildingCenter). Dipanggil SEKALI per bangunan; b.tiles = semua tile footprint.
+// Placeholder sampai grafis baru dari tim grafis dipasang di sini.
 function drawBuildingSprite(b, ownerColor, x, y) {
-  ctx.beginPath(); ctx.arc(x, y, HEX_SIZE * 0.55, 0, Math.PI * 2);
+  const big = bTiles(b).length >= 7, R = HEX_SIZE * (big ? 0.9 : 0.6);
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2);
   ctx.fillStyle = ownerColor; ctx.fill();
   ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5 / scale; ctx.stroke();
   const iconFn = BUILDING_ICONS[b.type];
-  if (iconFn) drawIcon(iconFn, x, y, HEX_SIZE * 0.48);
-  drawHpBar(x, y - HEX_SIZE * 0.55, b.hp, BUILDING_TYPES[b.type].hp, players[HUMAN].buildings.includes(b));
+  if (iconFn) drawIcon(iconFn, x, y, R * 0.88);
+  drawHpBar(x, y - R, b.hp, BUILDING_TYPES[b.type].hp, players[HUMAN].buildings.includes(b));
 }
 
 // ---------- Animasi: gerak unit (tween linear singkat) ----------

@@ -262,3 +262,26 @@ body.hide-dmg #dmgfeed, body.hide-act #actionlog, body.hide-kill #killfeed { dis
 #legend { bottom: 3px; right: 70px; }
 #deploy, #entitypanel { top: var(--row2); }
 #gameover .go-btns { flex-wrap: wrap; }
+
+
+/* ================= v9.0 ================= */
+/* Tombol Radar (kiri tombol pause) sama besar dengan tombol percepat */
+#radarBtn, #speedBtn { box-sizing: border-box; min-width: 54px; text-align: center; }
+#radarBtn.on { background: #8e44d6; border-color: #c58cff; color: #fff; }
+
+/* Tombol Mata (paling atas panel kiri): ditahan = pandangan musuh */
+#sidebar #eyeBtn {
+  font-size: 15px; line-height: 1; padding: 3px 2px;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#sidebar #eyeBtn.on { background: #b3322f; border-color: #ff8a85; color: #fff; }
+
+/* Log aktivitas: gaya log damage (teks & angka saja, latar transparan) */
+#actionlog {
+  position: fixed; top: var(--row2); left: 78px; right: auto; bottom: auto; transform: none; z-index: 5;
+  max-width: min(46vw, 300px); max-height: 34vh; overflow: hidden;
+  background: none; border: none; padding: 0; margin: 0; pointer-events: none;
+  text-align: left; font-size: 12px; line-height: 1.45; color: #ddd;
+  text-shadow: 0 0 3px #000, 0 0 6px #000;
+}
+#actionlog div { border: none; padding: 0; white-space: nowrap; }

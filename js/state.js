@@ -54,9 +54,53 @@ const BUILDING_TYPES = {
   pospemulihan: { label: 'H', name: 'Pos Pemulihan',  hp: 350,  def: 15,  destructible: true,  corpsRequired: 1, turnsRequired: 2, maxCount: 5 },
   benteng:      { label: 'F', name: 'Benteng',        hp: 400,  def: 50, destructible: true,  corpsRequired: 1, turnsRequired: 3, maxCount: 8 },
   jembatan:     { label: 'J', name: 'Jembatan',       hp: 150,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 1, maxCount: 5 },
+  // Renov = aksi (bukan bangunan): 3 tile menjadi Grass dalam 1 giliran; Valley/River/Mountain tidak bisa direnov.
+  renov:        { label: 'R', name: 'Renov',          hp: null, def: null, destructible: false, corpsRequired: 1, turnsRequired: 1, maxCount: Infinity, action: true },
 };
 
 const PLAYER_COLORS = ['#6fa8dc', '#e06c6c'];
+
+// ---------- Kemampuan unik (Bagian 5) — hanya untuk tampilan katalog lobby ----------
+// Logikanya sendiri ada di rules-abilities.js / rules-combat.js / rules-economy.js.
+// Urutan = urutan kartu di tombol "Kemampuan" lobby.
+const UNIT_ABILITIES = {
+  infantry: [
+    ['Moral Persatuan', 'DEF +20% selama ada minimal 3 Infantry sekutu yang saling bersebelahan (terhubung).'],
+    ['Semangat Perjuangan', 'Saat 1 Infantry gugur, seluruh Infantry pemiliknya mendapat ATK +20% selama 2 giliran.'],
+  ],
+  assault: [
+    ['Serangan Kejut', 'ATK +20% selama berstatus penyergapan (unseen), bertahan 2 giliran sejak status unseen hilang. SPD +2 saat unseen, hilang bila ada musuh dalam radius 5 tile.'],
+    ['Yang Tersembunyi', 'Saat baru terdeteksi musuh, tetap unseen 1 giliran ekstra (sekali per periode ketahuan). Tidak berlaku bila musuh sudah bersebelahan.'],
+  ],
+  sniper: [
+    ['Konsentrasi Tinggi', 'Bonus ATK menurut jarak tembak: tepat di Range +30%, Range −1 +20%, Range −2 +10%.'],
+    ['JPD +3 saat sendirian', 'Jarak pandang bertambah 3 bila tidak ada sekutu dalam radius 5 tile.'],
+  ],
+  antitank: [
+    ['Semangat Besi', 'MP +2 (sekali per giliran) bila bersebelahan dengan kendaraan.'],
+    ['Ayo Ledakkan', 'Serangan ke kendaraan memberi damage 2x (serangan tambahan).'],
+  ],
+  tanklapis: [
+    ['Sang Pelindung', 'Sekutu yang bersebelahan dengan tank ini mendapat DEF +20% (tidak berlaku untuk dirinya sendiri).'],
+    ['Pejuang Bertahan', 'DEF +50% saat HP di bawah 50%.'],
+  ],
+  tankcrusher: [
+    ['Penggila Perang', 'ATK +5% untuk setiap musuh dalam jangkauan, maksimal +20% (4 musuh).'],
+    ['Intimidasi', 'Unit yang selamat dari serangannya terkena DEF −20% selama 2 giliran.'],
+  ],
+  montir: [
+    ['Penghancur Bangunan', 'Bangunan musuh yang diserang dan selamat terkena DEF −20% selama 2 giliran.'],
+    ['Perusak Formasi', 'Splash 50% damage ke unit musuh yang bersebelahan dengan target (bila target utama adalah unit).'],
+  ],
+  apc: [
+    ['Dikejar Waktu', 'SPD +4 saat membawa Corps.'],
+    ['Kurir Setia', 'DEF +20% saat membawa muatan.'],
+  ],
+  corps: [
+    ['Jangan Menganggur', 'SPD +2 saat tidak membawa muatan.'],
+    ['Kerja Sampai Tuntas', 'DEF +20% saat sedang membangun.'],
+  ],
+};
 
 // ---------- State yang berubah selama permainan ----------
 let mapData = null;          // array[ROWS][COLS] berisi kunci TERRAIN
@@ -73,13 +117,17 @@ let phase = 'plan';          // 'plan' (rencana) | 'exec' (eksekusi otomatis)
 let planTimeLeft = PLAN_SECONDS, planTimer = null;
 let targetActor = null;      // unit yang sedang dipilihkan target (mode pilih target)
 let occupyHex = null;        // {r,c} hex untuk mode "tempati"
-let markasSites = [];        // lokasi Markas yang sedang dipesan/dibangun {id, owner, r, c, corpsIds, started, turnsRemaining}
+let markasSites = [];        // lokasi Markas yang sedang dipesan/dibangun {id, owner, r, c, tiles(7), corpsIds, started, turnsRemaining}
 let siteSeq = 1;
 let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
 
 let gameOver = false;
 let winner = null;           // index pemain yang menang
 let actionLog = [];          // {turn, player, msg} — log aksi terbaru di atas
+
+// ---------- v9.0: tampilan khusus ----------
+let radarOn = false;         // tombol Radar: seluruh jarak pandang unit sekutu diwarnai ungu
+let enemyView = false;       // tombol Mata (ditahan): unit sekutu digambar sesuai apa yang terlihat oleh musuh
 
 // ---------- Kamera canvas (dipakai render.js & input.js) ----------
 let camX = 40, camY = 40, scale = 1;

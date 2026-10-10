@@ -83,6 +83,23 @@
     return `<p class="note">SPD = poin gerak per giliran · JPD = jarak pandang deteksi</p><div class="grid g-unit">${cards}</div>`;
   }
 
+  // ---------- Katalog: Kemampuan unik unit ----------
+  function abilityHTML() {
+    const entries = [...Object.entries(UNITS), ['corps', CORPS_DEF]];
+    const cards = entries.filter(([k]) => UNIT_ABILITIES[k]).map(([k, u]) => {
+      const isCorps = k === 'corps';
+      const w = u.name.split(/[\s-]+/);
+      const code = isCorps ? 'C' : (w.length > 1 ? w[0][0] + w[1][0] : u.name.slice(0, 2)).toUpperCase();
+      const items = UNIT_ABILITIES[k].map(([n, d]) => `<li><b>${n}</b><span>${d}</span></li>`).join('');
+      return `
+      <article class="card unit">
+        <div class="card-head"><i class="badge">${code}</i><h3>${u.name}</h3></div>
+        <ul class="ab-list">${items}</ul>
+      </article>`;
+    }).join('');
+    return `<p class="note">Kemampuan unik tiap unit. Buff dari kemampuan yang sama tidak menumpuk walau sumbernya berbeda unit.</p><div class="grid g-abil">${cards}</div>`;
+  }
+
   // ---------- Katalog: Bangunan ----------
   function buildingHTML() {
     const cards = Object.entries(BUILDING_TYPES).map(([k, b]) => {
@@ -152,6 +169,7 @@
       const k = open.dataset.open;
       if (k === 'tile') openModal('Tile', tileHTML(), true);
       if (k === 'unit') openModal('Unit', unitHTML(), true);
+      if (k === 'kemampuan') openModal('Kemampuan', abilityHTML(), true);
       if (k === 'bangunan') openModal('Bangunan', buildingHTML(), true);
       return;
     }

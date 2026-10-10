@@ -11,7 +11,7 @@
 
 // ---------- Build ----------
 // Corps mulai membangun bangunan `type` di tile-nya sendiri. 1 Action.
-function startBuild(corps, type) {
+function startBuild(corps, type, tiles) {
   if (corps.type !== 'corps') return { ok: false, message: 'Hanya Corps yang bisa membangun.' };
   if (corps.isBuilding) return { ok: false, message: 'Corps ini sudah sedang membangun.' };
   if (corps.attacked) return { ok: false, message: 'Corps ini sudah memakai Action giliran ini.' };
@@ -22,19 +22,22 @@ function startBuild(corps, type) {
   const existingCount = owner.buildings.filter(b => b.type === type).length;
   if (existingCount >= spec.maxCount) return { ok: false, message: `Sudah mencapai batas maksimal ${spec.name} (${spec.maxCount}).` };
 
-  const terr = mapData[corps.r][corps.c];
-  if (type === 'jembatan') {
-    if (terr !== 'river') return { ok: false, message: 'Jembatan wajib dibangun di atas tile River.' };
-  } else if (terr !== 'grass') {
-    return { ok: false, message: 'Bangunan ini wajib dibangun di tile Grass.' };
-  }
+  tiles = tiles || [[corps.r, corps.c]];
+  if (tiles[0][0] !== corps.r || tiles[0][1] !== corps.c) return { ok: false, message: 'Corps belum berada di tile tengah lokasi.' };
+  const why = footprintReason(corps.owner, type, tiles, [corps]);       // terrain, tile kosong, cadangan (footprint.js)
+  if (why) return { ok: false, message: `Tidak bisa membangun: ${why}.` };
 
   corps.isBuilding = true;
   corps.buildType = type;
+  corps.buildTiles = tiles;
   corps.buildTurnsRemaining = spec.turnsRequired;
   corps.attacked = true; // Build = 1 Action, menghanguskan sisa MP
   corps.mp = 0;
-  return { ok: true, message: `Mulai membangun ${spec.name} (${spec.turnsRequired} giliran).` };
+  actAdd(corps.owner, type === 'renov'
+    ? [['Corps', 'unit'], [' merenov 3 tile']]
+    : [['Corps', 'unit'], [' membangun '], [spec.name, 'bld']]);
+  const what = type === 'renov' ? 'merenov 3 tile' : `membangun ${spec.name} (${tiles.length} tile)`;
+  return { ok: true, message: `Mulai ${what} (${spec.turnsRequired} giliran).` };
 }
 
 // Dipanggil dari rules-economy.js startTurn(): proses konstruksi yang sedang berjalan.
@@ -66,23 +69,34 @@ function processBuildProgress(pIdx) {
     if (site.turnsRemaining > 0) site.turnsRemaining--;
     mates.forEach(m => { m.buildTurnsRemaining = site.turnsRemaining; });
     if (site.turnsRemaining <= 0) {
+      const spots = outsideSpots(site.tiles, CORPS_DEF, mates.length);   // Corps berdiri di dalam footprint -> pindah ke luar
+      if (spots.length < mates.length) continue;                          // belum ada tempat keluar, coba lagi giliran depan
       markasSites = markasSites.filter(s => s !== site);
-      p.buildings.push({ r: site.r, c: site.c, type: 'markas', hp: BUILDING_TYPES.markas.hp, defDebuffTurns: 0, seq: buildingSeq++ });
-      mates.forEach(free);                           // Corps sudah di tile samping, langsung bebas
+      p.buildings.push({ r: site.r, c: site.c, tiles: site.tiles, type: 'markas', hp: BUILDING_TYPES.markas.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+      mates.forEach((m, i) => { m.r = spots[i][0]; m.c = spots[i][1]; free(m); });
       logAction(`Markas selesai dibangun di (${site.r},${site.c}).`);
+      actAdd(pIdx, [['Markas', 'bld'], [' selesai di bangun']]);
     }
   }
 
   for (const u of units.filter(u => u.owner === pIdx && u.isBuilding && u.buildType !== 'markas')) {
     if (u.buildTurnsRemaining > 0) u.buildTurnsRemaining--;
-    if (u.buildTurnsRemaining <= 0) {
-      const spec = BUILDING_TYPES[u.buildType];
-      const spot = emptyAdjacent(u.r, u.c, CORPS_DEF);
-      if (!spot) continue; // belum ada tempat, coba lagi giliran depan (turnsRemaining tetap 0)
-      p.buildings.push({ r: u.r, c: u.c, type: u.buildType, hp: spec.hp, defDebuffTurns: 0, seq: buildingSeq++ });
-      u.r = spot.r; u.c = spot.c;
-      u.isBuilding = false; u.buildType = null; u.buildTurnsRemaining = 0;
+    if (u.buildTurnsRemaining > 0) continue;
+    const spec = BUILDING_TYPES[u.buildType], tiles = u.buildTiles || [[u.r, u.c]];
+    if (u.buildType === 'renov') {                      // Renov: tile yang bisa direnov menjadi Grass, Corps langsung bebas
+      let n = 0;
+      for (const [r, c] of tiles) if (canRenovTile(mapData[r][c])) { mapData[r][c] = 'grass'; n++; }
+      u.isBuilding = false; u.buildType = null; u.buildTiles = null; u.buildTurnsRemaining = 0;
+      logAction(`Renov selesai: ${n} tile menjadi Grass.`);
+      actAdd(pIdx, [['Renov', 'bld'], [` selesai: ${n} tile menjadi Grass`]]);
+      continue;
     }
+    const spot = outsideSpots(tiles, CORPS_DEF, 1)[0];   // Corps berdiri di footprint -> pindah ke luar
+    if (!spot) continue;                                 // belum ada tempat, coba lagi giliran depan (turnsRemaining tetap 0)
+    p.buildings.push({ r: tiles[0][0], c: tiles[0][1], tiles, type: u.buildType, hp: spec.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+    actAdd(pIdx, [[spec.name, 'bld'], [' selesai di bangun']]);
+    u.r = spot[0]; u.c = spot[1];
+    u.isBuilding = false; u.buildType = null; u.buildTiles = null; u.buildTurnsRemaining = 0;
   }
 }
 
@@ -104,9 +118,7 @@ function loadCargo(unit, cargoType) {
   const sourceType = cargoType === 'fuel' ? 'pom' : 'pospemulihan';
   const sourceName = cargoType === 'fuel' ? 'Pom' : 'Pos Pemulihan';
   const p = players[unit.owner];
-  const nearSource = neighborsOf(unit.r, unit.c).some(([nr, nc]) =>
-    p.buildings.some(b => b.type === sourceType && b.r === nr && b.c === nc)
-  );
+  const nearSource = !!adjacentBuildingOfType(unit, sourceType);
   if (!nearSource) return { ok: false, message: `Harus bersebelahan dengan ${sourceName} untuk memuat ${cargoType}.` };
 
   const cap = cargoCapacity(unit, cargoType);
@@ -116,6 +128,7 @@ function loadCargo(unit, cargoType) {
   Stats.use(p, cargoType, amount);
   unit.cargo = { type: cargoType, amount };
   unit.attacked = true; unit.mp = 0;
+  actAdd(unit.owner, [[unitName(unit), 'unit'], [' isi ulang '], [`${cargoType} ${amount}`, cargoType === 'fuel' ? 'fuel' : 'rec']]);
   return { ok: true, message: `Memuat ${amount} ${cargoType}.` };
 }
 
@@ -131,6 +144,7 @@ function loadCorpsIntoAPC(apc, corpsUnit) {
   apc.cargo = { type: 'corps', unit: corpsUnit };
   units = units.filter(u => u.id !== corpsUnit.id); // Corps "naik", hilang dari papan sementara
   apc.attacked = true; apc.mp = 0;
+  actAdd(apc.owner, [['APC', 'unit'], [' mengangkut '], ['Corps', 'unit']]);
   return { ok: true, message: 'Corps naik ke APC.' };
 }
 
@@ -154,6 +168,7 @@ function unloadCorpsFromAPC(apc, prefer) {
   units.push(corpsUnit);
   apc.cargo = null;
   apc.attacked = true; apc.mp = 0;
+  actAdd(apc.owner, [['APC', 'unit'], [' menurunkan '], ['Corps', 'unit']]);
   return { ok: true, message: 'Corps diturunkan dari APC.' };
 }
 
@@ -189,6 +204,7 @@ function performRecovery(healer, targetUnit) {
   p.resources.medical -= healed;
   Stats.use(p, 'medical', healed);
   healer.attacked = true; healer.mp = 0;
+  actAdd(healer.owner, [[unitName(healer), 'unit'], [' '], ['recovery', 'rec'], [' '], [unitName(targetUnit), 'unit'], [' '], [String(healed), 'rec']]);
   return { ok: true, message: `Recovery +${healed} HP.` };
 }
 
@@ -208,6 +224,7 @@ function performSupplyFuel(carrier, targetUnit) {
   carrier.cargo.amount -= given;
   if (carrier.cargo.amount <= 0) carrier.cargo = null;
   carrier.attacked = true; carrier.mp = 0;
+  actAdd(carrier.owner, [[unitName(carrier), 'unit'], [' '], ['refuel', 'fuel'], [' '], [unitName(targetUnit), 'unit'], [' '], [String(given), 'fuel']]);
   return { ok: true, message: `Supply Fuel +${given}.` };
 }
 
@@ -226,6 +243,7 @@ function performSupplyMedical(carrier, targetUnit) {
   carrier.cargo.amount -= healed;
   if (carrier.cargo.amount <= 0) carrier.cargo = null;
   carrier.attacked = true; carrier.mp = 0;
+  actAdd(carrier.owner, [[unitName(carrier), 'unit'], [' '], ['recovery', 'rec'], [' '], [unitName(targetUnit), 'unit'], [' '], [String(healed), 'rec']]);
   return { ok: true, message: `Supply Medical +${healed} HP.` };
 }
 
@@ -244,5 +262,6 @@ function selfRefuel(unit) {
   p.resources.fuel -= given;
   Stats.use(p, 'fuel', given);
   unit.attacked = true; unit.mp = 0;
+  actAdd(unit.owner, [[unitName(unit), 'unit'], [' '], ['refuel', 'fuel'], [' diri sendiri '], [String(given), 'fuel']]);
   return { ok: true, message: `Isi ulang +${given} Fuel.` };
 }

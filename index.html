@@ -65,6 +65,10 @@
       <svg viewBox="0 0 64 48"><rect x="10" y="26" width="40" height="11" rx="5" fill="#4d5a3a" stroke="#c9d5a8" stroke-width="2"/><path d="M18 26v-7h22l4 7z" fill="#5c6b44" stroke="#c9d5a8" stroke-width="2"/><path d="M40 22h20" stroke="#c9d5a8" stroke-width="4" stroke-linecap="round"/><circle cx="17" cy="35" r="3" fill="#2b3320"/><circle cx="30" cy="35" r="3" fill="#2b3320"/><circle cx="43" cy="35" r="3" fill="#2b3320"/></svg>
       <em>Unit</em>
     </button>
+    <button class="lb-tab" data-open="kemampuan">
+      <svg viewBox="0 0 64 48"><path d="M32 4l20 7v13c0 11-8 18-20 22C20 42 12 35 12 24V11z" fill="#3a3d30" stroke="#d3cdb6" stroke-width="2"/><path d="m32 13 3.600 7.300 8 1.200-5.800 5.600 1.400 8L32 31.300l-7.200 3.800 1.400-8-5.800-5.600 8-1.200z" fill="#d7b56d"/></svg>
+      <em>Kemampuan</em>
+    </button>
     <button class="lb-tab" data-open="bangunan">
       <svg viewBox="0 0 64 48"><path d="M10 40V22l22-12 22 12v18z" fill="#6f6a58" stroke="#d3cdb6" stroke-width="2"/><path d="M10 22l22 12 22-12" fill="none" stroke="#d3cdb6" stroke-width="2"/><path d="M32 34v8" stroke="#d3cdb6" stroke-width="2"/><rect x="26" y="4" width="12" height="8" fill="#8a8470" stroke="#d3cdb6" stroke-width="2"/></svg>
       <em>Bangunan</em>
@@ -110,7 +114,7 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>v8.9 — Lawan Bot (Sulit)</small><br>
+    <small>v9.1 — Lawan Bot (Sulit)</small><br>
     <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
@@ -120,6 +124,7 @@
   <span class="dot" id="turndot"></span>
   <b id="turntext">Giliran Pemain 1</b><span id="turnnum" hidden>1</span>
   <span id="timer" class="timer"></span>
+  <button id="radarBtn" title="Radar: tampilkan seluruh jarak pandang unit (ungu)">📡</button>
   <button id="pauseBtn" title="Pause">⏸</button>
   <span id="matchtime" class="matchtime">00:00</span>
   <button id="speedBtn" title="Kecepatan eksekusi">▶ 1x</button>
@@ -127,6 +132,7 @@
 
 <!-- Panel samping kiri -->
 <div id="sidebar" class="panel">
+  <button id="eyeBtn" title="Tahan: lihat unit kita dari sudut pandang musuh">👁</button>
   <div class="sb-turn">Turn <b id="sbTurn">1</b></div>
   <button id="laneBtn" title="Gambar jalur">🌊 Jalur OFF</button>
   <button id="lockLineBtn" title="Gambar baris kunci">🔒 Baris OFF</button>
@@ -150,7 +156,7 @@
   <button id="cancelBtn">Batal</button>
 </div>
 <div id="info" class="panel"></div>
-<div id="actionlog" class="panel"></div>
+<div id="actionlog"></div>
 <div id="legend" class="panel"></div>
 
 <div id="pausemenu" hidden>
@@ -181,6 +187,7 @@
 <script src="js/state.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/stats.js"></script>
+<script src="js/footprint.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/map-gen.js"></script>
 <script src="js/setup.js"></script>
@@ -194,6 +201,7 @@
 <script src="js/rules-auto.js"></script>
 <script src="js/render-fx.js"></script>
 <script src="js/unit-art.js"></script>
+<script src="js/building-art.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui-orders.js"></script>
 <script src="js/bot.js"></script>

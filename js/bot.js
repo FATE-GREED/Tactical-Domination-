@@ -36,7 +36,7 @@ function botSpots(center, minD, maxD, scoreFn, avoid) {
       const d = hexDistance(center.r, center.c, r, c);
       if (d < minD || d > maxD) continue;
       if (mapData[r][c] !== 'grass' || isTileBlocked(r, c)) continue;
-      if (avoid && avoid.some(b => hexDistance(r, c, b.r, b.c) <= 1)) continue;
+      if (avoid && avoid.some(b => distToBuilding(r, c, b) <= 1)) continue;
       out.push({ r, c, s: scoreFn(r, c) + Math.random() * 0.5 });
     }
   }

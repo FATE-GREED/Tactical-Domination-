@@ -99,7 +99,7 @@
 .lb-bottom {
   position: absolute; z-index: 3; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right));
   bottom: max(8px, env(safe-area-inset-bottom)); height: clamp(56px, 19vh, 108px);
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.28fr); gap: clamp(6px, 1.6vw, 14px);
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.28fr); gap: clamp(6px, 1.6vw, 14px);
 }
 .lb-tab { padding: 4px 6px; gap: 2px; background: linear-gradient(rgba(37,39,29,.94), rgba(18,20,14,.96)); }
 .lb-tab svg { flex: 1 1 0; min-height: 0; width: 100%; max-width: 100px; }
@@ -183,7 +183,8 @@
   .lb-pill span { min-width: 0; }
   .lb-pill b { width: 22px; }
   .lb-gear { width: 32px; height: 32px; }
-  .lb-tab em { font-size: 9px; letter-spacing: .04em; }
+  .lb-tab em { font-size: 8px; letter-spacing: .02em; }
+  .lb-bottom { gap: 4px; }
   .lb-sq { width: 56px; height: 56px; }
   .lb-side { top: 20vh; }
   .lb-bottom { height: 14vh; min-height: 62px; }
@@ -228,3 +229,11 @@
   display: block; width: 100%; height: 100%; transform-origin: left center; transform: scaleX(0);
   background: linear-gradient(90deg, #8c7137, #d7b56d);
 }
+
+
+/* ---------- v9.0: katalog Kemampuan ---------- */
+.g-abil { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ab-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ab-list li { background: #11130d; border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+.ab-list b { font-size: 13px; color: var(--brass); letter-spacing: .03em; }
+.ab-list span { font-size: 12.5px; line-height: 1.4; color: #b6b9a8; }

@@ -23,7 +23,7 @@ async function sleep(ms) { return wait(ms * Settings.timeScale()); }
 function canAct() { return phase === 'plan' && currentPlayerIdx === HUMAN && !paused && !gameOver; }
 function defOf(u) { return u.type === 'corps' ? CORPS_DEF : UNITS[u.type]; }
 function unitName(u) { return u.type === 'corps' ? 'Corps' : UNITS[u.type].name; }
-function tileFree(u, r, c) { return (r === u.r && c === u.c) || !isTileBlocked(r, c); }
+function tileFree(u, r, c) { return (r === u.r && c === u.c) || !isTileBlocked(r, c, u); }
 
 // ---------------------------------------------------------------
 // Target
@@ -32,7 +32,7 @@ function nearestEnemyMarkas(u) {
   let best = null, bd = Infinity;
   for (const b of players[1 - u.owner].buildings) {
     if (b.type !== 'markas') continue;
-    const d = hexDistance(u.r, u.c, b.r, b.c);
+    const d = distToBuilding(u.r, u.c, b);
     if (d < bd) { bd = d; best = b; }
   }
   return best;
@@ -48,13 +48,15 @@ function resolveTarget(u) {
       if (e && !isUnitUnseen(e)) return { kind: 'unit', r: e.r, c: e.c, obj: e };
       u.target = null;
     } else if (t.kind === 'building') {
-      if (players[1 - u.owner].buildings.includes(t.ref)) return { kind: 'building', r: t.ref.r, c: t.ref.c, obj: t.ref };
+      if (players[1 - u.owner].buildings.includes(t.ref)) { const nt = nearestTileOf(t.ref, u.r, u.c); return { kind: 'building', r: nt[0], c: nt[1], obj: t.ref }; }
       u.target = null;
     }
   }
   if (!defOf(u).combat) return null;
   const m = nearestEnemyMarkas(u);
-  return m ? { kind: 'building', r: m.r, c: m.c, obj: m, isDefault: true } : null;
+  if (!m) return null;
+  const nt = nearestTileOf(m, u.r, u.c);                       // v9.0: bangunan multi-tile -> tile terdekat
+  return { kind: 'building', r: nt[0], c: nt[1], obj: m, isDefault: true };
 }
 
 // Batalkan pesanan Markas milik Corps ini (pesanan Markas melibatkan 2 Corps, jadi pasangannya ikut batal)
@@ -96,21 +98,13 @@ function pendingBuildCount(owner, type) {
   if (type === 'markas') return markasSites.filter(s => s.owner === owner).length; // 1 pesanan = 2 Corps
   return units.filter(u => u.owner === owner && u.buildOrder && u.buildOrder.type === type).length;
 }
-// Cek apakah bangunan `type` boleh dipesan di hex (r,c). Mengembalikan alasan penolakan atau null.
+// Cek apakah bangunan `type` boleh dipesan dengan tile tengah (r,c). Mengembalikan alasan penolakan atau null.
 function buildOrderBlockReason(owner, type, r, c) {
   const spec = BUILDING_TYPES[type];
   const p = players[owner];
   const count = p.buildings.filter(b => b.type === type).length + pendingBuildCount(owner, type);
   if (count >= spec.maxCount) return 'maks tercapai';
-  const terr = mapData[r][c];
-  if (type === 'jembatan') {
-    if (terr !== 'river') return 'butuh tile River';
-    if (players.some(pp => pp.buildings.some(b => b.r === r && b.c === c))) return 'tile terisi';
-  } else {
-    if (terr !== 'grass') return 'butuh tile Grass';
-    if (isTileBlocked(r, c)) return 'tile terisi';
-  }
-  if (units.some(u => u.owner === owner && u.buildOrder && u.buildOrder.r === r && u.buildOrder.c === c)) return 'tile sudah dipesan';
+  if (!footprintOptions(owner, type, r, c).length) return footprintWhy(owner, type, r, c);   // footprint.js
   if (type === 'markas') {
     if (idleCorpsSorted(owner, r, c).length < spec.corpsRequired) return `butuh ${spec.corpsRequired} Corps nganggur`;
     if (siteSlots(r, c, []).length < spec.corpsRequired) return 'ruang di sekitar tile kurang';
@@ -121,19 +115,22 @@ function idleCorpsSorted(owner, r, c) {
   return units.filter(u => isIdleCorps(u, owner)).sort((a, b) => hexDistance(a.r, a.c, r, c) - hexDistance(b.r, b.c, r, c));
 }
 // Tile kosong di samping (r,c) yang bisa dipijak Corps (tempat Corps berdiri saat membangun Markas)
-function siteSlots(r, c, taken) {
+function siteSlots(r, c, taken, self) {
   return neighborsOf(r, c)
-    .filter(([nr, nc]) => !isTileBlocked(nr, nc) && tileMoveCost(nr, nc, CORPS_DEF) !== Infinity && !taken.some(t => t[0] === nr && t[1] === nc))
+    .filter(([nr, nc]) => !isTileBlocked(nr, nc, self) && tileMoveCost(nr, nc, CORPS_DEF) !== Infinity && !taken.some(t => t[0] === nr && t[1] === nc))
     .map(([nr, nc]) => ({ r: nr, c: nc }));
 }
-function orderBuild(owner, type, r, c) {
+function orderBuild(owner, type, r, c, tiles) {
   const why = buildOrderBlockReason(owner, type, r, c);
   if (why) return { ok: false, message: `Tidak bisa membangun: ${why}.` };
+  const opts = footprintOptions(owner, type, r, c);
+  const same = (a, b) => a.length === b.length && a.every(t => tileIn(b, t[0], t[1]));
+  const fp = (tiles && opts.find(o => same(o, tiles))) || opts[0];   // bentuk pilihan pemain, atau bentuk pertama yang valid
   if (type === 'markas') {                      // Markas: 2 Corps terdekat otomatis dipanggil, membangun di samping tile
     const spec = BUILDING_TYPES.markas;
     const cs = idleCorpsSorted(owner, r, c).slice(0, spec.corpsRequired);
     const slots = siteSlots(r, c, []);
-    const site = { id: siteSeq++, owner, r, c, corpsIds: cs.map(x => x.id), started: false, turnsRemaining: spec.turnsRequired };
+    const site = { id: siteSeq++, owner, r, c, tiles: fp, corpsIds: cs.map(x => x.id), started: false, turnsRemaining: spec.turnsRequired };
     const used = [];
     for (const cu of cs) {
       const s = slots.filter(x => !used.includes(x)).sort((a, b) => hexDistance(cu.r, cu.c, a.r, a.c) - hexDistance(cu.r, cu.c, b.r, b.c))[0];
@@ -145,9 +142,9 @@ function orderBuild(owner, type, r, c) {
     return { ok: true, message: `Corps #${cs.map(x => x.id).join(' & #')} berangkat membangun Markas di (${r},${c}).` };
   }
   const corps = nearestIdleCorps(owner, r, c);
-  corps.buildOrder = { type, r, c };
+  corps.buildOrder = { type, r, c, tiles: fp };
   corps.target = { kind: 'hex', r, c };
-  return { ok: true, message: `Corps #${corps.id} berangkat membangun ${BUILDING_TYPES[type].name} di (${r},${c}).` };
+  return { ok: true, message: `Corps #${corps.id} berangkat ${type === 'renov' ? 'merenov' : 'membangun ' + BUILDING_TYPES[type].name} di (${r},${c}).` };
 }
 
 // ---------------------------------------------------------------
@@ -156,7 +153,7 @@ function orderBuild(owner, type, r, c) {
 function doDeploy(key, barak, player) {
   const def = UNITS[key];
   if (player.barakSlots <= 0 || player.resources.kredit < def.price) return false;
-  const spot = emptyAdjacent(barak.r, barak.c, def);
+  const spot = emptyAdjacentBuilding(barak, def);
   if (!spot) return false;
   player.resources.kredit -= def.price;
   Stats.use(player, 'kredit', def.price);
@@ -174,8 +171,15 @@ function findPath(u, goalFn, extraBlocked, near) {
   const key = (r, c) => r * COLS + c;
   const occ = new Map();
   for (const o of units) if (o !== u) occ.set(key(o.r, o.c), o.owner === u.owner ? 'ally' : 'enemy');
-  for (const p of players) for (const b of p.buildings) if (b.type !== 'jembatan') occ.set(key(b.r, b.c), 'block');
-  for (const s of markasSites) occ.set(key(s.r, s.c), 'block');
+  for (const p of players) for (const b of p.buildings) if (b.type !== 'jembatan') for (const [br, bc] of bTiles(b)) occ.set(key(br, bc), 'block');
+  const mySite = u.buildOrder ? u.buildOrder.site : u.buildSite;
+  for (const s of markasSites) if (s.id !== mySite) for (const [sr, sc] of s.tiles) occ.set(key(sr, sc), 'block');
+  for (const x of units) {                      // tile yang dicadangkan proyek bangunan Corps lain
+    if (x === u) continue;
+    const t = (x.buildOrder && x.buildOrder.tiles && x.buildOrder.type !== 'markas' && x.buildOrder.type !== 'renov') ? x.buildOrder.tiles
+      : (x.isBuilding && x.buildTiles && x.buildType !== 'markas' && x.buildType !== 'renov') ? x.buildTiles : null;
+    if (t) for (const [tr, tc] of t) occ.set(key(tr, tc), 'block');
+  }
 
   const N = ROWS * COLS;
   const dist = new Array(N).fill(Infinity), prev = new Array(N).fill(-1);
@@ -230,7 +234,7 @@ async function moveAlongPath(u, path) {
   const nonCombat = !def.combat;
   let moved = false, blockedAt = null;
   for (const [r, c] of path) {
-    if (isTileBlocked(r, c)) { blockedAt = [r, c]; break; }
+    if (isTileBlocked(r, c, u)) { blockedAt = [r, c]; break; }   // cadangan footprint milik Corps sendiri tidak memblokir
     let cost = tileMoveCost(r, c, def);
     let free = false;
     if (mapData[r][c] === 'road' && nonCombat && u.roadFreeUsesLeft > 0) { cost = 0; free = true; }
@@ -381,9 +385,9 @@ async function execMarkasOrder(u) {
   const atSlot = x => x.buildOrder && x.r === x.buildOrder.slot.r && x.c === x.buildOrder.slot.c;
   if (!atSlot(u)) {
     let s = o.slot;
-    if (isTileBlocked(s.r, s.c)) {               // slot terisi unit lain -> cari tile samping lain
+    if (isTileBlocked(s.r, s.c, u)) {             // slot terisi unit lain -> cari tile samping lain
       const taken = mate.buildOrder ? [[mate.buildOrder.slot.r, mate.buildOrder.slot.c]] : [];
-      const alt = siteSlots(site.r, site.c, taken).sort((a, b) => hexDistance(u.r, u.c, a.r, a.c) - hexDistance(u.r, u.c, b.r, b.c))[0];
+      const alt = siteSlots(site.r, site.c, taken, u).sort((a, b) => hexDistance(u.r, u.c, a.r, a.c) - hexDistance(u.r, u.c, b.r, b.c))[0];
       if (alt) { o.slot = { r: alt.r, c: alt.c }; s = o.slot; u.target = { kind: 'hex', r: s.r, c: s.c }; }
     }
     await moveToward(u, (r, c) => r === s.r && c === s.c && tileFree(u, r, c), s);
@@ -396,6 +400,7 @@ async function execMarkasOrder(u) {
     }
     site.started = true; site.turnsRemaining = spec.turnsRequired;
     logAction(`Corps #${u.id} & #${mate.id}: mulai membangun Markas (${spec.turnsRequired} giliran).`);
+    actAdd(u.owner, [['Corps', 'unit'], [' membangun '], ['Markas', 'bld']]);
     renderResourcePanels(); draw();
     await sleep(250);
   }
@@ -406,7 +411,7 @@ async function execBuildOrder(u) {
   if (o.type === 'markas') return execMarkasOrder(u);
   if (u.r !== o.r || u.c !== o.c) await moveToward(u, (r, c) => r === o.r && c === o.c && tileFree(u, r, c), o);
   if (u.r === o.r && u.c === o.c) {
-    const res = startBuild(u, o.type);
+    const res = startBuild(u, o.type, o.tiles);
     u.buildOrder = null; u.target = null;
     logAction(`Corps #${u.id}: ${res.message}`);
     renderResourcePanels(); draw();
@@ -448,15 +453,16 @@ async function execJob(u) {
   const p = players[u.owner];
   if (u.cargo && u.cargo.type !== ct) return;               // sedang membawa muatan lain
   const adj = (tx, ty) => (r, c) => tileFree(u, r, c) && hexDistance(r, c, tx, ty) <= 1;
+  const adjB = b => (r, c) => tileFree(u, r, c) && distToBuilding(r, c, b) <= 1;     // v9.0: bangunan multi-tile
   const byDist = (a, b) => hexDistance(u.r, u.c, a.r, a.c) - hexDistance(u.r, u.c, b.r, b.c);
 
   if (!u.cargo) {                                           // 1) ambil muatan di Pom / Pos Pemulihan
     if (p.resources[ct] <= 0) return;
-    const srcs = p.buildings.filter(b => b.type === srcType).sort(byDist);
+    const srcs = p.buildings.filter(b => b.type === srcType).sort((a, b) => distToBuilding(u.r, u.c, a) - distToBuilding(u.r, u.c, b));
     if (!srcs.length) return;
     const s = srcs[0];
-    if (hexDistance(u.r, u.c, s.r, s.c) > 1) await moveToward(u, adj(s.r, s.c), s);
-    if (hexDistance(u.r, u.c, s.r, s.c) === 1 && !u.attacked) {
+    if (distToBuilding(u.r, u.c, s) > 1) await moveToward(u, adjB(s), s);
+    if (distToBuilding(u.r, u.c, s) === 1 && !u.attacked) {
       const res = loadCargo(u, ct);
       if (res.ok) { logAction(`${unitName(u)} #${u.id}: ${res.message}`); renderResourcePanels(); draw(); await sleep(250); }
     }
@@ -569,6 +575,7 @@ async function runExecution() {
 
   const pIdx = currentPlayerIdx;
   dmgFeedReset();                               // log damage dikosongkan di awal tiap eksekusi (sekutu / musuh)
+  if (pIdx === HUMAN) actFeedReset();           // v9.0: log aktivitas juga dikosongkan di awal eksekusi pemain
   if (laneMode) toggleLaneMode();
   if (lockMode) toggleLockMode();
   if (pIdx === HUMAN) units.forEach(lockOnStep);   // unit yang sudah berdiri di tile Baris Kunci ikut terkunci

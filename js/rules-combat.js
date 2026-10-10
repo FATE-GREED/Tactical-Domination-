@@ -25,7 +25,7 @@ function describeTarget(r, c) {
     return { kind: 'unit', obj: u, def, ownerIdx: u.owner, vehicle: def.vehicle, tank: def.tank };
   }
   for (let pi = 0; pi < players.length; pi++) {
-    const b = players[pi].buildings.find(bb => bb.r === r && bb.c === c);
+    const b = buildingAt(r, c, pi);
     if (b) {
       const def = BUILDING_TYPES[b.type];
       return { kind: 'building', obj: b, def, ownerIdx: pi, vehicle: false, tank: false };

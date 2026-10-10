@@ -110,7 +110,7 @@ const Settings = (() => {
     body.append(select('Mode', 'musicMode', [['fase', 'Sesuai fase (bawaan)'], ['single', 'Satu lagu saja'], ['urut', 'Urut'], ['acak', 'Acak']]), musicList());
     sec('🖥 Tampilan');
     body.append(slider('Kepekatan panel', 'panelAlpha', 15, 100, 5), toggle('Tampilkan bar HP', 'showHp'),
-      toggle('Tampilkan log damage', 'showDmgLog'), toggle('Tampilkan log aktivitas non-combat', 'showActLog'),
+      toggle('Tampilkan log damage', 'showDmgLog'), toggle('Tampilkan log aktivitas', 'showActLog'),
       toggle('Tampilkan notifikasi kill', 'showKill'), color('Warna Jalur', 'laneColor'), color('Warna Baris Kunci', 'lockColor'));
     sec('🎮 Permainan');
     body.append(slider('Sensitivitas geser layar', 'panSens', 40, 250, 10),

@@ -273,7 +273,7 @@ function handleTargetPick(r, c) {
     finishTargetMode();
     return;
   }
-  const eb = players[1 - actor.owner].buildings.find(b => b.r === r && b.c === c);
+  const eb = buildingAt(r, c, 1 - actor.owner);
   if (eb && eb.type !== 'garnisun') {
     setUnitTarget(actor, { kind: 'building', ref: eb });
     logAction(`${unitName(actor)} #${actor.id} → ${BUILDING_TYPES[eb.type].name} musuh`);

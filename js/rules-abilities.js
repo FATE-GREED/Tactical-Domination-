@@ -77,7 +77,7 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
 
   // Sniper: Konsentrasi Tinggi (bonus berdasar jarak tembak vs Range)
   if (attackerUnit.type === 'sniper') {
-    const dist = hexDistance(attackerUnit.r, attackerUnit.c, targetInfo.obj.r, targetInfo.obj.c);
+    const dist = targetInfo.kind === 'building' ? distToBuilding(attackerUnit.r, attackerUnit.c, targetInfo.obj) : hexDistance(attackerUnit.r, attackerUnit.c, targetInfo.obj.r, targetInfo.obj.c);
     const range = effectiveRange(attackerUnit);
     if (dist === range) pct += 30;
     else if (dist === range - 1) pct += 20;

@@ -1,5 +1,5 @@
 // ====================================================================
-// hud.js — HUD v8.9 (sesuai sketsa): panel samping, waktu pertandingan, tombol kecepatan 2x,
+// hud.js — HUD v9.0 (sesuai sketsa): panel samping, waktu pertandingan, tombol kecepatan 2x,
 // tombol rincian & deploy. Tidak ada aturan game di sini.
 // ====================================================================
 let matchSec = 0, matchTimer = null;
@@ -41,9 +41,26 @@ function initHud() {
     if (!canAct()) return;
     const p = players[HUMAN], baraks = p.buildings.filter(b => b.type === 'barak');
     if (!baraks.length) { alert('Belum ada Barak.'); return; }
-    const b = baraks.find(x => emptyAdjacent(x.r, x.c, UNITS.infantry)) || baraks[0];
+    const b = baraks.find(x => emptyAdjacentBuilding(x, UNITS.infantry)) || baraks[0];
     closeAllPanels(); openDeployPanel(b, p);
   });
+  // v9.0 — Radar: toggle; seluruh jarak pandang unit sekutu diwarnai ungu
+  const radarBtn = document.getElementById('radarBtn');
+  radarBtn.addEventListener('click', () => { radarOn = !radarOn; radarBtn.classList.toggle('on', radarOn); draw(); });
+
+  // v9.0 — Mata: TAHAN untuk melihat unit kita dari sudut pandang musuh, lepas = kembali normal
+  const eyeBtn = document.getElementById('eyeBtn');
+  const setEye = on => { if (enemyView === on) return; enemyView = on; eyeBtn.classList.toggle('on', on); draw(); };
+  eyeBtn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { eyeBtn.setPointerCapture(e.pointerId); } catch (err) {}
+    setEye(true);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => eyeBtn.addEventListener(ev, () => setEye(false)));
+  eyeBtn.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('blur', () => setEye(false));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) setEye(false); });
+
   Settings.apply();
   renderSidebar();
 }

@@ -68,6 +68,25 @@ function renderDmgFeed() {
   el.innerHTML = rows + `<div class="dtotal">Total dmg<br><span style="color:${DMG_COL.dmg}">${dmgFeed.total}</span></div>`;
 }
 
+// ---------- Log aktivitas (v9.0): gaya log damage — hanya teks & angka, latar transparan ----------
+// Warna: unit biru, bangunan ungu, recovery + angkanya hijau, refuel + angkanya oranye.
+// Hanya aktivitas pemain sendiri yang dicatat (aktivitas bot tidak dibocorkan). Dikosongkan tiap eksekusi pemain.
+const ACT_COL = { unit: '#5aa9ff', bld: '#c58cff', rec: '#5fe08a', fuel: '#ff9f43' };
+let actFeed = [];
+// parts = [[teks, jenis?], ...]; jenis: 'unit' | 'bld' | 'rec' | 'fuel' | kosong (teks biasa)
+function actAdd(owner, parts) {
+  if (owner !== HUMAN) return;
+  actFeed.push(parts);
+  if (actFeed.length > 12) actFeed.shift();
+  renderActFeed();
+}
+function actFeedReset() { actFeed = []; renderActFeed(); }
+function renderActFeed() {
+  const el = document.getElementById('actionlog');
+  if (!el) return;
+  el.innerHTML = actFeed.map(parts => '<div>' + parts.map(([t, k]) => k ? `<span style="color:${ACT_COL[k]}">${t}</span>` : t).join('') + '</div>').join('');
+}
+
 // ---------- Panel "Tujuan Unit" ----------
 function targetLabel(u) {
   return targetLabelBase(u) + (u.locked ? ' 🔒' : '');
@@ -157,7 +176,7 @@ function openBuildPanelAt(r, c) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
   const owner = HUMAN;
-  const buildable = ['markas', 'pom', 'pospemulihan', 'jembatan', 'barak', 'benteng'];
+  const buildable = ['markas', 'pom', 'pospemulihan', 'jembatan', 'barak', 'benteng', 'renov'];
   let html = `<span class="close" id="deployclose">✕</span><h3>Bangun di hex (${r},${c})</h3>`;
   html += buildable.map(type => {
     const spec = BUILDING_TYPES[type];
@@ -167,12 +186,8 @@ function openBuildPanelAt(r, c) {
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
   el.querySelectorAll('button[data-build]').forEach(btn => btn.addEventListener('click', () => {
-    const res = orderBuild(owner, btn.getAttribute('data-build'), r, c);
     el.style.display = 'none';
-    if (res.ok) { showGenericResult(res.message); logAction(res.message); }
-    else alert(res.message);
-    renderTargetPanel();
-    draw();
+    openFootprintPicker(btn.getAttribute('data-build'), r, c);     // pilih bentuk footprint (pratinjau + putar), lalu pesan
   }));
 }
 
