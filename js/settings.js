@@ -6,7 +6,7 @@ const Settings = (() => {
   const DEF = {
     volMusic: 100, volFx: 100, volStep: 100,            // 0..150 (%)
     panelAlpha: 60,                                      // 15..100 (%) kepekatan latar panel
-    showHp: true, showDmgLog: true, showActLog: true, showKill: true,
+    showHp: true, showIcons: true, showDmgLog: true, showActLog: true, showKill: true,   // showIcons: ikon efek aktif di atas bar HP (v9.6)
     laneColor: '#5aa9ff', lockColor: '#ff8c3c',
     musicMode: 'fase',                                   // fase | single | urut | acak
     musicSingle: 'bgm-plan',
@@ -109,7 +109,7 @@ const Settings = (() => {
     sec('🎵 Musik');
     body.append(select('Mode', 'musicMode', [['fase', 'Sesuai fase (bawaan)'], ['single', 'Satu lagu saja'], ['urut', 'Urut'], ['acak', 'Acak']]), musicList());
     sec('🖥 Tampilan');
-    body.append(slider('Kepekatan panel', 'panelAlpha', 15, 100, 5), toggle('Tampilkan bar HP', 'showHp'),
+    body.append(slider('Kepekatan panel', 'panelAlpha', 15, 100, 5), toggle('Tampilkan bar HP', 'showHp'), toggle('Tampilkan ikon kemampuan & efek', 'showIcons'),
       toggle('Tampilkan log damage', 'showDmgLog'), toggle('Tampilkan log aktivitas', 'showActLog'),
       toggle('Tampilkan notifikasi kill', 'showKill'), color('Warna Jalur', 'laneColor'), color('Warna Baris Kunci', 'lockColor'));
     sec('🎮 Permainan');

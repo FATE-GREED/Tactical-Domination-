@@ -280,6 +280,18 @@ function drawIdleBadge(x, y, unitScale) {
   ctx.restore();
 }
 
+// v9.6: deretan ikon kecil kemampuan/efek aktif, rata tengah di atas bar HP. bottomY = batas bawah ikon.
+function drawStatusIcons(names, cx, bottomY) {
+  if (!names || !names.length || typeof SkillGfx === 'undefined') return;
+  const n = Math.min(4, names.length);
+  const sz = Math.min(HEX_SIZE * 0.8, Math.max(HEX_SIZE * 0.4, 8 / scale)), gap = sz * 0.1;
+  const x0 = cx - (n * sz + (n - 1) * gap) / 2, y0 = bottomY - sz;
+  for (let i = 0; i < n; i++) {
+    const img = SkillGfx.get(names[i]);
+    if (img) ctx.drawImage(img, x0 + i * (sz + gap), y0, sz, sz);
+  }
+}
+
 // Gambar 1 unit lengkap di (x,y): sosok unit + cincin pilihan + bar HP (bisa dimatikan di Pengaturan) + tanda (!)
 function drawUnitSprite(u, x, y) {
   const def = u.type === 'corps' ? CORPS_DEF : UNITS[u.type];
@@ -293,5 +305,9 @@ function drawUnitSprite(u, x, y) {
   const renderFn = UNIT_RENDERERS[u.type];
   if (renderFn) renderFn(ctx, x, y, unitScale);
   drawHpBar(x, y - unitScale * 0.5, u.hp, def.hp, u.owner === HUMAN);
+  if (Settings.get('showIcons') && typeof activeAbilityIcons === 'function') {   // v9.6: ikon efek aktif di atas bar HP
+    const barH = Settings.get('showHp') ? Math.max(HEX_SIZE * 0.16, 3 / scale) + 3 / scale : 1 / scale;
+    drawStatusIcons(activeAbilityIcons(u), x, y - unitScale * 0.5 - barH);
+  }
   if (typeof needsOrders === 'function' && needsOrders(u)) drawIdleBadge(x, y, unitScale);   // v9.4: ! = APC/Corps nganggur (tanpa job)
 }

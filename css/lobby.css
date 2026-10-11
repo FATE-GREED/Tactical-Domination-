@@ -255,6 +255,34 @@
 .cm-fx span { font-size: 12.5px; line-height: 1.4; color: #b6b9a8; }
 .cm-fx i { align-self: flex-start; font-style: normal; font-size: 10.5px; padding: 0 7px; border: 1px solid #4b4d3b; border-radius: 10px; color: #8f9280; }
 
+/* ---------- v9.3: modal Mulai tegak, pilihan berjajar ke samping ---------- */
+.lb-modal.tall .lb-box { width: min(420px, 100%); height: min(100%, 680px); max-height: 100%; display: flex; flex-direction: column; }
+.lb-modal.tall .lb-box-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.picks { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; min-height: 0; }
+.pick {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 8px; text-align: center; color: #b6b9a8; font: inherit; cursor: pointer;
+  background: linear-gradient(180deg, #1b1e14, #12140d); border: 1px solid #3a3d2c; border-radius: 6px; min-height: 0;
+}
+.pick .pk-ic { width: 46px; height: 46px; display: block; }
+.pick .pk-ic svg { width: 100%; height: 100%; fill: none; stroke: #8f9280; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.pick b { font-size: 15px; letter-spacing: .03em; color: #cfd1c2; }
+.pick small { font-size: 12px; line-height: 1.35; color: #8f9280; }
+.pick i { position: absolute; top: 7px; right: 7px; font-style: normal; font-size: 10.5px; padding: 0 7px; border: 1px solid #4b4d3b; border-radius: 10px; color: #8f9280; }
+.pick:not(.ready) { opacity: .72; }
+.pick.ready { border-color: #8a6f2f; background: linear-gradient(180deg, #2a2512, #181509); }
+.pick.ready .pk-ic svg { stroke: var(--brass); }
+.pick.ready b { color: var(--brass); }
+.pick:active { transform: scale(.98); }
+.pk-back { align-self: flex-start; background: none; border: 1px solid #3a3d2c; color: #b6b9a8; border-radius: 4px; padding: 3px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+/* kartu sempit (4 sejajar di modal tegak) */
+.lb-modal.tall .pick { padding: 12px 4px; }
+.lb-modal.tall .pick b { font-size: 13px; line-height: 1.25; }
+.lb-modal.tall .pick small { font-size: 11px; }
+.lb-modal.tall .pick .pk-ic { width: 36px; height: 36px; }
+.lb-modal.tall .pick i { top: 5px; right: 5px; font-size: 9.5px; padding: 0 5px; }
+.lb-modal.tall .pick .pk-ic { margin-top: 10px; }
+
 /* ---------- v9.5: gambar asli di katalog + ikon skill ---------- */
 .gfx { display: block; flex: none; image-rendering: auto; }
 .gfx-tile { width: 56px; height: 56px; }

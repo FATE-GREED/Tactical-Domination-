@@ -381,6 +381,10 @@ function drawBuildingFull(b, p, opt) {
   if (opt.noBar) return;
   const top = b.type === 'jembatan' ? fp.cy - HEX_SIZE * 0.55 : fp.cy + u * 0.05 + u * (BUILDING_HP_TOP[b.type] || -0.6);
   drawHpBar(fp.cx, top, b.hp, def.hp, players[HUMAN].buildings.includes(b));
+  if (Settings.get('showIcons') && typeof buildingStatusIcons === 'function') {   // v9.6: ikon efek aktif di atas bar HP (mis. Penghancur Bangunan)
+    const barH = Settings.get('showHp') ? Math.max(HEX_SIZE * 0.16, 3 / scale) + 3 / scale : 1 / scale;
+    drawStatusIcons(buildingStatusIcons(b), fp.cx, top - barH);
+  }
   // highlight target serang / supply di atas bangunan
   fp.tiles.forEach(([r, c]) => {
     const atk = attackMode && attackable.some(t => t.r === r && t.c === c);

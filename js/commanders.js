@@ -43,5 +43,7 @@ const COMMANDERS = (() => {
       : null,
   }));
 })();
+// Gambar cerita campaign: img/story/cNN_pPP.webp (NN = nomor perwira, PP = nomor pose 01-10)
+const STORY_IMG = (n, p) => `img/story/c${String(n).padStart(2,'0')}_p${String(p).padStart(2,'0')}.webp`;
 const LOBBY_COMMANDER_IMG = 'img/cmd/lobby.webp';
 const COMMANDER_IDS = COMMANDERS.map(c => c.id);

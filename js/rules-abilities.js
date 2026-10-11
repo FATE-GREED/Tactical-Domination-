@@ -108,3 +108,53 @@ function defenderAbilityDEFPct(targetInfo) {
 
   return pct;
 }
+
+// ---------- v9.6: daftar ikon efek yang SEDANG aktif pada sebuah unit (untuk ikon di atas bar HP) ----------
+// Hanya efek berbasis keadaan (timer / status / posisi). Efek yang baru terhitung saat serangan
+// (Konsentrasi Tinggi, Ayo Ledakkan, Perusak Formasi) tidak punya keadaan menetap, jadi tidak ditampilkan.
+function activeAbilityIcons(u) {
+  const out = [];
+  const owner = players[u.owner];
+  const seen = e => isVisibleToCurrentPlayer(e);
+  switch (u.type) {
+    case 'infantry':
+      if (hasAllyNearby(u, 2)) out.push('Moral Persatuan');
+      if (owner && owner.infantrySpiritTurns > 0) out.push('Semangat Perjuangan');
+      break;
+    case 'assault':
+      if (u.ambushAtkTimer > 0) out.push('Serangan Kejut');
+      if (u.assaultExtend > 0 && isUnitUnseen(u)) out.push('Yang Tersembunyi');
+      break;
+    case 'sniper':
+      if (!units.some(e => e !== u && e.owner === u.owner && hexDistance(u.r, u.c, e.r, e.c) <= 5)) out.push('Sang Pengamat');
+      break;
+    case 'antitank':
+      if (u.semangatBesiUsed) out.push('Semangat Besi');
+      break;
+    case 'tanklapis':
+      if (u.hp < UNITS.tanklapis.hp * 0.5) out.push('Pejuang Bertahan');
+      break;
+    case 'tankcrusher': {
+      const range = effectiveRange(u);
+      if (units.some(e => e.owner !== u.owner && seen(e) && hexDistance(u.r, u.c, e.r, e.c) <= range)) out.push('Penggila Perang');
+      break;
+    }
+    case 'apc':
+      if (u.cargo && u.cargo.type === 'corps') out.push('Dikejar Waktu');
+      if (u.cargo) out.push('Kurir Setia');
+      break;
+    case 'corps':
+      if (!u.cargo) out.push('Jangan Menganggur');
+      if (u.isBuilding) out.push('Kerja Sampai Tuntas');
+      break;
+  }
+  if (hasAdjacentAllyProtector(u)) out.push('Sang Pelindung');          // diterima dari Tank Lapis Baja sekutu
+  if (u.intimidatedTurns > 0) out.push('Intimidasi');                   // kena Tank Crusher
+  if (owner && inTerritory(owner, u.r, u.c)) out.push('Wilayah Markas'); // efek bangunan (Markas): ATK/DEF +20%
+  return out;
+}
+
+// Ikon efek aktif pada sebuah bangunan
+function buildingStatusIcons(b) {
+  return b.defDebuffTurns > 0 ? ['Penghancur Bangunan'] : [];
+}
