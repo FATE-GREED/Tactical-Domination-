@@ -293,5 +293,5 @@ function drawUnitSprite(u, x, y) {
   const renderFn = UNIT_RENDERERS[u.type];
   if (renderFn) renderFn(ctx, x, y, unitScale);
   drawHpBar(x, y - unitScale * 0.5, u.hp, def.hp, u.owner === HUMAN);
-  if (u.owner === HUMAN && typeof supplyIdle === 'function' && supplyIdle(u)) drawIdleBadge(x, y, unitScale);
+  if (typeof needsOrders === 'function' && needsOrders(u)) drawIdleBadge(x, y, unitScale);   // v9.4: ! = APC/Corps nganggur (tanpa job)
 }

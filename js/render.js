@@ -198,11 +198,12 @@ function resourceHtml(p) {
   const i = players.indexOf(p), r = p.resources;
   let h = `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
     ` <small class="rs-s">C${p.corps.count}/10${p.corps.timer ? '+' + p.corps.timer : ''} · B${totalBarakSlots(p)}/${2 * p.buildings.filter(b => b.type === 'barak').length}</small>`;
-  if (i !== HUMAN) {                                   // bar HP seluruh Markas musuh
+  {                                                    // v9.4: bar HP seluruh Markas — untuk semua pemain, lengkap dengan angka sisa/total
     const maxHp = BUILDING_TYPES.markas.hp, alive = p.buildings.filter(b => b.type === 'markas');
     const lost = (Stats.data[i] && Stats.data[i].bldLost.markas) || 0;
-    const total = (alive.length + lost) * maxHp, cur = alive.reduce((a, b) => a + b.hp, 0);
-    h += `<div class="mk-bar" title="HP seluruh Markas: ${cur}/${total}"><i style="width:${total ? Math.round(cur / total * 100) : 0}%"></i></div>`;
+    const total = (alive.length + lost) * maxHp, cur = Math.max(0, Math.round(alive.reduce((a, b) => a + b.hp, 0)));
+    h += `<div class="mk-hp" title="HP seluruh Markas">Markas ${cur}/${total}</div>` +
+      `<div class="mk-bar${i === HUMAN ? ' mine' : ''}" title="HP seluruh Markas: ${cur}/${total}"><i style="width:${total ? Math.round(cur / total * 100) : 0}%"></i></div>`;
   }
   return h;
 }
@@ -351,7 +352,7 @@ function openEntityPanel(r, c) {
     const defStat = target.def.def === Infinity ? '∞' : target.def.def;
     html += `<h3 style="color:${owner.color}">${target.def.name} — ${owner.name}</h3>`;
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
-    if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -20% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
+    if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
     if (isMine && canAct() && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
   }
 
@@ -395,6 +396,24 @@ function runAndRefreshEntity(unit, actionFn, r, c) {
   draw();
   if (result.ok) { showGenericResult(result.message); logAction(result.message); } else alert(result.message);
   openEntityPanel(r, c); // refresh isi panel (cargo/MP/status berubah)
+}
+
+// v9.4: modal deploy utama (tombol + di panel kiri) — barak dipilih otomatis (terdekat musuh dulu, lalu acak)
+function openDeployModal(player) {
+  const el = document.getElementById('deploy');
+  el.style.display = 'block';
+  const baraks = player.buildings.filter(b => b.type === 'barak');
+  const slots = totalBarakSlots(player);
+  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3>';
+  html += Object.entries(UNITS).map(([key, def]) => {
+    const disabled = (slots <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
+    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
+  }).join('');
+  el.innerHTML = html;
+  document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
+  el.querySelectorAll('button[data-unit]').forEach(btn => {
+    btn.addEventListener('click', () => onDeployModalClick(btn.getAttribute('data-unit'), player));
+  });
 }
 
 function openDeployPanel(barak, player) {

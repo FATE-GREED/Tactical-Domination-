@@ -40,18 +40,9 @@ function applySemangatBesi(unit) {
   }
 }
 
-// ---------- Infantry: Moral Persatuan (>=3 Infantry sekutu saling terhubung adjacency) ----------
-function infantryGroupSize(unit) {
-  const visited = new Set([unit.id]);
-  const stack = [unit];
-  while (stack.length) {
-    const cur = stack.pop();
-    for (const [nr, nc] of neighborsOf(cur.r, cur.c)) {
-      const other = units.find(u => u.r === nr && u.c === nc && u.type === 'infantry' && u.owner === unit.owner);
-      if (other && !visited.has(other.id)) { visited.add(other.id); stack.push(other); }
-    }
-  }
-  return visited.size;
+// ---------- Infantry: Moral Persatuan (v9.5: ada unit sekutu apapun dalam jarak 2 tile) ----------
+function hasAllyNearby(unit, range) {
+  return units.some(o => o.id !== unit.id && o.owner === unit.owner && hexDistance(unit.r, unit.c, o.r, o.c) <= range);
 }
 
 // ---------- Tank Lapis Baja: Sang Pelindung (proteksi ke SEKUTU dalam jangkauan 2 tile, bukan diri sendiri) ----------
@@ -104,7 +95,7 @@ function defenderAbilityDEFPct(targetInfo) {
     const u = targetInfo.obj;
     const def = targetInfo.def;
 
-    if (u.type === 'infantry' && infantryGroupSize(u) >= 3) pct += 20;        // Moral Persatuan
+    if (u.type === 'infantry' && hasAllyNearby(u, 2)) pct += 20;        // Moral Persatuan
     if (u.type === 'tanklapis' && u.hp < def.hp * 0.5) pct += 50;              // Pejuang Bertahan
     if (hasAdjacentAllyProtector(u)) pct += 20;                                // Sang Pelindung (dari sekutu)
     if (u.type === 'apc' && u.cargo) pct += 20;                                // Kurir Setia
@@ -112,7 +103,7 @@ function defenderAbilityDEFPct(targetInfo) {
     if (u.intimidatedTurns > 0) pct -= 20;                                     // kena Intimidasi (Tank Crusher)
   } else if (targetInfo.kind === 'building') {
     const b = targetInfo.obj;
-    if (b.defDebuffTurns > 0) pct -= 20;                                       // kena Penghancur Bangunan (Montir)
+    if (b.defDebuffTurns > 0) pct -= 30;                                       // kena Penghancur Bangunan (Montir)
   }
 
   return pct;

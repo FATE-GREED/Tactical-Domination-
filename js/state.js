@@ -41,19 +41,21 @@ const UNITS = {
 const CORPS_DEF = { name: 'Corps', spd: 10, range: 0, atk: 0, def: 15, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
 
 // ---------- Bangunan (Bagian 3) ----------
+// v9.5: HP semua bangunan 200; DEF bangunan minimal 10 (juga saat kena debuff). Benteng DEF 70.
+// (v9.4: DEF x2, lalu v9.5: -20, Benteng -10 lagi.) Benteng: maks 5 total, hanya 1 yang boleh dibangun sekaligus.
 // destructible:false untuk Garnisun (tidak bisa hancur, bukan objective).
 // corpsRequired/turnsRequired/maxCount dipakai sistem Build (Fase 7).
 // Markas butuh 2 Corps sekaligus untuk dibangun — belum didukung sistem
 // Build otomatis saat ini (hanya bisa didapat lewat setup awal); bangunan
 // lain semuanya cukup 1 Corps jadi sudah didukung penuh.
 const BUILDING_TYPES = {
-  markas:       { label: 'M', name: 'Markas',        hp: 500, def: 50, destructible: true,  corpsRequired: 2, turnsRequired: 4, maxCount: 5 },
+  markas:       { label: 'M', name: 'Markas',        hp: 200, def: 50, destructible: true,  corpsRequired: 2, turnsRequired: 4, maxCount: 5 },
   garnisun:     { label: 'G', name: 'Garnisun',       hp: Infinity, def: Infinity, destructible: false, corpsRequired: 0, turnsRequired: 0, maxCount: 1 },
-  barak:        { label: 'B', name: 'Barak',          hp: 350,  def: 25,  destructible: true,  corpsRequired: 1, turnsRequired: 3, maxCount: 5 },
-  pom:          { label: 'P', name: 'Pom',            hp: 250,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 2, maxCount: 3 },
-  pospemulihan: { label: 'H', name: 'Pos Pemulihan',  hp: 350,  def: 15,  destructible: true,  corpsRequired: 1, turnsRequired: 2, maxCount: 5 },
-  benteng:      { label: 'F', name: 'Benteng',        hp: 400,  def: 50, destructible: true,  corpsRequired: 1, turnsRequired: 3, maxCount: 8 },
-  jembatan:     { label: 'J', name: 'Jembatan',       hp: 150,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 1, maxCount: 5 },
+  barak:        { label: 'B', name: 'Barak',          hp: 200,  def: 30,  destructible: true,  corpsRequired: 1, turnsRequired: 3, maxCount: 5 },
+  pom:          { label: 'P', name: 'Pom',            hp: 200,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 2, maxCount: 3 },
+  pospemulihan: { label: 'H', name: 'Pos Pemulihan',  hp: 200,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 2, maxCount: 5 },
+  benteng:      { label: 'F', name: 'Benteng',        hp: 200,  def: 70, destructible: true,  corpsRequired: 1, turnsRequired: 3, maxCount: 5 },
+  jembatan:     { label: 'J', name: 'Jembatan',       hp: 200,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 1, maxCount: 5 },
   // Renov = aksi (bukan bangunan): 3 tile menjadi Grass dalam 1 giliran; Valley/River/Mountain tidak bisa direnov.
   renov:        { label: 'R', name: 'Renov',          hp: null, def: null, destructible: false, corpsRequired: 1, turnsRequired: 1, maxCount: Infinity, action: true },
 };
@@ -65,7 +67,7 @@ const PLAYER_COLORS = ['#6fa8dc', '#e06c6c'];
 // Urutan = urutan kartu di tombol "Kemampuan" lobby.
 const UNIT_ABILITIES = {
   infantry: [
-    ['Moral Persatuan', 'DEF +20% selama ada minimal 3 Infantry sekutu yang saling bersebelahan (terhubung).'],
+    ['Moral Persatuan', 'DEF +20% selama ada unit sekutu apapun (selain dirinya) dalam jarak 2 tile.'],
     ['Semangat Perjuangan', 'Saat 1 Infantry gugur, seluruh Infantry pemiliknya mendapat ATK +20% selama 2 giliran.'],
   ],
   assault: [
@@ -89,7 +91,7 @@ const UNIT_ABILITIES = {
     ['Intimidasi', 'Unit yang selamat dari serangannya terkena DEF −20% selama 2 giliran.'],
   ],
   montir: [
-    ['Penghancur Bangunan', 'Bangunan musuh yang diserang dan selamat terkena DEF −20% selama 2 giliran.'],
+    ['Penghancur Bangunan', 'Bangunan musuh yang diserang dan selamat terkena DEF −30% selama 2 giliran.'],
     ['Perusak Formasi', 'Splash 50% damage ke unit musuh yang bersebelahan dengan target (bila target utama adalah unit).'],
   ],
   apc: [

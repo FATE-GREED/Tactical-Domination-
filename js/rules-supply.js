@@ -22,6 +22,8 @@ function startBuild(corps, type, tiles) {
   const existingCount = owner.buildings.filter(b => b.type === type).length;
   if (existingCount >= spec.maxCount) return { ok: false, message: `Sudah mencapai batas maksimal ${spec.name} (${spec.maxCount}).` };
 
+  if (type === 'benteng' && bentengInProgress(corps.owner, corps)) return { ok: false, message: 'Benteng lain masih dibangun (maks 1 sekaligus).' };
+
   tiles = tiles || [[corps.r, corps.c]];
   if (tiles[0][0] !== corps.r || tiles[0][1] !== corps.c) return { ok: false, message: 'Corps belum berada di tile tengah lokasi.' };
   const why = footprintReason(corps.owner, type, tiles, [corps]);       // terrain, tile kosong, cadangan (footprint.js)

@@ -78,7 +78,8 @@ function computeDamage(attackerUnit, targetInfo) {
   let defPct = terrainDefModifierPct(targetTerrain, targetInfo.vehicle, targetInfo.tank);
   defPct += territoryDefModifierPct(targetInfo.ownerIdx, targetInfo.obj.r, targetInfo.obj.c);
   defPct += defenderAbilityDEFPct(targetInfo);
-  const finalDEF = Math.max(0, baseDEF * (1 + defPct / 100));
+  const defFloor = (targetInfo.kind === 'building' && targetInfo.def.destructible !== false) ? 10 : 0;   // v9.5: DEF bangunan minimal 10
+  const finalDEF = Math.max(defFloor, baseDEF * (1 + defPct / 100));
 
   const raw = finalATK * 100 / (100 + finalDEF);
   let damage = specialRound(raw);

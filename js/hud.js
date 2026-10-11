@@ -18,7 +18,7 @@ function renderSidebar() {
   const corps = mine.filter(u => u.type === 'corps');
   const apcs = mine.filter(u => u.type === 'apc');
   const corpsIdle = corps.filter(u => isIdleCorps(u, HUMAN)).length;
-  const apcIdle = apcs.filter(u => !u.cargo && !u.target && !u.buildOrder && u.job === 'idle').length;
+  const apcIdle = apcs.filter(u => isIdleApc(u)).length;
   const job = (type, j) => mine.filter(u => u.type === type && u.job === j).length;
   const set = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
   set('sbTurn', turnNumber);
@@ -33,16 +33,15 @@ function initHud() {
   clearInterval(matchTimer);
   matchTimer = setInterval(() => { if (!paused && !gameOver) { matchSec++; updateMatchTime(); } }, 1000);
 
-  document.getElementById('speedBtn').addEventListener('click', () => Settings.set('fast', !Settings.get('fast')));
+  document.getElementById('speedBtn').addEventListener('click', () => Settings.set('speed', (Math.min(4, Math.max(1, +Settings.get('speed') || 1)) % 4) + 1));
   document.getElementById('rincianBtn').addEventListener('click', () => Rincian.open());
   document.getElementById('goRincianBtn').addEventListener('click', () => Rincian.open());
   document.getElementById('pmSettings').addEventListener('click', () => Settings.open());
   document.getElementById('deployOpenBtn').addEventListener('click', () => {      // modal deploy unit yang ada di Barak
     if (!canAct()) return;
-    const p = players[HUMAN], baraks = p.buildings.filter(b => b.type === 'barak');
-    if (!baraks.length) { alert('Belum ada Barak.'); return; }
-    const b = baraks.find(x => emptyAdjacentBuilding(x, UNITS.infantry)) || baraks[0];
-    closeAllPanels(); openDeployPanel(b, p);
+    const p = players[HUMAN];
+    if (!p.buildings.some(b => b.type === 'barak')) { alert('Belum ada Barak.'); return; }
+    closeAllPanels(); openDeployModal(p);          // v9.4: semua deploy lewat modal ini (barak dipilih otomatis)
   });
   // v9.0 — Radar: toggle; seluruh jarak pandang unit sekutu diwarnai ungu
   const radarBtn = document.getElementById('radarBtn');

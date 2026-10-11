@@ -254,3 +254,13 @@
 .cm-fx b { font-size: 13px; color: var(--brass); letter-spacing: .03em; }
 .cm-fx span { font-size: 12.5px; line-height: 1.4; color: #b6b9a8; }
 .cm-fx i { align-self: flex-start; font-style: normal; font-size: 10.5px; padding: 0 7px; border: 1px solid #4b4d3b; border-radius: 10px; color: #8f9280; }
+
+/* ---------- v9.5: gambar asli di katalog + ikon skill ---------- */
+.gfx { display: block; flex: none; image-rendering: auto; }
+.gfx-tile { width: 56px; height: 56px; }
+.gfx-unit { width: 78px; height: 72px; margin: -8px -6px -8px -8px; }
+.gfx-bld { width: 100px; height: 88px; margin: -8px -6px -8px -8px; }
+.ab-list li { flex-direction: row; align-items: flex-start; gap: 8px; }
+.ab-list li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sk { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); box-shadow: 0 1px 3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(0,0,0,.35); }
+.sk svg { width: 19px; height: 19px; filter: drop-shadow(0 1px 0 rgba(0,0,0,.45)); }

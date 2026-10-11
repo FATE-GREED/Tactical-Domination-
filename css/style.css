@@ -219,6 +219,8 @@ body.hide-dmg #dmgfeed, body.hide-act #actionlog, body.hide-kill #killfeed { dis
 @media (max-width: 600px) { .rs-s { display: none; } }
 .mk-bar { height: 5px; margin-top: 2px; background: rgba(0,0,0,0.6); border: 1px solid rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden; }
 .mk-bar i { display: block; height: 100%; background: #ff5f5f; }
+.mk-bar.mine i { background: #6fa8dc; }
+.mk-hp { font-size: 9px; line-height: 1.1; margin-top: 1px; color: #ccc; font-variant-numeric: tabular-nums; }
 
 #turnbar { top: 3px; padding: 2px 8px; gap: 6px; }
 @media (max-width: 480px) { #turnbar { top: 32px; } }

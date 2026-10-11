@@ -391,6 +391,19 @@ function onDeployClick(key, barak, player) {
   logAction(`Deploy ${def.name}`);
 }
 
+// v9.4: Dipanggil dari modal deploy utama (tombol +)
+function onDeployModalClick(key, player) {
+  if (!canAct()) return;
+  const def = UNITS[key];
+  const res = doDeployAuto(key, player);
+  if (!res.ok) { alert(res.reason); openDeployModal(player); return; }
+  renderResourcePanels();
+  renderTargetPanel();
+  openDeployModal(player);   // refresh (slot & kredit terupdate)
+  draw();
+  logAction(`Deploy ${def.name}`);
+}
+
 // Tombol "Eksekusi" = percepat: langsung jalankan fase eksekusi
 function onEndTurnClick() {
   if (!canAct()) return;

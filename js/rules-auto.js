@@ -85,6 +85,14 @@ function setHaulJob(u, corpsId, dest) { dropBuildOrder(u); u.job = 'angkut'; u.t
 function isIdleCorps(u, owner) {
   return u.owner === owner && u.type === 'corps' && !u.isBuilding && !u.cargo && !u.buildOrder && !u.target && u.job === 'idle';
 }
+// v9.4: APC nganggur = tidak punya job/tujuan/pesanan bangun (job 'angkut', 'fuel', 'medical' dll. = punya job)
+function isIdleApc(u) { return u.type === 'apc' && !u.cargo && !u.target && !u.buildOrder && u.job === 'idle'; }
+// v9.4: tanda seru (!) untuk APC/Corps milik pemain yang nganggur
+function needsOrders(u) { return u.owner === HUMAN && (u.type === 'apc' ? isIdleApc(u) : u.type === 'corps' && isIdleCorps(u, HUMAN)); }
+// v9.4: Benteng yang sedang dipesan (Corps berangkat) atau sedang dibangun — maks 1 sekaligus
+function bentengInProgress(owner, except) {
+  return units.some(u => u !== except && u.owner === owner && ((u.buildOrder && u.buildOrder.type === 'benteng') || (u.isBuilding && u.buildType === 'benteng')));
+}
 function nearestIdleCorps(owner, r, c) {
   let best = null, bd = Infinity;
   for (const u of units) {
@@ -104,6 +112,7 @@ function buildOrderBlockReason(owner, type, r, c) {
   const p = players[owner];
   const count = p.buildings.filter(b => b.type === type).length + pendingBuildCount(owner, type);
   if (count >= spec.maxCount) return 'maks tercapai';
+  if (type === 'benteng' && bentengInProgress(owner)) return 'Benteng lain masih dibangun (maks 1 sekaligus)';
   if (!footprintOptions(owner, type, r, c).length) return footprintWhy(owner, type, r, c);   // footprint.js
   if (type === 'markas') {
     if (idleCorpsSorted(owner, r, c).length < spec.corpsRequired) return `butuh ${spec.corpsRequired} Corps nganggur`;
@@ -150,6 +159,23 @@ function orderBuild(owner, type, r, c, tiles) {
 // ---------------------------------------------------------------
 // Deploy unit dari Barak (dipakai tombol Deploy & bot)
 // ---------------------------------------------------------------
+// v9.4: Deploy otomatis (modal tombol +): unit muncul di samping Barak yang paling dekat dengan musuh dulu;
+// bila Barak itu tidak bisa (slot/tile habis), pilih acak di antara Barak lain yang masih bisa.
+function doDeployAuto(key, player) {
+  const def = UNITS[key];
+  if (player.resources.kredit < def.price) return { ok: false, reason: 'Kredit tidak cukup.' };
+  const baraks = player.buildings.filter(b => b.type === 'barak');
+  const usable = baraks.filter(b => barakSlots(b) > 0 && emptyAdjacentBuilding(b, def));
+  if (!usable.length) return { ok: false, reason: 'Tidak ada slot atau tile kosong di sekitar Barak.' };
+  const foe = players[player === players[HUMAN] ? BOT : HUMAN];
+  const anchor = foe.buildings.find(b => b.type === 'markas') || foe.buildings[0];
+  const dist = b => anchor ? hexDistance(b.r, b.c, anchor.r, anchor.c) : 0;
+  const nearest = baraks.reduce((x, y) => (dist(y) < dist(x) ? y : x));
+  const rest = usable.filter(b => b !== nearest).sort(() => Math.random() - 0.5);
+  const order = usable.includes(nearest) ? [nearest, ...rest] : rest;
+  for (const b of order) if (doDeploy(key, b, player)) return { ok: true };
+  return { ok: false, reason: 'Tidak ada tile kosong di sekitar Barak untuk deploy.' };
+}
 function doDeploy(key, barak, player) {
   const def = UNITS[key];
   if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return false;
@@ -338,6 +364,7 @@ function laneOpts(u) {
   return out;
 }
 function laneJoin(u) {
+  if (!defOf(u).combat) return false;           // v9.5: unit non-tempur (Corps/APC) tidak terpengaruh Jalur
   if (u.owner !== HUMAN || u.locked || u.lane || !lanes.length) return false;
   const o = laneOpts(u).filter(x => x.i < x.L.tiles.length - 1);
   if (!o.length) return false;
@@ -346,6 +373,7 @@ function laneJoin(u) {
   return true;
 }
 async function execLane(u) {
+  if (!defOf(u).combat) { u.lane = null; return false; }   // v9.5: unit non-tempur tidak terpengaruh Jalur
   if (u.owner !== HUMAN || u.locked || !lanes.length) return false;
   if (!u.lane && !lanes.some(L => L.tiles.some(p => p[0] === u.r && p[1] === u.c))) u.laneDone = [];
   for (let g = 0; g < 60 && u.mp > 0 && units.includes(u); g++) {
