@@ -156,7 +156,7 @@ function draw() {
 
     if (occupant) {
       const isUnit = units.includes(occupant);
-      const label = isUnit ? (occupant.type === 'corps' ? 'C' : occupant.type.slice(0, 2).toUpperCase()) : BUILDING_TYPES[occupant.type].label;
+      const label = isUnit ? (occupant.type === 'corps' ? 'C' : occupant.type === 'advcorps' ? 'AC' : occupant.type.slice(0, 2).toUpperCase()) : BUILDING_TYPES[occupant.type].label;
       const entX = screenX + 16, entY = screenY - 28;
       drawIconCircle(entX, entY, iconR, isUnit ? '#d7b56d' : '#9b7a3f', label);
       iconHitboxes.entity = { x: entX, y: entY, r: iconR };
@@ -294,55 +294,67 @@ function openEntityPanel(r, c) {
 
   if (target.kind === 'unit') {
     const u = target.obj;
-    const name = u.type === 'corps' ? 'Corps' : target.def.name;
+    const name = target.def.name;
     html += `<h3 style="color:${owner.color}">${name} — ${owner.name}</h3>`;
     html += `HP: ${u.hp}/${target.def.hp} &nbsp; MP: ${u.mp}/${target.def.spd}<br>`;
     if (target.def.combat) html += `ATK: ${target.def.atk} &nbsp; DEF: ${target.def.def} &nbsp; Range: ${target.def.range}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${target.def.fuelMax}<br>`;
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;
     if (u.intimidatedTurns > 0) html += `<span style="color:#e08a4a">Terkena Intimidasi (${u.intimidatedTurns} giliran lagi)</span><br>`;
+    if (u.downed) html += `<span style="color:#e3c445">MODE GUGUR — hidup lagi di awal giliran pemilik (HP 30%, ATK −50%)</span><br>`;
+    if (u.weakened) html += `<span style="color:#e08a4a">ATK −50% permanen (Tak Terkalahkan sudah dipakai)</span><br>`;
+    if (u.leakTurns > 0 && u.leakStacks > 0) html += `<span style="color:#e08a4a">Bocor minyak ×${u.leakStacks}: −${2 * u.leakStacks} Fuel/giliran (${u.leakTurns} giliran lagi)</span><br>`;
+    if (u.pierceTurns > 0) html += `<span style="color:#e08a4a">Penembusan: DEF −20% (${u.pierceTurns} giliran lagi)</span><br>`;
+    if (u.type === 'advapc' && u.toughTurns > 0) html += `<span style="color:#7fb4ff">Pantang Menyerah: DEF +20%, SPD +2 (${u.toughTurns} giliran lagi)</span><br>`;
+    if (u.type === 'advapc' && u.toughCd > 0) html += `<span style="color:#9aa">Pantang Menyerah cooldown ${u.toughCd} giliran</span><br>`;
+    if (u.type === 'advtankcrusher' && isBeraniMati(u)) html += `<span style="color:#e0574f">Pasukan Berani Mati: DEF 0, SPD +2, ATK +10%</span><br>`;
 
-    if (u.type === 'corps' && u.isBuilding) {
+    if (isCorpsType(u.type) && u.isBuilding) {
       html += `<br><i style="color:#d7b56d">Sedang membangun ${BUILDING_TYPES[u.buildType].name}: ${u.buildTurnsRemaining} giliran lagi</i>`;
     } else if (u.cargo) {
-      const cargoLabel = u.cargo.type === 'corps' ? 'Corps (penumpang)' : `${u.cargo.type} (${u.cargo.amount})`;
+      const cargoLabel = u.cargo.type === 'corps' ? `${unitDef(u.cargo.unit.type).name} (penumpang)` : u.cargo.type === 'montir' ? 'Advanced Montir (penumpang)' : `${u.cargo.type} (${u.cargo.amount})`;
       html += `<br>Muatan: ${cargoLabel}`;
     }
 
     if (isMine) html += `<br><span style="color:#d7b56d">Tujuan: ${targetLabel(u)}</span><br>`;
-    if (isMine && canAct() && !(u.type === 'corps' && u.isBuilding)) {
+    if (isMine && canAct() && !(isCorpsType(u.type) && u.isBuilding)) {
       buttons.push({ id: 'targetBtn', label: 'Atur Target' });
       buttons.push({ id: 'lockBtn', label: u.locked ? '🔓 Buka Kunci' : '🔒 Kunci Gerak' });
       if (!target.def.combat) {
         buttons.push({ id: 'jobIdleBtn', label: (u.job === 'idle' ? '✓ ' : '') + 'Nganggur' });
         buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
         buttons.push({ id: 'jobMedBtn', label: (u.job === 'medical' ? '✓ ' : '') + 'Isi Medical' });
-        if (u.type === 'apc') buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
+        if (isApcType(u.type)) buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
         if (u.job === 'fuel' || u.job === 'medical') buttons.push({ id: 'focusBtn', label: u.focus ? '🎯 Ubah Fokus' : '🎯 Fokus Unit' });
       }
       if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
     }
     if (isMine && canAct() && !u.attacked) {
-      if ((u.type === 'apc' || u.type === 'corps') && !u.cargo && !(u.type === 'corps' && u.isBuilding)) {
+      if ((isApcType(u.type) || isCorpsType(u.type)) && !u.cargo && !(isCorpsType(u.type) && u.isBuilding)) {
         const nearPom = !!adjacentBuildingOfType(u, 'pom');
         const nearPos = !!adjacentBuildingOfType(u, 'pospemulihan');
         if (nearPom && owner.resources.fuel > 0) buttons.push({ id: 'loadFuelBtn', label: 'Muat Fuel' });
         if (nearPos && owner.resources.medical > 0) buttons.push({ id: 'loadMedicalBtn', label: 'Muat Medical' });
       }
-      if (u.type === 'apc' && !u.cargo) {
-        const adjCorps = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'corps' && !cc.cargo));
+      if (isApcType(u.type) && !u.cargo) {
+        const adjCorps = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && isCorpsType(cc.type) && !cc.cargo));
         if (adjCorps) buttons.push({ id: 'loadCorpsBtn', label: 'Muat Corps' });
+        const adjMontir = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'advmontir'));
+        if (adjMontir) buttons.push({ id: 'loadMontirBtn', label: 'Muat Montir' });        // v9.7 Perubahan Model
       }
-      if (u.type === 'apc' && u.cargo && u.cargo.type === 'corps') {
+      if (isApcType(u.type) && u.cargo && u.cargo.type === 'corps') {
         buttons.push({ id: 'unloadCorpsBtn', label: 'Turunkan Corps' });
+      }
+      if (isApcType(u.type) && u.cargo && u.cargo.type === 'montir') {
+        buttons.push({ id: 'unloadMontirBtn', label: 'Turunkan Montir' });
       }
       if (u.cargo && u.cargo.type === 'fuel') buttons.push({ id: 'supplyFuelBtn', label: 'Supply Fuel' });
       if (u.cargo && u.cargo.type === 'medical') buttons.push({ id: 'supplyMedicalBtn', label: 'Supply Medical' });
 
-      if ((u.type === 'apc' || u.type === 'corps') && target.def.hasFuel && u.fuel < target.def.fuelMax && owner.resources.fuel > 0) {
+      if ((isApcType(u.type) || isCorpsType(u.type)) && target.def.hasFuel && u.fuel < target.def.fuelMax && owner.resources.fuel > 0) {
         buttons.push({ id: 'selfRefuelBtn', label: 'Isi Ulang Sendiri' });
       }
-      if (owner.resources.medical > 0 && !(u.type === 'corps' && u.isBuilding)) {
+      if (owner.resources.medical > 0 && !(isCorpsType(u.type) && u.isBuilding)) {
         buttons.push({ id: 'recoveryBtn', label: 'Recovery' });
       }
     }
@@ -379,11 +391,17 @@ function openEntityPanel(r, c) {
   bind('loadMedicalBtn', () => runAndRefreshEntity(target.obj, () => loadCargo(target.obj, 'medical'), r, c));
   bind('selfRefuelBtn', () => runAndRefreshEntity(target.obj, () => selfRefuel(target.obj), r, c));
   bind('loadCorpsBtn', () => {
-    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && cc.type === 'corps' && !cc.cargo));
+    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && isCorpsType(cc.type) && !cc.cargo));
     const corpsUnit = units.find(cc => cc.r === nr && cc.c === nc);
     runAndRefreshEntity(target.obj, () => loadCorpsIntoAPC(target.obj, corpsUnit), r, c);
   });
   bind('unloadCorpsBtn', () => runAndRefreshEntity(target.obj, () => unloadCorpsFromAPC(target.obj), r, c));
+  bind('loadMontirBtn', () => {
+    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && cc.type === 'advmontir'));
+    const montir = units.find(cc => cc.r === nr && cc.c === nc);
+    runAndRefreshEntity(target.obj, () => loadMontirIntoAPC(target.obj, montir), r, c);
+  });
+  bind('unloadMontirBtn', () => runAndRefreshEntity(target.obj, () => unloadMontirFromAPC(target.obj), r, c));
   bind('supplyFuelBtn', () => { el.style.display = 'none'; startSpecialMode(target.obj, 'supplyFuel'); });
   bind('supplyMedicalBtn', () => { el.style.display = 'none'; startSpecialMode(target.obj, 'supplyMedical'); });
   bind('recoveryBtn', () => { el.style.display = 'none'; startSpecialMode(target.obj, 'recovery'); });
@@ -398,6 +416,9 @@ function runAndRefreshEntity(unit, actionFn, r, c) {
   openEntityPanel(r, c); // refresh isi panel (cargo/MP/status berubah)
 }
 
+// v9.7: daftar unit yang bisa dibeli di Barak = UNITS + entri khusus Advanced Corps (batch A menyisipkan Trapper & Advanced lain lewat UNITS)
+function deployEntries() { return [...Object.entries(UNITS), ['advcorps', ADV_CORPS_DEF]]; }
+
 // v9.4: modal deploy utama (tombol + di panel kiri) — barak dipilih otomatis (terdekat musuh dulu, lalu acak)
 function openDeployModal(player) {
   const el = document.getElementById('deploy');
@@ -405,8 +426,8 @@ function openDeployModal(player) {
   const baraks = player.buildings.filter(b => b.type === 'barak');
   const slots = totalBarakSlots(player);
   let html = '<span class="close" id="deployclose">✕</span><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3>';
-  html += Object.entries(UNITS).map(([key, def]) => {
-    const disabled = (slots <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
+  html += deployEntries().map(([key, def]) => {
+    const disabled = (slots <= 0 || player.resources.kredit < def.price || (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS)) ? 'disabled' : '';
     return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
   }).join('');
   el.innerHTML = html;
@@ -420,8 +441,8 @@ function openDeployPanel(barak, player) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
   let html = '<span class="close" id="deployclose">✕</span><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3>';
-  html += Object.entries(UNITS).map(([key, def]) => {
-    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
+  html += deployEntries().map(([key, def]) => {
+    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price || (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS)) ? 'disabled' : '';
     return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
   }).join('');
   el.innerHTML = html;

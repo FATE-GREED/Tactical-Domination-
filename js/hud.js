@@ -14,12 +14,12 @@ function renderSidebar() {
   const el = document.getElementById('sidebar');
   if (!el || typeof players === 'undefined' || !players.length) return;
   const mine = units.filter(u => u.owner === HUMAN);
-  const carried = mine.filter(u => u.type === 'apc' && u.cargo && u.cargo.type === 'corps').length;   // Corps yang sedang naik APC
-  const corps = mine.filter(u => u.type === 'corps');
-  const apcs = mine.filter(u => u.type === 'apc');
+  const carried = mine.filter(u => isApcType(u.type) && u.cargo && u.cargo.type === 'corps').length;   // Corps yang sedang naik APC
+  const corps = mine.filter(u => isCorpsType(u.type));
+  const apcs = mine.filter(u => isApcType(u.type));
   const corpsIdle = corps.filter(u => isIdleCorps(u, HUMAN)).length;
   const apcIdle = apcs.filter(u => isIdleApc(u)).length;
-  const job = (type, j) => mine.filter(u => u.type === type && u.job === j).length;
+  const job = (type, j) => mine.filter(u => (type === 'corps' ? isCorpsType(u.type) : isApcType(u.type)) && u.job === j).length;
   const set = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
   set('sbTurn', turnNumber);
   set('sbCorps', `${corpsIdle}/${corps.length + carried}`);

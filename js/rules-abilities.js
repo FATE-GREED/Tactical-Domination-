@@ -13,7 +13,7 @@
 
 // ---------- Speed efektif (dipakai rules-economy.js saat set MP awal giliran) ----------
 function effectiveSpeed(unit) {
-  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
+  const def = unitDef(unit.type);
   let spd = def.spd;
   if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = def.spd + 5; // Dikejar Waktu (bonus tetap +5 dari SPD dasar)
   if (unit.type === 'corps' && !unit.cargo) spd += 2;                             // Jangan Menganggur
@@ -21,7 +21,39 @@ function effectiveSpeed(unit) {
     const enemyWithin5 = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
     if (!enemyWithin5) spd += 2; // hilang seketika kalau ada musuh dalam radius 5 tile
   }
+  // ---- v9.7 Advanced (batch B) ----
+  if (unit.type === 'advcorps') spd += unit.cargo ? 3 : -3;                        // Semangat Kerja: 7 tanpa muatan, 13 membawa muatan
+  if (unit.type === 'advapc') {
+    if (advApcOverloaded(unit)) spd -= 3;                                          // Kelebihan Muatan
+    if (unit.toughTurns > 0) spd += 2;                                             // Pantang Menyerah (dikurangi 1 di startTurn setelah SPD dihitung)
+  }
+  if (unit.type === 'advtankcrusher' && isBeraniMati(unit)) spd += 2;              // Pasukan Berani Mati
   return spd;
+}
+
+// ---------- v9.7 Advanced: helper kondisi (Bagian 5) ----------
+// Kelebihan Muatan: SPD −3 selama muatan > 70% kapasitas DASAR (Fuel > 70, Medical > 35; Corps/Montir = 100% -> selalu).
+function advApcOverloaded(unit) {
+  if (!unit.cargo) return false;
+  if (unit.cargo.type === 'corps' || unit.cargo.type === 'montir') return true;
+  const baseCap = unit.cargo.type === 'fuel' ? 100 : 50;
+  return unit.cargo.amount > baseCap * 0.7;
+}
+// Pasukan Berani Mati: aktif selama HP < 40% HP maks (dievaluasi terus-menerus)
+function isBeraniMati(unit) { return unit.type === 'advtankcrusher' && unit.hp < unitDef(unit.type).hp * 0.4; }
+// ATK dasar efektif: Tembok Berjalan mengubah 60% ATK dasar menjadi DEF -> ATK efektif 63 × 0,4 = 25,2
+function baseATKOf(unit) {
+  const def = unitDef(unit.type);
+  return unit.type === 'advtanklapis' ? def.atk * 0.4 : def.atk;
+}
+// Pengali ATK akhir setelah semua modifier persen: Tak Terkalahkan (setelah hidup lagi: ATK ×0,5 permanen)
+function atkFinalMultiplier(unit) { return unit.weakened ? 0.5 : 1; }
+// DEF dasar efektif target unit: Tembok Berjalan (45 + 63×0,6÷2 = 63,9) dan Pasukan Berani Mati (DEF dasar 0)
+function baseDEFOfUnit(unit) {
+  const def = unitDef(unit.type);
+  if (isBeraniMati(unit)) return 0;
+  if (unit.type === 'advtanklapis') return def.def + (def.atk * 0.6) / 2;
+  return def.def;
 }
 
 // ---------- Anti-Tank: Semangat Besi (+2 MP sekali/giliran jika ada kendaraan dalam jarak 2 tile) ----------
@@ -84,6 +116,12 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
     pct += Math.min(4, enemyCount) * 5;
   }
 
+  // v9.7 Advanced Tank Crusher: Laras Kedua (ATK tiap tembakan −45%) & Pasukan Berani Mati (ATK +10% saat HP < 40%)
+  if (attackerUnit.type === 'advtankcrusher') {
+    pct -= 45;
+    if (isBeraniMati(attackerUnit)) pct += 10;
+  }
+
   return pct;
 }
 
@@ -101,6 +139,8 @@ function defenderAbilityDEFPct(targetInfo) {
     if (u.type === 'apc' && u.cargo) pct += 20;                                // Kurir Setia
     if (u.type === 'corps' && u.isBuilding) pct += 20;                         // Kerja Sampai Tuntas
     if (u.intimidatedTurns > 0) pct -= 20;                                     // kena Intimidasi (Tank Crusher)
+    if (u.type === 'advapc' && u.toughTurns > 0) pct += 20;                    // Pantang Menyerah (Advanced APC)
+    if (u.pierceTurns > 0) pct -= 20;                                          // kena Penembusan (Advanced Anti-Tank); menjumlah dengan debuff lain
   } else if (targetInfo.kind === 'building') {
     const b = targetInfo.obj;
     if (b.defDebuffTurns > 0) pct -= 30;                                       // kena Penghancur Bangunan (Montir)
@@ -147,7 +187,25 @@ function activeAbilityIcons(u) {
       if (!u.cargo) out.push('Jangan Menganggur');
       if (u.isBuilding) out.push('Kerja Sampai Tuntas');
       break;
+    // ---- v9.7 Advanced (hanya efek berbasis keadaan) ----
+    case 'advtanklapis':
+      out.push('Tembok Berjalan');
+      if (u.weakened) out.push('Tak Terkalahkan');                                // sudah dipakai: ATK −50% permanen
+      break;
+    case 'advtankcrusher':
+      if (isBeraniMati(u)) out.push('Pasukan Berani Mati');
+      break;
+    case 'advapc':
+      if (advApcOverloaded(u)) out.push('Kelebihan Muatan');
+      if (u.toughTurns > 0) out.push('Pantang Menyerah');
+      break;
+    case 'advcorps':
+      out.push('Semangat Kerja');
+      if (players[u.owner] && !players[u.owner].rushUsed) out.push('Percepatan Pembangunan');
+      break;
   }
+  if (u.leakTurns > 0 && u.leakStacks > 0) out.push('Kebocoran Minyak');          // kena Advanced Anti-Tank
+  if (u.pierceTurns > 0) out.push('Penembusan');
   if (hasAdjacentAllyProtector(u)) out.push('Sang Pelindung');          // diterima dari Tank Lapis Baja sekutu
   if (u.intimidatedTurns > 0) out.push('Intimidasi');                   // kena Tank Crusher
   if (owner && inTerritory(owner, u.r, u.c)) out.push('Wilayah Markas'); // efek bangunan (Markas): ATK/DEF +20%
@@ -156,5 +214,8 @@ function activeAbilityIcons(u) {
 
 // Ikon efek aktif pada sebuah bangunan
 function buildingStatusIcons(b) {
-  return b.defDebuffTurns > 0 ? ['Penghancur Bangunan'] : [];
+  const out = [];
+  if (b.defDebuffTurns > 0) out.push('Penghancur Bangunan');
+  if (b.burnTurns > 0 && b.burnStacks > 0) out.push('Peluru Pembakar');            // v9.7: terbakar (Advanced Montir)
+  return out;
 }

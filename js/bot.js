@@ -59,12 +59,14 @@ function botDeploy(me) {
 
   for (let guard = 0; guard < 4 && totalBarakSlots(p) > 0; guard++) {
     const w = { infantry: 2, assault: 2, sniper: 1.6, antitank: 1.2, tanklapis: 2, tankcrusher: 1.6, montir: 0.8, apc: 0 };
-    if (tanks > 0) { w.antitank += 3 * tanks; w.tankcrusher += 1.5 * tanks; }
+    // v9.7 Advanced (batch B): bobot ≈ unit dasar setara (Bagian 6 butir 3); batch A menambah bobot Trapper & Advanced lain di sini
+    Object.assign(w, { advantitank: 1.2, advmontir: 0.8, advtanklapis: 2, advtankcrusher: 1.6, advapc: 0 });
+    if (tanks > 0) { w.antitank += 3 * tanks; w.advantitank += 3 * tanks; w.tankcrusher += 1.5 * tanks; w.advtankcrusher += 1.5 * tanks; }
     if (snipers > 0) w.assault += 2 * snipers;
-    if (infantry >= 3) { w.tanklapis += 2; w.tankcrusher += 1; }
-    const fuelVeh = mine().filter(u => UNITS[u.type] && UNITS[u.type].hasFuel && u.type !== 'apc').length;
-    const apcs = mine().filter(u => u.type === 'apc').length;
-    if (hasPom && fuelVeh >= 2 && apcs < (fuelVeh >= 5 ? 2 : 1)) w.apc = 7;
+    if (infantry >= 3) { w.tanklapis += 2; w.advtanklapis += 2; w.tankcrusher += 1; w.advtankcrusher += 1; }
+    const fuelVeh = mine().filter(u => UNITS[u.type] && UNITS[u.type].hasFuel && !isApcType(u.type)).length;
+    const apcs = mine().filter(u => isApcType(u.type)).length;
+    if (hasPom && fuelVeh >= 2 && apcs < (fuelVeh >= 5 ? 2 : 1)) { w.apc = 4; w.advapc = 3; }
     let bestKey = null, bestScore = -1;
     for (const key of Object.keys(w)) {
       if (UNITS[key].price > p.resources.kredit || w[key] <= 0) continue;
@@ -85,7 +87,7 @@ function botBuild(me) {
   const avoid = p.buildings.filter(b => ['markas', 'barak', 'garnisun'].includes(b.type));
   const has = type => p.buildings.some(b => b.type === type) || pendingBuildCount(me, type) > 0;
   const count = type => p.buildings.filter(b => b.type === type).length + pendingBuildCount(me, type);
-  const mine = units.filter(u => u.owner === me && u.type !== 'corps');
+  const mine = units.filter(u => u.owner === me && !isCorpsType(u.type));
   const fuelUnits = mine.filter(u => UNITS[u.type].hasFuel).length;
   const front = (r, c) => hexDistance(r, c, em.r, em.c);
 
@@ -123,8 +125,8 @@ function botJobs(me) {
   const p = players[me];
   const hasPom = p.buildings.some(b => b.type === 'pom');
   const hasPos = p.buildings.some(b => b.type === 'pospemulihan');
-  const free = units.filter(u => u.owner === me && u.type === 'corps' && !u.isBuilding && !u.buildOrder);
-  for (const u of units) if (u.owner === me && u.type === 'apc') setJob(u, hasPom ? 'fuel' : 'idle');
+  const free = units.filter(u => u.owner === me && isCorpsType(u.type) && !u.isBuilding && !u.buildOrder);
+  for (const u of units) if (u.owner === me && isApcType(u.type)) setJob(u, hasPom ? 'fuel' : 'idle');
   const medic = free.find(u => u.job === 'medical');
   if (!hasPos) free.forEach(u => { if (u.job === 'medical') setJob(u, 'idle'); });
   else if (!medic && free.length >= 2) setJob(free[free.length - 1], 'medical');

@@ -14,12 +14,12 @@ function rangeAtTile(def, r, c) {
   return Math.ceil(rng - 1e-9);
 }
 function effectiveRange(unit) {
-  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
+  const def = unitDef(unit.type);
   return rangeAtTile(def, unit.r, unit.c);
 }
 
 function effectiveJPD(unit) {
-  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
+  const def = unitDef(unit.type);
   const terr = mapData[unit.r][unit.c];
   let jpd = def.jpd;                                   // JPD dasar (non-combat tetap 5)
   if (def.combat && terr === 'mountain') jpd = effectiveRange(unit); // di Mountain: JPD = Rng saat ini
@@ -32,7 +32,7 @@ function effectiveJPD(unit) {
 
 // Default tersembunyi berdasarkan terrain yang dipijak (sebelum cek deteksi aktif)
 function isHiddenByTerrain(unit) {
-  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
+  const def = unitDef(unit.type);
   const terr = mapData[unit.r][unit.c];
   if (terr === 'forest') return true;                       // semua unit unseen
   if (terr === 'tallgrass' && !def.vehicle) return true;     // non-kendaraan unseen
@@ -46,7 +46,7 @@ function isHiddenByTerrain(unit) {
 // bersebelahan (dianggap "tahu tile pasti").
 function isUnitUnseen(unit) {
   if (!isHiddenByTerrain(unit)) return false;
-  const revealed = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e));
+  const revealed = units.some(e => e.owner !== unit.owner && !e.downed && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e));
   if (!revealed) return true;
   if (unit.type === 'assault' && unit.assaultExtend > 0) return true;
   return false;

@@ -26,7 +26,7 @@ function corpsAlive(pIdx) {
   let n = 0;
   for (const u of units) {
     if (u.owner !== pIdx) continue;
-    if (u.type === 'corps') n++;
+    if (isCorpsType(u.type)) n++;
     else if (u.cargo && u.cargo.type === 'corps') n++;
   }
   return n;
@@ -68,12 +68,16 @@ function startTurn(pIdx) {
 
   if (p.infantrySpiritTurns > 0) p.infantrySpiritTurns--;        // Semangat Perjuangan meluruh
   for (const b of p.buildings) if (b.defDebuffTurns > 0) b.defDebuffTurns--; // Penghancur Bangunan meluruh
+  advBurnTick(pIdx);                                                         // v9.7: Peluru Pembakar (bangunan terbakar)
+  if (gameOver) return;                                                      // Markas terakhir hancur karena terbakar
 
   processBuildProgress(pIdx); // Corps yang sedang Build maju 1 giliran / selesai jadi bangunan
 
   for (const u of units.filter(u => u.owner === pIdx)) {
-    const def = u.type === 'corps' ? CORPS_DEF : UNITS[u.type];
+    const def = unitDef(u.type);
+    if (u.downed) advRevive(u);                                   // v9.7: Tak Terkalahkan — hidup lagi di awal giliran pemilik
     if (def.hasFuel) u.fuel = Math.max(0, u.fuel - def.fuelUse);
+    advTickUnit(u, def);                                          // v9.7: Kebocoran Minyak (−Fuel), Penembusan meluruh
     u.attacked = false;
     u.semangatBesiUsed = false;
     u.roadFreeUsesLeft = 2;
@@ -121,6 +125,7 @@ function startTurn(pIdx) {
       u.speedDebuffTurns--;
     }
     u.mp = (def.hasFuel && u.fuel <= 0) ? 0 : spd;
+    advPostSpeed(u);                                              // v9.7: Pantang Menyerah (hitung mundur setelah SPD dihitung)
   }
 
   // Produksi Corps: jeda 1,2,3 lalu tetap 3 giliran; maks 10 Corps hidup bersamaan.

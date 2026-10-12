@@ -8,7 +8,8 @@ const Sfx = (() => {
   };
   const MUSIC = { plan: 'bgm-plan', battle: 'bgm-battle', lobby: 'bgm-battle' }; // lobby memakai backsound pertandingan
   const SHOOT = { infantry: 'rifle', assault: 'auto', sniper: 'sniper', antitank: 'rocket',
-    tanklapis: 'cannon', tankcrusher: 'cannon', montir: 'mortar' };
+    tanklapis: 'cannon', tankcrusher: 'cannon', montir: 'mortar',
+    advantitank: 'rocket', advmontir: 'mortar', advtanklapis: 'cannon', advtankcrusher: 'cannon' };   // v9.7 Advanced (batch A menambah sisanya)
   const MODES = [['🔊', 'Semua suara', 1, 1], ['🎵', 'Musik saja', 1, 0], ['🔔', 'Efek saja', 0, 1], ['🔇', 'Senyap', 0, 0]];
   const MUS_VOL = 0.6, SFX_VOL = 1.3;           // v8.9: dasar dinaikkan (sebelumnya terlalu kecil); pengguna bisa 0–150%
   const vol = k => (Settings.get(k) / 100);

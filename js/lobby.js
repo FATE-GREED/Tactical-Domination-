@@ -113,9 +113,9 @@
     const fuel = u.hasFuel ? `${u.fuelMax} (−${u.fuelUse}/langkah)` : '—';
     return `
       <article class="card unit">
-        <div class="card-head">${unitImg(key)}<h3>${isCorps ? 'Corps' : u.name}</h3><div class="tags">${tags.join('')}</div></div>
+        <div class="card-head">${unitImg(key)}<h3>${u.name}</h3><div class="tags">${tags.join('')}</div></div>
         <div class="stats">
-          ${stat('Harga', isCorps ? null : u.price)}
+          ${stat('Harga', u.price == null ? null : u.price)}
           ${stat('HP', u.hp)}
           ${stat('ATK', u.combat ? u.atk : null)}
           ${stat('DEF', u.def)}
@@ -127,13 +127,13 @@
       </article>`;
   }
   function unitHTML() {
-    const cards = Object.entries(UNITS).map(([k, u]) => unitCard(k, u, false)).join('') + unitCard('corps', CORPS_DEF, true);
+    const cards = Object.entries(UNITS).map(([k, u]) => unitCard(k, u, false)).join('') + unitCard('corps', CORPS_DEF, true) + unitCard('advcorps', ADV_CORPS_DEF, true);
     return `<p class="note">SPD = poin gerak per giliran · JPD = jarak pandang deteksi</p><div class="grid g-unit">${cards}</div>`;
   }
 
   // ---------- Katalog: Kemampuan unik unit ----------
   function abilityHTML() {
-    const entries = [...Object.entries(UNITS), ['corps', CORPS_DEF]];
+    const entries = [...Object.entries(UNITS), ['corps', CORPS_DEF], ['advcorps', ADV_CORPS_DEF]];
     const cards = entries.filter(([k]) => UNIT_ABILITIES[k]).map(([k, u]) => {
       const isCorps = k === 'corps';
       const w = u.name.split(/[\s-]+/);
