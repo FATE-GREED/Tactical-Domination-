@@ -288,14 +288,12 @@ function openEntityPanel(r, c) {
   const el = document.getElementById('entitypanel');
   if (!target) { el.style.display = 'none'; return; }
   const owner = players[target.ownerIdx];
-  let html = '<span class="close" id="entityclose">✕</span>';
+  let html = `<div class="panel-header"><h3 class="panel-title" style="color:${owner.color}">${target.def.name} — ${owner.name}</h3><button class="close" id="entityclose" type="button" aria-label="Tutup">✕</button></div>`;
   const isMine = target.ownerIdx === HUMAN;
   const buttons = []; // {id, label}
 
   if (target.kind === 'unit') {
     const u = target.obj;
-    const name = target.def.name;
-    html += `<h3 style="color:${owner.color}">${name} — ${owner.name}</h3>`;
     html += `HP: ${u.hp}/${target.def.hp} &nbsp; MP: ${u.mp}/${target.def.spd}<br>`;
     if (target.def.combat) html += `ATK: ${target.def.atk} &nbsp; DEF: ${target.def.def} &nbsp; Range: ${target.def.range}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${target.def.fuelMax}<br>`;
@@ -362,7 +360,6 @@ function openEntityPanel(r, c) {
     const b = target.obj;
     const maxHp = target.def.hp === Infinity ? '∞' : target.def.hp;
     const defStat = target.def.def === Infinity ? '∞' : target.def.def;
-    html += `<h3 style="color:${owner.color}">${target.def.name} — ${owner.name}</h3>`;
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
     if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
     if (isMine && canAct() && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
@@ -425,10 +422,12 @@ function openDeployModal(player) {
   el.style.display = 'block';
   const baraks = player.buildings.filter(b => b.type === 'barak');
   const slots = totalBarakSlots(player);
-  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3>';
+  let html = '<div class="panel-header"><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3><button class="close" id="deployclose" type="button" aria-label="Tutup">✕</button></div>';
   html += deployEntries().map(([key, def]) => {
-    const disabled = (slots <= 0 || player.resources.kredit < def.price || (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS)) ? 'disabled' : '';
-    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
+    const rosterBlocked = player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key);
+    const disabled = (slots <= 0 || player.resources.kredit < def.price || rosterBlocked || (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS)) ? 'disabled' : '';
+    const label = rosterBlocked ? 'Tidak dipilih' : 'Deploy';
+    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
@@ -440,10 +439,12 @@ function openDeployModal(player) {
 function openDeployPanel(barak, player) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
-  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3>';
+  let html = '<div class="panel-header"><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3><button class="close" id="deployclose" type="button" aria-label="Tutup">✕</button></div>';
   html += deployEntries().map(([key, def]) => {
-    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price || (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS)) ? 'disabled' : '';
-    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
+    const rosterBlocked = player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key);
+    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price || rosterBlocked || (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS)) ? 'disabled' : '';
+    const label = rosterBlocked ? 'Tidak dipilih' : 'Deploy';
+    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });

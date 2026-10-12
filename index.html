@@ -114,7 +114,7 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>v9.6 — Lawan Bot (Sulit)</small><br>
+    <small>v9.8 — Lawan Bot (Sulit)</small><br>
     <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
@@ -183,6 +183,18 @@
 
 </div><!-- /#game -->
 
+<!-- ===================== PEMILIHAN UNIT v9.8 ===================== -->
+<div id="unitselect-screen" role="dialog" aria-modal="true" aria-labelledby="unitselect-title" aria-hidden="true">
+  <div class="unitselect-header" id="unitselect-title">Pilih 10 Unit untuk Bertempur</div>
+  <div id="unitselect-count" aria-live="polite">Terpilih: <span id="selected-num">0</span> / 10</div>
+  <p id="unitselect-message">Pilih 10 jenis unit. Corps biasa tetap diproduksi oleh Garnisun agar pembangunan tetap berfungsi.</p>
+  <div id="unitselect-list"></div>
+  <div class="unitselect-footer">
+    <button id="unitselect-reset" type="button">Reset Pilihan</button>
+    <button id="unitselect-confirm" type="button" disabled>Mulai Permainan</button>
+  </div>
+</div>
+
 <!-- Urutan penting: state dulu, lalu modul yang bergantung padanya, main.js paling akhir -->
 <script src="js/state.js"></script>
 <script src="js/commanders.js"></script>
@@ -213,6 +225,7 @@
 <script src="js/hud.js"></script>
 <script src="js/input.js"></script>
 <script src="js/main.js"></script>
+<script src="js/unit-select.js"></script>
 <script src="js/lobby.js"></script>
 
 </body>

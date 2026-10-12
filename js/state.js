@@ -151,6 +151,7 @@ let mapData = null;          // array[ROWS][COLS] berisi kunci TERRAIN
 let players = [];            // diisi oleh setup.js
 let units = [];              // {id, owner(0/1), type, r, c, mp, fuel, hp}
 let uidCounter = 1;
+let selectedLoadoutUnits = []; // v9.8: jenis unit yang dipilih pemain sebelum pertandingan
 
 let currentPlayerIdx = 0;
 let turnNumber = 1;

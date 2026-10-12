@@ -3,10 +3,10 @@
 // dengan urutan inisialisasi yang benar. Tidak ada logika aturan/render
 // di sini, hanya orkestrasi.
 //
-// Game TIDAK jalan otomatis lagi: lobby.js memanggil startGame() saat
-// pemain menekan Mulai -> Bot Sulit. Layar akhir (input.js) punya dua
-// tombol: 'Main Lagi' (reload + tanda td-autostart, lobby.js langsung
-// memulai game) dan 'Lobby' (reload biasa, kembali ke lobby).
+// Game dimulai setelah pemain memilih tepat 10 jenis unit di unit-select.js.
+// lobby.js menampilkan layar pemilihan sebelum memanggil startGame(). Layar
+// akhir (input.js): 'Main Lagi' reload ke layar pemilihan, 'Lobby' kembali
+// ke lobby biasa.
 // ====================================================================
 
 let gameStarted = false;

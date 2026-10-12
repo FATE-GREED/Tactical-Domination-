@@ -163,6 +163,7 @@ function orderBuild(owner, type, r, c, tiles) {
 // bila Barak itu tidak bisa (slot/tile habis), pilih acak di antara Barak lain yang masih bisa.
 function doDeployAuto(key, player) {
   const def = unitDef(key);
+  if (player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key)) return { ok: false, reason: 'Unit ini tidak termasuk dalam pilihan 10 unit.' };
   if (player.resources.kredit < def.price) return { ok: false, reason: 'Kredit tidak cukup.' };
   if (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS) return { ok: false, reason: `Batas Corps (${MAX_CORPS}) sudah tercapai.` };   // Advanced Corps ikut batas MAX_CORPS
   const baraks = player.buildings.filter(b => b.type === 'barak');
@@ -179,6 +180,7 @@ function doDeployAuto(key, player) {
 }
 function doDeploy(key, barak, player) {
   const def = unitDef(key);
+  if (player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key)) return false;
   if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return false;
   if (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS) return false;
   const spot = emptyAdjacentBuilding(barak, def);

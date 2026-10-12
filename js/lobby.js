@@ -6,7 +6,7 @@
 //  - Mulai: modal tegak 4 mode (Klasik, Campaign, Perang Dunia, Multiplayer); Klasik -> 3 bot. Hanya Bot Sulit yang jalan.
 //  - Tombol lain: "Dalam tahap pengembangan".
 //  - Musik lobby (bgm-battle) + auto-start untuk 'Main Lagi'.
-// Tidak menyentuh aturan game; hanya memanggil startGame() (main.js).
+// Meminta unit-select.js menampilkan pemilihan roster sebelum startGame() (main.js).
 // ====================================================================
 (function () {
   const $ = id => document.getElementById(id);
@@ -248,7 +248,7 @@
 
   function enterGame(opts) {
     closeModal();
-    showLoading(() => { lobby.style.display = 'none'; startGame(opts); });
+    showLoading(() => { lobby.style.display = 'none'; showUnitSelectScreen(opts); });
   }
 
   // ---------- Event ----------
@@ -291,7 +291,7 @@
   try { auto = sessionStorage.getItem('td-autostart') === '1'; sessionStorage.removeItem('td-autostart'); } catch (e) {}
   if (auto) {
     lobby.style.display = 'none';
-    showLoading(() => startGame({ mode: 'bot', level: 'sulit' }));
+    showLoading(() => showUnitSelectScreen({ mode: 'bot', level: 'sulit' }));
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
   }

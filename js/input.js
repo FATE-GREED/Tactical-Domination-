@@ -70,7 +70,7 @@ function initInput() {
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
   document.getElementById('laneBtn').addEventListener('click', toggleLaneMode);
   document.getElementById('lockLineBtn').addEventListener('click', toggleLockMode);
-  // Main Lagi: muat ulang lalu langsung mulai ronde baru (lewati lobby). Lobby: muat ulang biasa.
+  // Main Lagi: muat ulang langsung ke pemilihan unit. Lobby: muat ulang biasa.
   document.getElementById('restartBtn').addEventListener('click', () => {
     try { sessionStorage.setItem('td-autostart', '1'); } catch (e) {}
     location.reload();
