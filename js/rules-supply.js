@@ -12,7 +12,7 @@
 // ---------- Build ----------
 // Corps mulai membangun bangunan `type` di tile-nya sendiri. 1 Action.
 function startBuild(corps, type, tiles) {
-  if (!isCorpsType(corps.type)) return { ok: false, message: 'Hanya Corps yang bisa membangun.' };
+  if (corps.type !== 'corps') return { ok: false, message: 'Hanya Corps yang bisa membangun.' };
   if (corps.isBuilding) return { ok: false, message: 'Corps ini sudah sedang membangun.' };
   if (corps.attacked) return { ok: false, message: 'Corps ini sudah memakai Action giliran ini.' };
   const spec = BUILDING_TYPES[type];
@@ -29,38 +29,17 @@ function startBuild(corps, type, tiles) {
   const why = footprintReason(corps.owner, type, tiles, [corps]);       // terrain, tile kosong, cadangan (footprint.js)
   if (why) return { ok: false, message: `Tidak bisa membangun: ${why}.` };
 
-  // v9.7 Percepatan Pembangunan (Advanced Corps): bangunan pertama (sekali per pertandingan per pemain) hanya 1 giliran
-  const rush = advRushAvailable(corps, type);
-  if (rush) owner.rushUsed = true;
   corps.isBuilding = true;
   corps.buildType = type;
   corps.buildTiles = tiles;
-  corps.buildTurnsRemaining = rush ? 1 : spec.turnsRequired;
+  corps.buildTurnsRemaining = spec.turnsRequired;
   corps.attacked = true; // Build = 1 Action, menghanguskan sisa MP
   corps.mp = 0;
   actAdd(corps.owner, type === 'renov'
-    ? [[unitName(corps), 'unit'], [' merenov 3 tile']]
-    : [[unitName(corps), 'unit'], [' membangun '], [spec.name, 'bld']]);
+    ? [['Corps', 'unit'], [' merenov 3 tile']]
+    : [['Corps', 'unit'], [' membangun '], [spec.name, 'bld']]);
   const what = type === 'renov' ? 'merenov 3 tile' : `membangun ${spec.name} (${tiles.length} tile)`;
-  // Bangunan yang memang 1 giliran (Jembatan) + Percepatan Pembangunan: langsung selesai seketika (diproses seperti penyelesaian biasa)
-  if (rush && spec.turnsRequired === 1 && finishBuildFor(corps)) {
-    return { ok: true, message: `Percepatan Pembangunan: ${spec.name} langsung selesai.` };
-  }
-  return { ok: true, message: `Mulai ${what} (${corps.buildTurnsRemaining} giliran${rush ? ', Percepatan Pembangunan' : ''}).` };
-}
-
-// Selesaikan bangunan non-Markas milik Corps `u`: bangunan muncul, Corps dipindah ke luar footprint.
-// Mengembalikan false bila belum ada tempat keluar (dicoba lagi tiap startTurn).
-function finishBuildFor(u) {
-  const p = players[u.owner];
-  const spec = BUILDING_TYPES[u.buildType], tiles = u.buildTiles || [[u.r, u.c]];
-  const spot = outsideSpots(tiles, CORPS_DEF, 1)[0];   // Corps berdiri di footprint -> pindah ke luar
-  if (!spot) return false;
-  p.buildings.push({ r: tiles[0][0], c: tiles[0][1], tiles, type: u.buildType, hp: spec.hp, defDebuffTurns: 0, seq: buildingSeq++ });
-  actAdd(u.owner, [[spec.name, 'bld'], [' selesai di bangun']]);
-  u.r = spot[0]; u.c = spot[1];
-  u.isBuilding = false; u.buildType = null; u.buildTiles = null; u.buildTurnsRemaining = 0;
-  return true;
+  return { ok: true, message: `Mulai ${what} (${spec.turnsRequired} giliran).` };
 }
 
 // Dipanggil dari rules-economy.js startTurn(): proses konstruksi yang sedang berjalan.
@@ -114,17 +93,19 @@ function processBuildProgress(pIdx) {
       actAdd(pIdx, [['Renov', 'bld'], [` selesai: ${n} tile menjadi Grass`]]);
       continue;
     }
-    finishBuildFor(u);                                   // belum ada tempat keluar -> turnsRemaining tetap 0, coba lagi giliran depan
+    const spot = outsideSpots(tiles, CORPS_DEF, 1)[0];   // Corps berdiri di footprint -> pindah ke luar
+    if (!spot) continue;                                 // belum ada tempat, coba lagi giliran depan (turnsRemaining tetap 0)
+    p.buildings.push({ r: tiles[0][0], c: tiles[0][1], tiles, type: u.buildType, hp: spec.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+    actAdd(pIdx, [[spec.name, 'bld'], [' selesai di bangun']]);
+    u.r = spot[0]; u.c = spot[1];
+    u.isBuilding = false; u.buildType = null; u.buildTiles = null; u.buildTurnsRemaining = 0;
   }
 }
 
 // ---------- Cargo: muat / bongkar ----------
 function cargoCapacity(unit, cargoType) {
-  if (isApcType(unit.type)) {
-    const m = unit.type === 'advapc' ? 1.5 : 1;               // v9.7 Kelebihan Muatan: kapasitas +50% (Fuel 150, Medical 75); slot Corps/Montir tetap 1
-    return cargoType === 'fuel' ? 100 * m : cargoType === 'medical' ? 50 * m : 1;
-  }
-  if (isCorpsType(unit.type)) return cargoType === 'fuel' ? 50 : cargoType === 'medical' ? 50 : 0;
+  if (unit.type === 'apc') return cargoType === 'fuel' ? 100 : cargoType === 'medical' ? 50 : 1;
+  if (unit.type === 'corps') return cargoType === 'fuel' ? 50 : cargoType === 'medical' ? 50 : 0;
   return 0;
 }
 
@@ -132,7 +113,7 @@ function cargoCapacity(unit, cargoType) {
 // WAJIB bersebelahan dengan bangunan sumbernya (Pom untuk Fuel, Pos Pemulihan
 // untuk Medical) — tidak bisa muat sembarang tempat. 1 Action.
 function loadCargo(unit, cargoType) {
-  if (!isApcType(unit.type) && !isCorpsType(unit.type)) return { ok: false, message: 'Hanya APC/Corps yang bisa membawa muatan.' };
+  if (unit.type !== 'apc' && unit.type !== 'corps') return { ok: false, message: 'Hanya APC/Corps yang bisa membawa muatan.' };
   if (unit.cargo) return { ok: false, message: 'Unit ini sudah membawa muatan (1 jenis saja).' };
   if (unit.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
 
@@ -155,9 +136,9 @@ function loadCargo(unit, cargoType) {
 
 // APC memuat Corps sekutu yang bersebelahan sebagai penumpang. 1 Action.
 function loadCorpsIntoAPC(apc, corpsUnit) {
-  if (!isApcType(apc.type)) return { ok: false, message: 'Hanya APC yang bisa membawa Corps.' };
+  if (apc.type !== 'apc') return { ok: false, message: 'Hanya APC yang bisa membawa Corps.' };
   if (apc.cargo) return { ok: false, message: 'APC sudah membawa muatan.' };
-  if (!isCorpsType(corpsUnit.type) || corpsUnit.owner !== apc.owner) return { ok: false, message: 'Target bukan Corps sekutu.' };
+  if (corpsUnit.type !== 'corps' || corpsUnit.owner !== apc.owner) return { ok: false, message: 'Target bukan Corps sekutu.' };
   if (corpsUnit.cargo) return { ok: false, message: 'Corps yang sedang membawa muatan tidak bisa diangkut APC.' };
   if (hexDistance(apc.r, apc.c, corpsUnit.r, corpsUnit.c) !== 1) return { ok: false, message: 'Corps harus bersebelahan dengan APC.' };
   if (apc.attacked) return { ok: false, message: 'APC sudah memakai Action giliran ini.' };
@@ -165,7 +146,7 @@ function loadCorpsIntoAPC(apc, corpsUnit) {
   apc.cargo = { type: 'corps', unit: corpsUnit };
   units = units.filter(u => u.id !== corpsUnit.id); // Corps "naik", hilang dari papan sementara
   apc.attacked = true; apc.mp = 0;
-  actAdd(apc.owner, [[unitName(apc), 'unit'], [' mengangkut '], [unitName(corpsUnit), 'unit']]);
+  actAdd(apc.owner, [['APC', 'unit'], [' mengangkut '], ['Corps', 'unit']]);
   return { ok: true, message: 'Corps naik ke APC.' };
 }
 
@@ -189,46 +170,8 @@ function unloadCorpsFromAPC(apc, prefer) {
   units.push(corpsUnit);
   apc.cargo = null;
   apc.attacked = true; apc.mp = 0;
-  actAdd(apc.owner, [[unitName(apc), 'unit'], [' menurunkan '], [unitName(corpsUnit), 'unit']]);
+  actAdd(apc.owner, [['APC', 'unit'], [' menurunkan '], ['Corps', 'unit']]);
   return { ok: true, message: 'Corps diturunkan dari APC.' };
-}
-
-// ---------- v9.7 Perubahan Model: Advanced Montir diangkut APC / Advanced APC ----------
-// Slot muatan 1 unit; APC yang membawa Montir tidak bisa membawa muatan lain. Montir di dalam APC hilang dari papan
-// (seperti Corps): tidak bisa menyerang atau diserang. Muat/turun = 1 aksi APC.
-function loadMontirIntoAPC(apc, montir) {
-  if (!isApcType(apc.type)) return { ok: false, message: 'Hanya APC yang bisa mengangkut Montir.' };
-  if (apc.cargo) return { ok: false, message: 'APC sudah membawa muatan.' };
-  if (montir.type !== 'advmontir' || montir.owner !== apc.owner) return { ok: false, message: 'Target bukan Advanced Montir sekutu.' };
-  if (hexDistance(apc.r, apc.c, montir.r, montir.c) !== 1) return { ok: false, message: 'Montir harus bersebelahan dengan APC.' };
-  if (apc.attacked) return { ok: false, message: 'APC sudah memakai Action giliran ini.' };
-  apc.cargo = { type: 'montir', unit: montir };
-  units = units.filter(u => u.id !== montir.id);     // Montir "naik", hilang dari papan sementara
-  apc.attacked = true; apc.mp = 0;
-  actAdd(apc.owner, [[unitName(apc), 'unit'], [' mengangkut '], [unitName(montir), 'unit']]);
-  return { ok: true, message: 'Montir naik ke APC.' };
-}
-function unloadMontirFromAPC(apc, prefer) {
-  if (!apc.cargo || apc.cargo.type !== 'montir') return { ok: false, message: 'APC tidak membawa Montir.' };
-  if (apc.attacked) return { ok: false, message: 'APC sudah memakai Action giliran ini.' };
-  const mdef = UNITS.advmontir;
-  let spot = null;
-  if (prefer) {
-    spot = neighborsOf(apc.r, apc.c)
-      .filter(([nr, nc]) => !isTileBlocked(nr, nc) && tileMoveCost(nr, nc, mdef) !== Infinity)
-      .sort((a, b) => hexDistance(a[0], a[1], prefer.r, prefer.c) - hexDistance(b[0], b[1], prefer.r, prefer.c))
-      .map(([nr, nc]) => ({ r: nr, c: nc }))[0] || null;
-  }
-  if (!spot) spot = emptyAdjacent(apc.r, apc.c, mdef);
-  if (!spot) return { ok: false, message: 'Tidak ada tile kosong di sekitar APC untuk menurunkan Montir.' };
-  const m = apc.cargo.unit;
-  m.r = spot.r; m.c = spot.c;
-  m.mp = 0; m.attacked = true;
-  units.push(m);
-  apc.cargo = null;
-  apc.attacked = true; apc.mp = 0;
-  actAdd(apc.owner, [[unitName(apc), 'unit'], [' menurunkan '], [unitName(m), 'unit']]);
-  return { ok: true, message: 'Montir diturunkan dari APC.' };
 }
 
 // ---------- Target valid untuk mode Recovery/Supply (unit sekutu adjacent yang memenuhi syarat) ----------
@@ -236,8 +179,8 @@ function computeSupplyTargets(actor, mode) {
   const out = [];
   for (const [nr, nc] of neighborsOf(actor.r, actor.c)) {
     const u = units.find(uu => uu.r === nr && uu.c === nc && uu.owner === actor.owner && uu.id !== actor.id);
-    if (!u || u.downed) continue;                     // v9.7: unit mode gugur tidak bisa ditarget
-    const def = unitDef(u.type);
+    if (!u) continue;
+    const def = u.type === 'corps' ? CORPS_DEF : UNITS[u.type];
     if (mode === 'recovery' || mode === 'supplyMedical') {
       if (u.hp < def.hp) out.push({ r: nr, c: nc });
     } else if (mode === 'supplyFuel') {
@@ -253,7 +196,7 @@ function performRecovery(healer, targetUnit) {
   if (healer.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
   if (targetUnit.owner !== healer.owner) return { ok: false, message: 'Hanya bisa merawat unit sekutu.' };
   if (hexDistance(healer.r, healer.c, targetUnit.r, targetUnit.c) !== 1) return { ok: false, message: 'Target harus bersebelahan.' };
-  const targetDef = unitDef(targetUnit.type);
+  const targetDef = targetUnit.type === 'corps' ? CORPS_DEF : UNITS[targetUnit.type];
   const missing = targetDef.hp - targetUnit.hp;
   if (missing <= 0) return { ok: false, message: 'Unit target sudah full HP.' };
   const p = players[healer.owner];
@@ -272,7 +215,7 @@ function performSupplyFuel(carrier, targetUnit) {
   if (!carrier.cargo || carrier.cargo.type !== 'fuel') return { ok: false, message: 'Carrier tidak membawa Fuel.' };
   if (carrier.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
   if (targetUnit.owner !== carrier.owner) return { ok: false, message: 'Hanya bisa mengisi unit sekutu.' };
-  const targetDef = unitDef(targetUnit.type);
+  const targetDef = targetUnit.type === 'corps' ? CORPS_DEF : UNITS[targetUnit.type];
   if (!targetDef.hasFuel) return { ok: false, message: 'Unit target tidak memakai Fuel.' };
   if (hexDistance(carrier.r, carrier.c, targetUnit.r, targetUnit.c) !== 1) return { ok: false, message: 'Target harus bersebelahan.' };
   const missing = targetDef.fuelMax - targetUnit.fuel;
@@ -293,7 +236,7 @@ function performSupplyMedical(carrier, targetUnit) {
   if (carrier.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
   if (targetUnit.owner !== carrier.owner) return { ok: false, message: 'Hanya bisa merawat unit sekutu.' };
   if (hexDistance(carrier.r, carrier.c, targetUnit.r, targetUnit.c) !== 1) return { ok: false, message: 'Target harus bersebelahan.' };
-  const targetDef = unitDef(targetUnit.type);
+  const targetDef = targetUnit.type === 'corps' ? CORPS_DEF : UNITS[targetUnit.type];
   const missing = targetDef.hp - targetUnit.hp;
   if (missing <= 0) return { ok: false, message: 'Unit target sudah full HP.' };
   const healed = Math.min(missing, carrier.cargo.amount);
@@ -308,8 +251,8 @@ function performSupplyMedical(carrier, targetUnit) {
 
 // APC/Corps mengisi ulang tangki BBM sendiri dari Fuel pool pemain. 1 Action.
 function selfRefuel(unit) {
-  if (!isApcType(unit.type) && !isCorpsType(unit.type)) return { ok: false, message: 'Hanya APC/Corps yang bisa isi ulang sendiri.' };
-  const def = unitDef(unit.type);
+  if (unit.type !== 'apc' && unit.type !== 'corps') return { ok: false, message: 'Hanya APC/Corps yang bisa isi ulang sendiri.' };
+  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   if (!def.hasFuel) return { ok: false, message: 'Unit ini tidak memakai Fuel.' };
   if (unit.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
   const p = players[unit.owner];

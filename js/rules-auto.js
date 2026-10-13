@@ -21,8 +21,8 @@ async function wait(ms) {
 async function sleep(ms) { return wait(ms * Settings.timeScale()); }
 // Pemain manusia boleh memberi perintah: fase rencana, giliran manusia, tidak pause
 function canAct() { return phase === 'plan' && currentPlayerIdx === HUMAN && !paused && !gameOver; }
-function defOf(u) { return unitDef(u.type); }
-function unitName(u) { return unitDef(u.type).name; }
+function defOf(u) { return u.type === 'corps' ? CORPS_DEF : UNITS[u.type]; }
+function unitName(u) { return u.type === 'corps' ? 'Corps' : UNITS[u.type].name; }
 function tileFree(u, r, c) { return (r === u.r && c === u.c) || !isTileBlocked(r, c, u); }
 
 // ---------------------------------------------------------------
@@ -45,7 +45,7 @@ function resolveTarget(u) {
     if (t.kind === 'hex') return { kind: 'hex', r: t.r, c: t.c };
     if (t.kind === 'unit') {
       const e = units.find(x => x.id === t.id && x.owner !== u.owner);
-      if (e && !e.downed && !isUnitUnseen(e)) return { kind: 'unit', r: e.r, c: e.c, obj: e };
+      if (e && !isUnitUnseen(e)) return { kind: 'unit', r: e.r, c: e.c, obj: e };
       u.target = null;
     } else if (t.kind === 'building') {
       if (players[1 - u.owner].buildings.includes(t.ref)) { const nt = nearestTileOf(t.ref, u.r, u.c); return { kind: 'building', r: nt[0], c: nt[1], obj: t.ref }; }
@@ -83,12 +83,12 @@ function setHaulJob(u, corpsId, dest) { dropBuildOrder(u); u.job = 'angkut'; u.t
 // Perintah bangun (tekan lama hex -> Bangun)
 // ---------------------------------------------------------------
 function isIdleCorps(u, owner) {
-  return u.owner === owner && isCorpsType(u.type) && !u.isBuilding && !u.cargo && !u.buildOrder && !u.target && u.job === 'idle';
+  return u.owner === owner && u.type === 'corps' && !u.isBuilding && !u.cargo && !u.buildOrder && !u.target && u.job === 'idle';
 }
 // v9.4: APC nganggur = tidak punya job/tujuan/pesanan bangun (job 'angkut', 'fuel', 'medical' dll. = punya job)
-function isIdleApc(u) { return isApcType(u.type) && !u.cargo && !u.target && !u.buildOrder && u.job === 'idle'; }
+function isIdleApc(u) { return u.type === 'apc' && !u.cargo && !u.target && !u.buildOrder && u.job === 'idle'; }
 // v9.4: tanda seru (!) untuk APC/Corps milik pemain yang nganggur
-function needsOrders(u) { return u.owner === HUMAN && (isApcType(u.type) ? isIdleApc(u) : isCorpsType(u.type) && isIdleCorps(u, HUMAN)); }
+function needsOrders(u) { return u.owner === HUMAN && (u.type === 'apc' ? isIdleApc(u) : u.type === 'corps' && isIdleCorps(u, HUMAN)); }
 // v9.4: Benteng yang sedang dipesan (Corps berangkat) atau sedang dibangun — maks 1 sekaligus
 function bentengInProgress(owner, except) {
   return units.some(u => u !== except && u.owner === owner && ((u.buildOrder && u.buildOrder.type === 'benteng') || (u.isBuilding && u.buildType === 'benteng')));
@@ -162,10 +162,8 @@ function orderBuild(owner, type, r, c, tiles) {
 // v9.4: Deploy otomatis (modal tombol +): unit muncul di samping Barak yang paling dekat dengan musuh dulu;
 // bila Barak itu tidak bisa (slot/tile habis), pilih acak di antara Barak lain yang masih bisa.
 function doDeployAuto(key, player) {
-  const def = unitDef(key);
-  if (player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key)) return { ok: false, reason: 'Unit ini tidak termasuk dalam pilihan 10 unit.' };
+  const def = UNITS[key];
   if (player.resources.kredit < def.price) return { ok: false, reason: 'Kredit tidak cukup.' };
-  if (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS) return { ok: false, reason: `Batas Corps (${MAX_CORPS}) sudah tercapai.` };   // Advanced Corps ikut batas MAX_CORPS
   const baraks = player.buildings.filter(b => b.type === 'barak');
   const usable = baraks.filter(b => barakSlots(b) > 0 && emptyAdjacentBuilding(b, def));
   if (!usable.length) return { ok: false, reason: 'Tidak ada slot atau tile kosong di sekitar Barak.' };
@@ -179,17 +177,14 @@ function doDeployAuto(key, player) {
   return { ok: false, reason: 'Tidak ada tile kosong di sekitar Barak untuk deploy.' };
 }
 function doDeploy(key, barak, player) {
-  const def = unitDef(key);
-  if (player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key)) return false;
+  const def = UNITS[key];
   if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return false;
-  if (key === 'advcorps' && corpsAlive(player.id - 1) >= MAX_CORPS) return false;
   const spot = emptyAdjacentBuilding(barak, def);
   if (!spot) return false;
   player.resources.kredit -= def.price;
   Stats.use(player, 'kredit', def.price);
   barak.slots = barakSlots(barak) - 1;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false });
-  if (key === 'advcorps') player.corps.count = corpsAlive(player.id - 1);
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: scaleStat(def.hp, player.id - 1), maxHp: scaleStat(def.hp, player.id - 1), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
   return true;
 }
 
@@ -305,8 +300,8 @@ async function moveToward(u, goalFn, near) {
 // ---------------------------------------------------------------
 // Serang otomatis
 // ---------------------------------------------------------------
-function pickAutoTarget(u, exclude) {          // exclude = {r,c} tile yang dilewati (tembakan kedua Laras Kedua)
-  const cands = computeAttackable(u).filter(t => !(exclude && t.r === exclude.r && t.c === exclude.c)).map(t => {
+function pickAutoTarget(u) {
+  const cands = computeAttackable(u).map(t => {
     const info = describeTarget(t.r, t.c);
     const d = hexDistance(u.r, u.c, t.r, t.c);
     let cat, k1, k2 = 0;
@@ -319,12 +314,14 @@ function pickAutoTarget(u, exclude) {          // exclude = {r,c} tile yang dile
   return cands[0];
 }
 
-// 1 tembakan: serang, umpan damage/kill-feed, animasi, suara. keepAction = jangan hanguskan Action (tembakan pertama Laras Kedua).
-async function fireShot(u, pick, keepAction) {
+async function autoAttack(u) {
+  if (u.attacked || !units.includes(u)) return;
+  const pick = pickAutoTarget(u);
+  if (!pick) return;
   const fr = u.r, fc = u.c;
   const info = describeTarget(pick.r, pick.c);
-  const res = applyAttack(u, pick.r, pick.c, { keepAction });
-  if (!res.ok) return null;
+  const res = applyAttack(u, pick.r, pick.c);
+  if (!res.ok) return;
   dmgFeedAdd(u, res.targetName, info ? info.ownerIdx : 1 - u.owner, res.damage);
   startAttackFx(fr, fc, pick.r, pick.c, res.damage);
   Sfx.shoot(u, info ? info.ownerIdx : 1 - u.owner, res);
@@ -332,27 +329,8 @@ async function fireShot(u, pick, keepAction) {
     killFeedAdd(unitName(u), u.owner, res.targetName, info ? info.ownerIdx : 1 - u.owner);
   renderResourcePanels();
   draw();
-  logAction(`${unitName(u)} #${u.id} serang ${res.targetName}: ${res.damage} dmg${res.destroyed ? ' (HANCUR)' : res.downed ? ' (MODE GUGUR)' : ''}`, 'combat');
+  logAction(`${unitName(u)} #${u.id} serang ${res.targetName}: ${res.damage} dmg${res.destroyed ? ' (HANCUR)' : ''}`, 'combat');
   await sleep(520);
-  return res;
-}
-
-async function autoAttack(u) {
-  if (u.attacked || !units.includes(u) || u.downed) return;
-  const pick = pickAutoTarget(u);
-  if (!pick) return;
-  if (u.type !== 'advtankcrusher') { await fireShot(u, pick, false); return; }
-  // v9.7 Laras Kedua (Advanced Tank Crusher): 2 tembakan per serangan (1 aksi). Tembakan kedua memilih target BERBEDA bila ada
-  // (prioritas sama dengan pickAutoTarget tanpa target pertama); bila tak ada, menembak target yang sama; bila target pertama gugur, memilih ulang.
-  try {
-    const r1 = await fireShot(u, pick, true);
-    if (!r1 || !units.includes(u)) return;
-    let pick2 = pickAutoTarget(u, pick);
-    if (!pick2 && !r1.destroyed && !r1.downed) pick2 = pick;
-    if (pick2) await fireShot(u, pick2, true);
-  } finally {
-    u.attacked = true; u.mp = 0;                 // 1 aksi menghanguskan MP, apa pun hasil tembakan
-  }
 }
 
 // ---------------------------------------------------------------
@@ -444,16 +422,12 @@ async function execMarkasOrder(u) {
   }
   if (atSlot(u) && atSlot(mate)) {
     const spec = BUILDING_TYPES.markas;
-    // v9.7 Percepatan Pembangunan: bila salah satu dari 2 Corps adalah Advanced Corps & jatah pemain belum dipakai -> Markas 1 giliran
-    const rush = [u, mate].some(x => advRushAvailable(x, 'markas'));
-    if (rush) players[u.owner].rushUsed = true;
-    const turns = rush ? 1 : spec.turnsRequired;
     for (const x of [u, mate]) {
-      x.isBuilding = true; x.buildType = 'markas'; x.buildSite = site.id; x.buildTurnsRemaining = turns;
+      x.isBuilding = true; x.buildType = 'markas'; x.buildSite = site.id; x.buildTurnsRemaining = spec.turnsRequired;
       x.attacked = true; x.mp = 0; x.buildOrder = null; x.target = null;
     }
-    site.started = true; site.turnsRemaining = turns;
-    logAction(`Corps #${u.id} & #${mate.id}: mulai membangun Markas (${turns} giliran${rush ? ', Percepatan Pembangunan' : ''}).`);
+    site.started = true; site.turnsRemaining = spec.turnsRequired;
+    logAction(`Corps #${u.id} & #${mate.id}: mulai membangun Markas (${spec.turnsRequired} giliran).`);
     actAdd(u.owner, [['Corps', 'unit'], [' membangun '], ['Markas', 'bld']]);
     renderResourcePanels(); draw();
     await sleep(250);
@@ -636,7 +610,7 @@ async function runExecution() {
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;
-    if (!units.includes(u) || u.isBuilding || u.downed) continue;     // v9.7: unit mode gugur tidak bertindak
+    if (!units.includes(u) || u.isBuilding) continue;
     try {
       await (defOf(u).combat ? execCombat(u) : execNonCombat(u));
     } catch (err) { console.warn('Eksekusi unit gagal:', err); }
@@ -647,6 +621,5 @@ async function runExecution() {
   currentPlayerIdx = 1 - pIdx;
   if (currentPlayerIdx === 0) turnNumber++;
   startTurn(currentPlayerIdx);
-  if (gameOver) { showGameOver(); return; }     // v9.7: Markas bisa hancur karena Peluru Pembakar di awal giliran
   beginPlanning();
 }

@@ -99,7 +99,7 @@ let lastReachableParents = new Map();
 let lastReachableBestKey = new Map();
 
 function computeReachable(unit) {
-  const def = unitDef(unit.type);
+  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   const isNonCombat = !def.combat;
   const maxFree = isNonCombat ? unit.roadFreeUsesLeft : 0;
 

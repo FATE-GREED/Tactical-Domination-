@@ -3,10 +3,10 @@
 // dengan urutan inisialisasi yang benar. Tidak ada logika aturan/render
 // di sini, hanya orkestrasi.
 //
-// Game dimulai setelah pemain memilih tepat 10 jenis unit di unit-select.js.
-// lobby.js menampilkan layar pemilihan sebelum memanggil startGame(). Layar
-// akhir (input.js): 'Main Lagi' reload ke layar pemilihan, 'Lobby' kembali
-// ke lobby biasa.
+// Game TIDAK jalan otomatis lagi: lobby.js memanggil startGame() saat
+// pemain menekan Mulai -> Bot Sulit. Layar akhir (input.js) punya dua
+// tombol: 'Main Lagi' (reload + tanda td-autostart, lobby.js langsung
+// memulai game) dan 'Lobby' (reload biasa, kembali ke lobby).
 // ====================================================================
 
 let gameStarted = false;
@@ -18,11 +18,12 @@ function startGame(opts) {
 
   document.getElementById('game').style.display = 'block'; // canvas butuh ukuran nyata sebelum initCanvas
 
-  mapData = generateMap();          // map-gen.js (40x60, tanpa simetri)
+  if (opts && opts.mode === 'campaign') Campaign.prepareBattle(opts);   // v9.7: aturan, ukuran peta 15x25, UI disederhanakan
+  mapData = CAMPAIGN ? Campaign.battleMap() : generateMap();          // map-gen.js (acak, tanpa simetri)
   setupPlayersAndBuildings();       // setup.js
   Stats.init();                     // stats.js — statistik pertandingan mulai dari nol
 
-  currentPlayerIdx = Math.random() < 0.5 ? 0 : 1;
+  currentPlayerIdx = CAMPAIGN ? HUMAN : (Math.random() < 0.5 ? 0 : 1);
   turnNumber = 1;
 
   initCanvas();                     // render.js — siapkan canvas & pertama kali draw
@@ -44,6 +45,7 @@ function startGame(opts) {
     camY = canvas.height / 2 - y * scale;
   })();
 
+  if (CAMPAIGN) Campaign.fitView();   // seluruh peta kecil terlihat sekaligus
   renderLegend();
   renderResourcePanels();
   updateActionPanel();
@@ -51,6 +53,7 @@ function startGame(opts) {
   logAction('Permainan dimulai.');
   Sfx.music('plan');                // musik lobby berganti ke musik fase rencana
   beginPlanning();                  // rules-auto.js — fase rencana pertama
+  if (CAMPAIGN) Campaign.startTutorial();   // John memandu pemain
 }
 
 if ('serviceWorker' in navigator) {

@@ -14,14 +14,15 @@ function rangeAtTile(def, r, c) {
   return Math.ceil(rng - 1e-9);
 }
 function effectiveRange(unit) {
-  const def = unitDef(unit.type);
-  return rangeAtTile(def, unit.r, unit.c);
+  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
+  const scaled = statMul(unit.owner) === 1 ? def : { ...def, range: scaleStat(def.range, unit.owner) };   // v9.7: stat bot Campaign = 70%
+  return rangeAtTile(scaled, unit.r, unit.c);
 }
 
 function effectiveJPD(unit) {
-  const def = unitDef(unit.type);
+  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   const terr = mapData[unit.r][unit.c];
-  let jpd = def.jpd;                                   // JPD dasar (non-combat tetap 5)
+  let jpd = scaleStat(def.jpd, unit.owner);            // JPD dasar (non-combat tetap 5); v9.7: bot Campaign 70%
   if (def.combat && terr === 'mountain') jpd = effectiveRange(unit); // di Mountain: JPD = Rng saat ini
   if (unit.type === 'sniper') {
     const noAlliesNear = !units.some(e => e !== unit && e.owner === unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
@@ -32,7 +33,7 @@ function effectiveJPD(unit) {
 
 // Default tersembunyi berdasarkan terrain yang dipijak (sebelum cek deteksi aktif)
 function isHiddenByTerrain(unit) {
-  const def = unitDef(unit.type);
+  const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   const terr = mapData[unit.r][unit.c];
   if (terr === 'forest') return true;                       // semua unit unseen
   if (terr === 'tallgrass' && !def.vehicle) return true;     // non-kendaraan unseen
@@ -46,7 +47,7 @@ function isHiddenByTerrain(unit) {
 // bersebelahan (dianggap "tahu tile pasti").
 function isUnitUnseen(unit) {
   if (!isHiddenByTerrain(unit)) return false;
-  const revealed = units.some(e => e.owner !== unit.owner && !e.downed && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e));
+  const revealed = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e));
   if (!revealed) return true;
   if (unit.type === 'assault' && unit.assaultExtend > 0) return true;
   return false;

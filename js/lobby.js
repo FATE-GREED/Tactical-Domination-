@@ -6,7 +6,7 @@
 //  - Mulai: modal tegak 4 mode (Klasik, Campaign, Perang Dunia, Multiplayer); Klasik -> 3 bot. Hanya Bot Sulit yang jalan.
 //  - Tombol lain: "Dalam tahap pengembangan".
 //  - Musik lobby (bgm-battle) + auto-start untuk 'Main Lagi'.
-// Meminta unit-select.js menampilkan pemilihan roster sebelum startGame() (main.js).
+// Tidak menyentuh aturan game; hanya memanggil startGame() (main.js).
 // ====================================================================
 (function () {
   const $ = id => document.getElementById(id);
@@ -113,9 +113,9 @@
     const fuel = u.hasFuel ? `${u.fuelMax} (−${u.fuelUse}/langkah)` : '—';
     return `
       <article class="card unit">
-        <div class="card-head">${unitImg(key)}<h3>${u.name}</h3><div class="tags">${tags.join('')}</div></div>
+        <div class="card-head">${unitImg(key)}<h3>${isCorps ? 'Corps' : u.name}</h3><div class="tags">${tags.join('')}</div></div>
         <div class="stats">
-          ${stat('Harga', u.price == null ? null : u.price)}
+          ${stat('Harga', isCorps ? null : u.price)}
           ${stat('HP', u.hp)}
           ${stat('ATK', u.combat ? u.atk : null)}
           ${stat('DEF', u.def)}
@@ -127,13 +127,13 @@
       </article>`;
   }
   function unitHTML() {
-    const cards = Object.entries(UNITS).map(([k, u]) => unitCard(k, u, false)).join('') + unitCard('corps', CORPS_DEF, true) + unitCard('advcorps', ADV_CORPS_DEF, true);
+    const cards = Object.entries(UNITS).map(([k, u]) => unitCard(k, u, false)).join('') + unitCard('corps', CORPS_DEF, true);
     return `<p class="note">SPD = poin gerak per giliran · JPD = jarak pandang deteksi</p><div class="grid g-unit">${cards}</div>`;
   }
 
   // ---------- Katalog: Kemampuan unik unit ----------
   function abilityHTML() {
-    const entries = [...Object.entries(UNITS), ['corps', CORPS_DEF], ['advcorps', ADV_CORPS_DEF]];
+    const entries = [...Object.entries(UNITS), ['corps', CORPS_DEF]];
     const cards = entries.filter(([k]) => UNIT_ABILITIES[k]).map(([k, u]) => {
       const isCorps = k === 'corps';
       const w = u.name.split(/[\s-]+/);
@@ -207,7 +207,7 @@
   function startHTML() {
     return `<div class="picks">
       ${pick('data-start', 'klasik',   IC.klasik,   'Permainan Klasik', 'Lawan bot di medan tile hex', true)}
-      ${pick('data-start', 'campaign', IC.campaign, 'Campaign',         'Kisah para komandan', false)}
+      ${pick('data-start', 'campaign', IC.campaign, 'Campaign',         'Kisah para komandan', true)}
       ${pick('data-start', 'perang',   IC.perang,   'Perang Dunia',     'Penaklukan skala dunia', false)}
       ${pick('data-start', 'multi',    IC.multi,    'Multiplayer',      'Main bersama pemain lain', false)}
     </div>`;
@@ -248,7 +248,7 @@
 
   function enterGame(opts) {
     closeModal();
-    showLoading(() => { lobby.style.display = 'none'; showUnitSelectScreen(opts); });
+    showLoading(() => { lobby.style.display = 'none'; startGame(opts); });
   }
 
   // ---------- Event ----------
@@ -271,7 +271,12 @@
     if (e.target.closest('#lbStartBtn')) { openStart(); return; }
 
     const st = e.target.closest('[data-start]');
-    if (st) { if (st.dataset.start === 'klasik') openBots(); else showDev(); return; }
+    if (st) {
+      if (st.dataset.start === 'klasik') openBots();
+      else if (st.dataset.start === 'campaign') { closeModal(); Campaign.enter(); }   // v9.7: Chapter 1 / peta Vanderick
+      else showDev();
+      return;
+    }
     if (e.target.closest('[data-back]')) { openStart(); return; }
 
     const mode = e.target.closest('[data-mode]');
@@ -287,12 +292,20 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
 
   // ---------- Masuk lobby: musik lobby, atau langsung main (tombol 'Main Lagi') ----------
-  let auto = false;
-  try { auto = sessionStorage.getItem('td-autostart') === '1'; sessionStorage.removeItem('td-autostart'); } catch (e) {}
-  if (auto) {
+  Campaign.bind({ lobby, showLoading });
+  let auto = '', openAfter = '';
+  try {
+    auto = sessionStorage.getItem('td-autostart') || ''; sessionStorage.removeItem('td-autostart');
+    openAfter = sessionStorage.getItem('td-open') || ''; sessionStorage.removeItem('td-open');
+  } catch (e) {}
+  if (auto === 'campaign') {                 // "Ulangi" setelah kalah: langsung ke pertempuran Chapter 1
     lobby.style.display = 'none';
-    showLoading(() => showUnitSelectScreen({ mode: 'bot', level: 'sulit' }));
+    Campaign.startBattle();
+  } else if (auto) {
+    lobby.style.display = 'none';
+    showLoading(() => startGame({ mode: 'bot', level: 'sulit' }));
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
+    if (openAfter === 'campaign') Campaign.enter();   // selesai Chapter 1: tampilkan peta Vanderick
   }
 })();

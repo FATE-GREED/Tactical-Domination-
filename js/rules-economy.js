@@ -7,6 +7,7 @@
 function getBuilding(player, type) { return player.buildings.find(b => b.type === type); }
 
 function inTerritory(player, r, c) {
+  if (CAMPAIGN) return false;   // v9.7: Campaign tanpa area Territory
   const m = getBuilding(player, 'markas');
   if (!m) return false;
   return r >= m.r - 5 && r < m.r + 5 && c >= m.c - 5 && c < m.c + 5;   // Territory 10x10
@@ -26,7 +27,7 @@ function corpsAlive(pIdx) {
   let n = 0;
   for (const u of units) {
     if (u.owner !== pIdx) continue;
-    if (isCorpsType(u.type)) n++;
+    if (u.type === 'corps') n++;
     else if (u.cargo && u.cargo.type === 'corps') n++;
   }
   return n;
@@ -58,26 +59,23 @@ function startTurn(pIdx) {
   const barakCount = p.buildings.filter(b => b.type === 'barak').length;
   const pomCount = p.buildings.filter(b => b.type === 'pom').length;
   const pospemulihanCount = p.buildings.filter(b => b.type === 'pospemulihan').length;
-  p.resources.kredit += 30 * markasCount + 20 * barakCount; // Markas +30, tiap Barak +20
+  const incKredit = CAMPAIGN ? CAMPAIGN.markasIncome * markasCount + CAMPAIGN.barakIncome * barakCount : 30 * markasCount + 20 * barakCount;
+  p.resources.kredit += incKredit; // klasik: Markas +30, tiap Barak +20; Campaign: nilai dari chapter
   p.resources.fuel += 50 * pomCount;
   p.resources.medical += 50 * pospemulihanCount;
-  Stats.earn(pIdx, 'kredit', 30 * markasCount + 20 * barakCount);
+  Stats.earn(pIdx, 'kredit', incKredit);
   Stats.earn(pIdx, 'fuel', 50 * pomCount);
   Stats.earn(pIdx, 'medical', 50 * pospemulihanCount);
   for (const b of p.buildings) if (b.type === 'barak') b.slots = 2;   // 2 slot deploy PER Barak
 
   if (p.infantrySpiritTurns > 0) p.infantrySpiritTurns--;        // Semangat Perjuangan meluruh
   for (const b of p.buildings) if (b.defDebuffTurns > 0) b.defDebuffTurns--; // Penghancur Bangunan meluruh
-  advBurnTick(pIdx);                                                         // v9.7: Peluru Pembakar (bangunan terbakar)
-  if (gameOver) return;                                                      // Markas terakhir hancur karena terbakar
 
   processBuildProgress(pIdx); // Corps yang sedang Build maju 1 giliran / selesai jadi bangunan
 
   for (const u of units.filter(u => u.owner === pIdx)) {
-    const def = unitDef(u.type);
-    if (u.downed) advRevive(u);                                   // v9.7: Tak Terkalahkan — hidup lagi di awal giliran pemilik
+    const def = u.type === 'corps' ? CORPS_DEF : UNITS[u.type];
     if (def.hasFuel) u.fuel = Math.max(0, u.fuel - def.fuelUse);
-    advTickUnit(u, def);                                          // v9.7: Kebocoran Minyak (−Fuel), Penembusan meluruh
     u.attacked = false;
     u.semangatBesiUsed = false;
     u.roadFreeUsesLeft = 2;
@@ -125,8 +123,9 @@ function startTurn(pIdx) {
       u.speedDebuffTurns--;
     }
     u.mp = (def.hasFuel && u.fuel <= 0) ? 0 : spd;
-    advPostSpeed(u);                                              // v9.7: Pantang Menyerah (hitung mundur setelah SPD dihitung)
   }
+
+  if (CAMPAIGN) return;   // v9.7: Campaign tanpa Garnisun/Corps
 
   // Produksi Corps: jeda 1,2,3 lalu tetap 3 giliran; maks 10 Corps hidup bersamaan.
   // Kalau Corps mati dan jumlahnya di bawah 10, hitungan giliran produksi dimulai lagi.
