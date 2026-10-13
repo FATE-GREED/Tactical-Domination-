@@ -1,13 +1,14 @@
 // Service Worker: cache semua file game saat pertama kali dibuka, supaya
 // bisa dimainkan offline setelahnya (khas PWA). Versi cache dinaikkan
 // manual kalau ada update file game.
-const CACHE_NAME = 'tactical-domination-v9-7';
+const CACHE_NAME = 'tactical-domination-v10';
 const ASSETS = [
   './',
   './manifest.json',
   './css/style.css',
   './css/lobby.css',
   './css/settings.css',
+  './css/story.css',
   './js/state.js',
   './js/commanders.js',
   './js/skill-icons.js',
@@ -30,13 +31,17 @@ const ASSETS = [
   './js/bombs.js',
   './js/rules-detection.js',
   './js/rules-win.js',
+  './js/adv-units.js',
   './js/rules-auto.js',
   './js/render-fx.js',
   './js/render.js',
   './js/ui-orders.js',
   './js/bot.js',
   './js/input.js',
+  './js/story.js',
+  './js/campaign.js',
   './js/main.js',
+  './js/unit-select.js',
   './js/lobby.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -49,6 +54,12 @@ const ASSETS = [
 
 // Gambar komandan (20 file, total <1 MB): di-cache seadanya, kegagalan tidak membatalkan instalasi.
 const CMD_ASSETS = Array.from({ length: 20 }, (_, i) => './img/cmd/c' + String(i + 1).padStart(2, '0') + '.webp');
+
+// v9.7: aset Campaign Chapter 1 (latar, kotak percakapan, peta) + potret tokoh yang dipakai cerita.
+const CAMPAIGN_ASSETS = [
+  'kantor-tinggi', 'kantor-menengah', 'pengadilan', 'pengadilan-jahat', 'lapangan-senja', 'lapangan-malam', 'kotak', 'peta-benua', 'peta-vanderick',
+].map(n => './img/campaign/' + n + '.webp').concat(
+  [18, 12, 5, 7].flatMap(n => [3, 4, 5, 7, 8, 10].map(p => './img/story/c' + String(n).padStart(2, '0') + '_p' + String(p).padStart(2, '0') + '.webp')));
 
 // Audio disimpan 'seadanya': kalau ada file yang hilang/diganti nama, instalasi
 // PWA tidak boleh gagal, jadi file audio di-cache terpisah dan kegagalannya diabaikan.
@@ -103,7 +114,7 @@ self.addEventListener('install', event => {
       await cache.put(url, await cleanResponse(res));
     })).then(() => Promise.all(AUDIO_ASSETS.map(url =>
       fetch(url, { cache: 'reload' }).then(r => r.ok && cache.put(url, r)).catch(() => {})))
-      .then(() => Promise.all(CMD_ASSETS.map(url =>
+      .then(() => Promise.all(CMD_ASSETS.concat(CAMPAIGN_ASSETS).map(url =>
       fetch(url, { cache: 'reload' }).then(r => r.ok && cache.put(url, r)).catch(() => {})))))
     )
   );

@@ -393,6 +393,41 @@ const UNIT_RENDERERS = {
   advtrapper(c, x, y, s) { drawAdvanced(c, x, y, s, 'advtrapper', UNIT_RENDERERS.trapper); },
 };
 
+// ---------- v9.7: varian Advanced = tampilan unit dasar + garis emas + lapisan cahaya emas ----------
+// Sprite dasar digambar sekali ke kanvas luar-layar, dibuatkan siluet emas (outline 16 arah) + cahaya emas lembut di belakangnya,
+// lalu di-cache per tipe dasar. Tidak mengubah renderer unit dasar. Batch A memakai fungsi yang sama untuk unit Advanced mereka.
+const GOLD_CACHE = {};
+function goldVariant(baseKey) {
+  const R = 72;                                   // piksel per skala unit pada kanvas luar-layar
+  return function (c, x, y, s) {
+    let e = GOLD_CACHE[baseKey];
+    if (!e) {
+      const W = Math.ceil(R * 3.0), H = Math.ceil(R * 2.6);
+      const mk = () => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; return cv; };
+      const sp = mk();                            // 1) sprite dasar
+      UNIT_RENDERERS[baseKey](sp.getContext('2d'), W / 2, H / 2, R);
+      const gold = mk(), gc = gold.getContext('2d');   // 2) siluet emas
+      gc.drawImage(sp, 0, 0); gc.globalCompositeOperation = 'source-in'; gc.fillStyle = '#ffd24a'; gc.fillRect(0, 0, W, H);
+      const out = mk(), oc = out.getContext('2d');     // 3) cahaya + garis emas + sprite + kilau
+      const g = oc.createRadialGradient(W / 2, H / 2, R * 0.15, W / 2, H / 2, R * 1.15);
+      g.addColorStop(0, 'rgba(255,214,90,0.55)'); g.addColorStop(0.6, 'rgba(255,200,60,0.22)'); g.addColorStop(1, 'rgba(255,200,60,0)');
+      oc.fillStyle = g; oc.beginPath(); oc.ellipse(W / 2, H / 2, R * 1.3, R * 1.1, 0, 0, Math.PI * 2); oc.fill();
+      const o = Math.max(2, R * 0.045);
+      for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; oc.drawImage(gold, Math.cos(a) * o, Math.sin(a) * o); }
+      oc.drawImage(sp, 0, 0);
+      oc.globalAlpha = 0.2; oc.drawImage(gold, 0, 0); oc.globalAlpha = 1;
+      e = GOLD_CACHE[baseKey] = { cv: out, W, H };
+    }
+    const k = s / R;
+    c.drawImage(e.cv, x - e.W * k / 2, y - e.H * k / 2, e.W * k, e.H * k);
+  };
+}
+// Daftarkan varian emas untuk setiap unit dasar yang punya renderer (yang sudah punya renderer sendiri tidak ditimpa).
+['infantry', 'assault', 'sniper', 'antitank', 'trapper', 'montir', 'tanklapis', 'tankcrusher', 'apc', 'corps'].forEach(b => {
+  const k = 'adv' + b;
+  if (UNIT_RENDERERS[b] && !UNIT_RENDERERS[k]) UNIT_RENDERERS[k] = goldVariant(b);
+});
+
 // ---------- Tanda (!) : Corps/APC ber-job isi fuel/medical yang sedang menganggur ----------
 function drawIdleBadge(x, y, unitScale) {
   const r = unitScale * 0.17, bx = x + unitScale * 0.42, by = y - unitScale * 0.46;
@@ -418,7 +453,7 @@ function drawStatusIcons(names, cx, bottomY) {
 
 // Gambar 1 unit lengkap di (x,y): sosok unit + cincin pilihan + bar HP (bisa dimatikan di Pengaturan) + tanda (!)
 function drawUnitSprite(u, x, y) {
-  const def = u.type === 'corps' ? CORPS_DEF : UNITS[u.type];
+  const def = unitDef(u.type);
   const unitScale = HEX_SIZE * 1.05;
   if (selectedUnit === u) {
     ctx.save();
@@ -427,8 +462,16 @@ function drawUnitSprite(u, x, y) {
     ctx.restore();
   }
   const renderFn = UNIT_RENDERERS[u.type];
+  if (u.downed) ctx.globalAlpha = 0.38;                                          // v9.7: mode gugur (Tak Terkalahkan) digambar pudar
   if (renderFn) renderFn(ctx, x, y, unitScale);
-  drawHpBar(x, y - unitScale * 0.5, u.hp, def.hp, u.owner === HUMAN);
+  if (u.downed) {
+    ctx.globalAlpha = 1;
+    ctx.save(); ctx.strokeStyle = '#e3c445'; ctx.lineWidth = 2.2 / scale; ctx.lineCap = 'round';
+    const d = unitScale * 0.22;
+    ctx.beginPath(); ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); ctx.stroke();
+    ctx.restore();
+  }
+  drawHpBar(x, y - unitScale * 0.5, u.hp, maxHpOf(u, def), u.owner === HUMAN);
   if (Settings.get('showIcons') && typeof activeAbilityIcons === 'function') {   // v9.6: ikon efek aktif di atas bar HP
     const barH = Settings.get('showHp') ? Math.max(HEX_SIZE * 0.16, 3 / scale) + 3 / scale : 1 / scale;
     drawStatusIcons(activeAbilityIcons(u), x, y - unitScale * 0.5 - barH);

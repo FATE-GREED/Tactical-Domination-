@@ -390,7 +390,7 @@ function drawBuildingSprite(b, ownerColor, x, y) {
   ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5 / scale; ctx.stroke();
   const iconFn = BUILDING_ICONS[b.type];
   if (iconFn) drawIcon(iconFn, x, y, R * 0.88);
-  drawHpBar(x, y - R, b.hp, BUILDING_TYPES[b.type].hp, players[HUMAN].buildings.includes(b));
+  drawHpBar(x, y - R, b.hp, maxHpOf(b, BUILDING_TYPES[b.type]), players[HUMAN].buildings.includes(b));
 }
 
 // ---------- Animasi: gerak unit (tween linear singkat) ----------

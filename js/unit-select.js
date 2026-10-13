@@ -1,8 +1,8 @@
 // ====================================================================
 // unit-select.js — v9.8: pemilihan tepat 10 jenis unit sebelum game.
 // Pilihan membatasi unit yang dapat di-deploy pemain manusia dari Barak.
-// Bot tidak dibatasi. Corps biasa tetap diproduksi Garnisun untuk menjaga
-// mekanisme pembangunan inti tetap berfungsi.
+// Bot tidak dibatasi (Garnisun bot meniru pilihan Corps pemain). Corps & Advanced Corps
+// tidak dibeli di Barak: Garnisun memproduksinya (v10, lihat rules-economy.js).
 // ====================================================================
 
 let unitSelectPendingOpts = null;
@@ -73,7 +73,7 @@ function toggleUnitSelection(unitKey, checked) {
     unitSelectSelected = unitSelectSelected.filter(key => key !== unitKey);
   }
   const message = document.getElementById('unitselect-message');
-  if (message) message.textContent = 'Pilih 10 jenis unit. Corps biasa tetap diproduksi oleh Garnisun agar pembangunan tetap berfungsi.';
+  if (message) message.textContent = 'Pilih 10 jenis unit. Corps & Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).';
   updateUnitSelectUI();
 }
 
@@ -94,13 +94,13 @@ function resetUnitSelection() {
     input.disabled = false;
   });
   const message = document.getElementById('unitselect-message');
-  if (message) message.textContent = 'Pilih 10 jenis unit. Corps biasa tetap diproduksi oleh Garnisun agar pembangunan tetap berfungsi.';
+  if (message) message.textContent = 'Pilih 10 jenis unit. Corps & Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).';
   updateUnitSelectUI();
 }
 
 function isHumanUnitAllowed(unitKey) {
-  // Corps biasa tidak dibeli dari Barak; ia adalah unit inti produksi Garnisun.
-  if (unitKey === 'corps') return true;
+  // Corps & Advanced Corps tidak dibeli dari Barak; keduanya produksi Garnisun.
+  if (unitKey === 'corps' || unitKey === 'advcorps') return true;
   return selectedLoadoutUnits.length !== 10 || selectedLoadoutUnits.includes(unitKey);
 }
 

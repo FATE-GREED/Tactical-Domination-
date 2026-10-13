@@ -25,7 +25,7 @@ const Stats = (() => {
 // ---------- Layar Rincian ----------
 const Rincian = (() => {
   let side = 0, root = null;
-  const uname = t => (t === 'corps' ? 'Corps' : (UNITS[t] ? UNITS[t].name : t));
+  const uname = t => (unitDef(t) ? unitDef(t).name : t);
   const bname = t => (BUILDING_TYPES[t] ? BUILDING_TYPES[t].name : t);
   const sumObj = o => Object.values(o).reduce((a, b) => a + b, 0);
   function list(o, nameFn) {
@@ -35,7 +35,10 @@ const Rincian = (() => {
   function alive(i) {
     const a = {};
     units.filter(u => u.owner === i).forEach(u => { a[u.type] = (a[u.type] || 0) + 1; });
-    units.forEach(u => { if (u.owner === i && u.cargo && u.cargo.type === 'corps') a.corps = (a.corps || 0) + 1; });  // Corps yang sedang naik APC
+    units.forEach(u => {                         // muatan yang sedang naik APC tetap dihitung hidup
+      if (u.owner !== i || !u.cargo || !u.cargo.unit) return;
+      const t = u.cargo.unit.type; a[t] = (a[t] || 0) + 1;
+    });
     return a;
   }
   function html(i) {

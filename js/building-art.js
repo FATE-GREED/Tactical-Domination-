@@ -363,7 +363,7 @@ function drawBuildingFull(b, p, opt) {
   const fp = fpInfo(buildingTiles(b)), own = p.color, def = BUILDING_TYPES[b.type];
   if (!def) return;
   const u = fpUnit(fp.n);
-  const hpr = isFinite(def.hp) ? Math.max(0, Math.min(1, b.hp / def.hp)) : 1;
+  const hpr = isFinite(def.hp) ? Math.max(0, Math.min(1, b.hp / maxHpOf(b, def))) : 1;
   ctx.save();
   if (b.type === 'jembatan') {
     drawBridge(ctx, b, own, fp);
@@ -380,7 +380,7 @@ function drawBuildingFull(b, p, opt) {
   ctx.restore();
   if (opt.noBar) return;
   const top = b.type === 'jembatan' ? fp.cy - HEX_SIZE * 0.55 : fp.cy + u * 0.05 + u * (BUILDING_HP_TOP[b.type] || -0.6);
-  drawHpBar(fp.cx, top, b.hp, def.hp, players[HUMAN].buildings.includes(b));
+  drawHpBar(fp.cx, top, b.hp, maxHpOf(b, def), players[HUMAN].buildings.includes(b));
   if (Settings.get('showIcons') && typeof buildingStatusIcons === 'function') {   // v9.6: ikon efek aktif di atas bar HP (mis. Penghancur Bangunan)
     const barH = Settings.get('showHp') ? Math.max(HEX_SIZE * 0.16, 3 / scale) + 3 / scale : 1 / scale;
     drawStatusIcons(buildingStatusIcons(b), fp.cx, top - barH);

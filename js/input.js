@@ -70,9 +70,9 @@ function initInput() {
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
   document.getElementById('laneBtn').addEventListener('click', toggleLaneMode);
   document.getElementById('lockLineBtn').addEventListener('click', toggleLockMode);
-  // Main Lagi: muat ulang lalu langsung mulai ronde baru (lewati lobby). Lobby: muat ulang biasa.
+  // Main Lagi: muat ulang langsung ke pemilihan unit. Lobby: muat ulang biasa.
   document.getElementById('restartBtn').addEventListener('click', () => {
-    try { sessionStorage.setItem('td-autostart', '1'); } catch (e) {}
+    try { sessionStorage.setItem('td-autostart', CAMPAIGN ? 'campaign' : '1'); } catch (e) {}   // v9.7: di Campaign = ulangi pertempuran chapter
     location.reload();
   });
   document.getElementById('lobbyBtn').addEventListener('click', () => {
@@ -233,7 +233,7 @@ function finishHaul() {
 function handleHaulPick(r, c) {
   const apc = haulActor;
   if (!haulCorps) {                             // langkah 1: pilih Corps sekutu
-    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && u.type === 'corps');
+    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && isCorpsType(u.type));
     if (!cu) return;
     if (cu.isBuilding) { alert('Corps ini sedang membangun.'); return; }
     if (cu.cargo) { alert('Corps yang sedang membawa muatan tidak bisa diangkut.'); return; }
@@ -384,7 +384,7 @@ function startSpecialMode(actor, mode) {
 // Dipanggil dari tombol "Deploy" di panel deploy (render.js)
 function onDeployClick(key, barak, player) {
   if (!canAct()) return;
-  const def = UNITS[key];
+  const def = unitDef(key);
   if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return;
   if (!doDeploy(key, barak, player)) { alert('Tidak ada tile kosong di sekitar Barak untuk deploy.'); return; }
   renderResourcePanels();
@@ -397,7 +397,7 @@ function onDeployClick(key, barak, player) {
 // v9.4: Dipanggil dari modal deploy utama (tombol +)
 function onDeployModalClick(key, player) {
   if (!canAct()) return;
-  const def = UNITS[key];
+  const def = unitDef(key);
   const res = doDeployAuto(key, player);
   if (!res.ok) { alert(res.reason); openDeployModal(player); return; }
   renderResourcePanels();

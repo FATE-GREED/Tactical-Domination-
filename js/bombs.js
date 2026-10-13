@@ -113,7 +113,7 @@ async function checkBombTriggers(unit) {
 // Setelah bergerak, bom Hadiah Kejutan mengecek pemicu ke semua unit musuh (termasuk yang tak terlihat)
 async function checkBombSelfTrigger(b) {
   if (!bombs.includes(b) || !b.active) return false;
-  if (units.some(e => e.owner !== b.owner && hexDistance(b.r, b.c, e.r, e.c) <= bombRadius(b))) { await explodeBomb(b); return true; }
+  if (units.some(e => e.owner !== b.owner && !e.downed && hexDistance(b.r, b.c, e.r, e.c) <= bombRadius(b))) { await explodeBomb(b); return true; }
   return false;
 }
 
@@ -130,14 +130,14 @@ function explodeBombNow(bomb) {
   startBombFx(bomb.r, bomb.c, radius);
   Sfx.explode(false);
 
-  const unitTargets = units.filter(u => u.owner === foeIdx && hexDistance(bomb.r, bomb.c, u.r, u.c) <= radius);
+  const unitTargets = units.filter(u => u.owner === foeIdx && !u.downed && hexDistance(bomb.r, bomb.c, u.r, u.c) <= radius);
   const bldTargets = players[foeIdx].buildings.filter(b => BUILDING_TYPES[b.type].destructible !== false && distToBuilding(bomb.r, bomb.c, b) <= radius);
 
   for (const u of unitTargets) {
     if (!units.includes(u)) continue;
     const def = defOf(u);
     const info = { kind: 'unit', obj: u, def, ownerIdx: u.owner, vehicle: !!def.vehicle, tank: !!def.tank };
-    const dmg = damageFormula(bomb.atk, atkPct, info, 1);
+    const dmg = damageFormula(bomb.atk * statMul(bomb.owner), atkPct, info, 1);
     const destroyed = damageUnit(u, dmg, bomb.owner, bomb.trapperType);
     dmgFeedAdd(src, unitName(u), u.owner, dmg);
     if (destroyed) { killFeedAdd(UNITS[bomb.trapperType].name, bomb.owner, unitName(u), u.owner); continue; }
@@ -148,7 +148,7 @@ function explodeBombNow(bomb) {
     if (!players[foeIdx].buildings.includes(b)) continue;
     const def = BUILDING_TYPES[b.type];
     const info = { kind: 'building', obj: b, def, ownerIdx: foeIdx, vehicle: false, tank: false };
-    const dmg = damageFormula(bomb.atk, atkPct, info, 1);
+    const dmg = damageFormula(bomb.atk * statMul(bomb.owner), atkPct, info, 1);
     const destroyed = damageBuilding(foeIdx, b, dmg, bomb.owner, bomb.trapperType);
     dmgFeedAdd(src, def.name, foeIdx, dmg);
     if (destroyed) { killFeedAdd(UNITS[bomb.trapperType].name, bomb.owner, def.name, foeIdx); continue; }

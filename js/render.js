@@ -163,7 +163,7 @@ function draw() {
 
     if (occupant) {
       const isUnit = units.includes(occupant);
-      const label = isUnit ? (occupant.type === 'corps' ? 'C' : unitTileLabel(occupant.type)) : BUILDING_TYPES[occupant.type].label;
+      const label = isUnit ? (occupant.type === 'corps' ? 'C' : occupant.type === 'advcorps' ? 'AC' : unitTileLabel(occupant.type)) : BUILDING_TYPES[occupant.type].label;
       const entX = screenX + 16, entY = screenY - 28;
       drawIconCircle(entX, entY, iconR, isUnit ? '#d7b56d' : '#9b7a3f', label);
       iconHitboxes.entity = { x: entX, y: entY, r: iconR };
@@ -209,10 +209,12 @@ function togglePanel(id) {
 
 function resourceHtml(p) {
   const i = players.indexOf(p), r = p.resources;
-  let h = `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
+  let h = CAMPAIGN   // v9.7: Campaign hanya menampilkan Kredit dan slot Barak (tanpa Fuel/Medical/Corps)
+    ? `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <small class="rs-s">B${totalBarakSlots(p)}/${2 * p.buildings.filter(b => b.type === 'barak').length}</small>`
+    : `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
     ` <small class="rs-s">C${p.corps.count}/10${p.corps.timer ? '+' + p.corps.timer : ''} · B${totalBarakSlots(p)}/${2 * p.buildings.filter(b => b.type === 'barak').length}</small>`;
   {                                                    // v9.4: bar HP seluruh Markas — untuk semua pemain, lengkap dengan angka sisa/total
-    const maxHp = BUILDING_TYPES.markas.hp, alive = p.buildings.filter(b => b.type === 'markas');
+    const alive = p.buildings.filter(b => b.type === 'markas'), maxHp = (alive[0] && alive[0].maxHp) || BUILDING_TYPES.markas.hp;
     const lost = (Stats.data[i] && Stats.data[i].bldLost.markas) || 0;
     const total = (alive.length + lost) * maxHp, cur = Math.max(0, Math.round(alive.reduce((a, b) => a + b.hp, 0)));
     h += `<div class="mk-hp" title="HP seluruh Markas">Markas ${cur}/${total}</div>` +
@@ -262,6 +264,7 @@ function renderLog() { if (typeof renderActFeed === 'function') renderActFeed();
 
 // ---------- Win Condition ----------
 function showGameOver() {
+  if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
   Sfx.end(winner === HUMAN);
   document.getElementById('winnerText').textContent = `${players[winner].name} Menang!`;
   document.getElementById('gameover').style.display = 'flex';
@@ -315,19 +318,24 @@ function openEntityPanel(r, c) {
   const el = document.getElementById('entitypanel');
   if (!target) { el.style.display = 'none'; return; }
   const owner = players[target.ownerIdx];
-  let html = '<span class="close" id="entityclose">✕</span>';
+  let html = `<div class="panel-header"><h3 class="panel-title" style="color:${owner.color}">${target.def.name} — ${owner.name}</h3><button class="close" id="entityclose" type="button" aria-label="Tutup">✕</button></div>`;
   const isMine = target.ownerIdx === HUMAN;
   const buttons = []; // {id, label}
 
   if (target.kind === 'unit') {
     const u = target.obj;
-    const name = u.type === 'corps' ? 'Corps' : target.def.name;
-    html += `<h3 style="color:${owner.color}">${name} — ${owner.name}</h3>`;
-    html += `HP: ${u.hp}/${target.def.hp} &nbsp; MP: ${u.mp}/${target.def.spd}<br>`;
-    if (target.def.combat) html += `ATK: ${target.def.atk} &nbsp; DEF: ${target.def.def} &nbsp; Range: ${target.def.range}<br>`;
+    html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(target.def.spd, u.owner)}<br>`;
+    if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${target.def.fuelMax}<br>`;
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;
     if (u.intimidatedTurns > 0) html += `<span style="color:#e08a4a">Terkena Intimidasi (${u.intimidatedTurns} giliran lagi)</span><br>`;
+    if (u.downed) html += `<span style="color:#e3c445">MODE GUGUR — hidup lagi di awal giliran pemilik (HP 30%, ATK −50%)</span><br>`;
+    if (u.weakened) html += `<span style="color:#e08a4a">ATK −50% permanen (Tak Terkalahkan sudah dipakai)</span><br>`;
+    if (u.leakTurns > 0 && u.leakStacks > 0) html += `<span style="color:#e08a4a">Bocor minyak ×${u.leakStacks}: −${2 * u.leakStacks} Fuel/giliran (${u.leakTurns} giliran lagi)</span><br>`;
+    if (u.pierceTurns > 0) html += `<span style="color:#e08a4a">Penembusan: DEF −20% (${u.pierceTurns} giliran lagi)</span><br>`;
+    if (u.type === 'advapc' && u.toughTurns > 0) html += `<span style="color:#7fb4ff">Pantang Menyerah: DEF +20%, SPD +2 (${u.toughTurns} giliran lagi)</span><br>`;
+    if (u.type === 'advapc' && u.toughCd > 0) html += `<span style="color:#9aa">Pantang Menyerah cooldown ${u.toughCd} giliran</span><br>`;
+    if (u.type === 'advtankcrusher' && isBeraniMati(u)) html += `<span style="color:#e0574f">Pasukan Berani Mati: DEF 0, SPD +2, ATK +10%</span><br>`;
     if (u.toxinTurns > 0) html += `<span style="color:#e08a4a">Racun: −${u.toxinDmg} HP/giliran, SPD −50% (${u.toxinTurns} giliran lagi)</span><br>`;
     if (isMine) {   // v9.7: keadaan kemampuan unit Advanced (hanya terlihat pemilik)
       if (u.type === 'advinfantry') {
@@ -343,10 +351,10 @@ function openEntityPanel(r, c) {
       if (isTrapperType(u.type)) html += `Bom hidup: ${bombsOf(u).length}/${BOMB_MAX_PER_TRAPPER}<br>`;
     }
 
-    if (u.type === 'corps' && u.isBuilding) {
+    if (isCorpsType(u.type) && u.isBuilding) {
       html += `<br><i style="color:#d7b56d">Sedang membangun ${BUILDING_TYPES[u.buildType].name}: ${u.buildTurnsRemaining} giliran lagi</i>`;
     } else if (u.cargo) {
-      const cargoLabel = u.cargo.type === 'corps' ? 'Corps (penumpang)' : `${u.cargo.type} (${u.cargo.amount})`;
+      const cargoLabel = u.cargo.type === 'corps' ? `${unitDef(u.cargo.unit.type).name} (penumpang)` : u.cargo.type === 'montir' ? 'Advanced Montir (penumpang)' : `${u.cargo.type} (${u.cargo.amount})`;
       html += `<br>Muatan: ${cargoLabel}`;
     }
 
@@ -354,48 +362,53 @@ function openEntityPanel(r, c) {
     if (isMine && canAct() && isTrapperType(u.type)) {
       for (const bm of bombsOf(u)) buttons.push({ id: 'bombBtn' + bm.id, label: `💥 Ledakkan bom (${bm.r},${bm.c})${bm.special ? ' ★' : ''}` });
     }
-    if (isMine && canAct() && !(u.type === 'corps' && u.isBuilding)) {
+    if (isMine && canAct() && !(isCorpsType(u.type) && u.isBuilding)) {
       buttons.push({ id: 'targetBtn', label: 'Atur Target' });
       buttons.push({ id: 'lockBtn', label: u.locked ? '🔓 Buka Kunci' : '🔒 Kunci Gerak' });
       if (!target.def.combat) {
         buttons.push({ id: 'jobIdleBtn', label: (u.job === 'idle' ? '✓ ' : '') + 'Nganggur' });
         buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
         buttons.push({ id: 'jobMedBtn', label: (u.job === 'medical' ? '✓ ' : '') + 'Isi Medical' });
-        if (u.type === 'apc') buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
+        if (isApcType(u.type)) buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
         if (u.job === 'fuel' || u.job === 'medical') buttons.push({ id: 'focusBtn', label: u.focus ? '🎯 Ubah Fokus' : '🎯 Fokus Unit' });
       }
       if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
     }
     if (isMine && canAct() && !u.attacked) {
-      if ((u.type === 'apc' || u.type === 'corps') && !u.cargo && !(u.type === 'corps' && u.isBuilding)) {
+      if ((isApcType(u.type) || isCorpsType(u.type)) && !u.cargo && !(isCorpsType(u.type) && u.isBuilding)) {
         const nearPom = !!adjacentBuildingOfType(u, 'pom');
         const nearPos = !!adjacentBuildingOfType(u, 'pospemulihan');
         if (nearPom && owner.resources.fuel > 0) buttons.push({ id: 'loadFuelBtn', label: 'Muat Fuel' });
         if (nearPos && owner.resources.medical > 0) buttons.push({ id: 'loadMedicalBtn', label: 'Muat Medical' });
       }
-      if (u.type === 'apc' && !u.cargo) {
-        const adjCorps = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'corps' && !cc.cargo));
+      if (isApcType(u.type) && !u.cargo) {
+        const adjCorps = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && isCorpsType(cc.type) && !cc.cargo));
         if (adjCorps) buttons.push({ id: 'loadCorpsBtn', label: 'Muat Corps' });
+        const adjMontir = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'advmontir'));
+        if (adjMontir) buttons.push({ id: 'loadMontirBtn', label: 'Muat Montir' });        // v9.7 Perubahan Model
       }
-      if (u.type === 'apc' && u.cargo && u.cargo.type === 'corps') {
+      if (isApcType(u.type) && u.cargo && u.cargo.type === 'corps') {
         buttons.push({ id: 'unloadCorpsBtn', label: 'Turunkan Corps' });
+      }
+      if (isApcType(u.type) && u.cargo && u.cargo.type === 'montir') {
+        buttons.push({ id: 'unloadMontirBtn', label: 'Turunkan Montir' });
       }
       if (u.cargo && u.cargo.type === 'fuel') buttons.push({ id: 'supplyFuelBtn', label: 'Supply Fuel' });
       if (u.cargo && u.cargo.type === 'medical') buttons.push({ id: 'supplyMedicalBtn', label: 'Supply Medical' });
 
-      if ((u.type === 'apc' || u.type === 'corps') && target.def.hasFuel && u.fuel < target.def.fuelMax && owner.resources.fuel > 0) {
+      if ((isApcType(u.type) || isCorpsType(u.type)) && target.def.hasFuel && u.fuel < target.def.fuelMax && owner.resources.fuel > 0) {
         buttons.push({ id: 'selfRefuelBtn', label: 'Isi Ulang Sendiri' });
       }
-      if (owner.resources.medical > 0 && !(u.type === 'corps' && u.isBuilding)) {
+      if (owner.resources.medical > 0 && !(isCorpsType(u.type) && u.isBuilding)) {
         buttons.push({ id: 'recoveryBtn', label: 'Recovery' });
       }
     }
   } else {
     const b = target.obj;
-    const maxHp = target.def.hp === Infinity ? '∞' : target.def.hp;
-    const defStat = target.def.def === Infinity ? '∞' : target.def.def;
-    html += `<h3 style="color:${owner.color}">${target.def.name} — ${owner.name}</h3>`;
+    const maxHp = target.def.hp === Infinity ? '∞' : maxHpOf(b, target.def);
+    const defStat = target.def.def === Infinity ? '∞' : Math.round(target.def.def * statMul(buildingOwnerIdx(b)));
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
+    if (b.type === 'markas' && markasDefBonusPct() > 0) html += `<span style="color:#7fb4ff">Bonus DEF awal: +${Math.round(markasDefBonusPct())}% (menyusut tiap giliran, habis di giliran ${MARKAS_BONUS_END_TURN})</span><br>`;
     if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
     if (b.bombDefTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Pembuat Onar, ${b.bombDefTurns} giliran lagi)</span><br>`;
     if (b.toxinTurns > 0) html += `<span style="color:#e08a4a">DEF -20% & racun −${b.toxinDmg} HP/giliran (Bom Beracun, ${b.toxinTurns} giliran lagi)</span><br>`;
@@ -427,11 +440,17 @@ function openEntityPanel(r, c) {
   bind('loadMedicalBtn', () => runAndRefreshEntity(target.obj, () => loadCargo(target.obj, 'medical'), r, c));
   bind('selfRefuelBtn', () => runAndRefreshEntity(target.obj, () => selfRefuel(target.obj), r, c));
   bind('loadCorpsBtn', () => {
-    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && cc.type === 'corps' && !cc.cargo));
+    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && isCorpsType(cc.type) && !cc.cargo));
     const corpsUnit = units.find(cc => cc.r === nr && cc.c === nc);
     runAndRefreshEntity(target.obj, () => loadCorpsIntoAPC(target.obj, corpsUnit), r, c);
   });
   bind('unloadCorpsBtn', () => runAndRefreshEntity(target.obj, () => unloadCorpsFromAPC(target.obj), r, c));
+  bind('loadMontirBtn', () => {
+    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && cc.type === 'advmontir'));
+    const montir = units.find(cc => cc.r === nr && cc.c === nc);
+    runAndRefreshEntity(target.obj, () => loadMontirIntoAPC(target.obj, montir), r, c);
+  });
+  bind('unloadMontirBtn', () => runAndRefreshEntity(target.obj, () => unloadMontirFromAPC(target.obj), r, c));
   bind('supplyFuelBtn', () => { el.style.display = 'none'; startSpecialMode(target.obj, 'supplyFuel'); });
   bind('supplyMedicalBtn', () => { el.style.display = 'none'; startSpecialMode(target.obj, 'supplyMedical'); });
   bind('recoveryBtn', () => { el.style.display = 'none'; startSpecialMode(target.obj, 'recovery'); });
@@ -446,16 +465,21 @@ function runAndRefreshEntity(unit, actionFn, r, c) {
   openEntityPanel(r, c); // refresh isi panel (cargo/MP/status berubah)
 }
 
+// v9.7: daftar unit yang bisa dibeli di Barak = UNITS + entri khusus Advanced Corps (batch A menyisipkan Trapper & Advanced lain lewat UNITS)
+function deployEntries() { return deployableUnits(); }   // v10: Advanced Corps tidak dideploy di Barak (datang lewat Garnisun)
+
 // v9.4: modal deploy utama (tombol + di panel kiri) — barak dipilih otomatis (terdekat musuh dulu, lalu acak)
 function openDeployModal(player) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
   const baraks = player.buildings.filter(b => b.type === 'barak');
   const slots = totalBarakSlots(player);
-  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3>';
-  html += Object.entries(UNITS).map(([key, def]) => {
-    const disabled = (slots <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
-    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
+  let html = '<div class="panel-header"><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3><button class="close" id="deployclose" type="button" aria-label="Tutup">✕</button></div>';
+  html += deployEntries().map(([key, def]) => {
+    const rosterBlocked = player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key);
+    const disabled = (slots <= 0 || player.resources.kredit < def.price || rosterBlocked) ? 'disabled' : '';
+    const label = rosterBlocked ? 'Tidak dipilih' : 'Deploy';
+    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
@@ -467,10 +491,12 @@ function openDeployModal(player) {
 function openDeployPanel(barak, player) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
-  let html = '<span class="close" id="deployclose">✕</span><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3>';
-  html += Object.entries(UNITS).map(([key, def]) => {
-    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
-    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
+  let html = '<div class="panel-header"><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3><button class="close" id="deployclose" type="button" aria-label="Tutup">✕</button></div>';
+  html += deployEntries().map(([key, def]) => {
+    const rosterBlocked = player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key);
+    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price || rosterBlocked) ? 'disabled' : '';
+    const label = rosterBlocked ? 'Tidak dipilih' : 'Deploy';
+    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });

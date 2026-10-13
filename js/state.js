@@ -6,7 +6,8 @@
 
 // ---------- Konfigurasi Peta ----------
 const HUMAN = 0, BOT = 1; // mode lawan bot: Pemain 1 = manusia (kiri), Pemain 2 = bot (kanan)
-const ROWS = 30, COLS = 45, HALF_COLS = COLS / 2, HEX_SIZE = 18;
+let ROWS = 30, COLS = 45;   // v9.7: let (bukan const) karena pertempuran Campaign memakai peta 15x25
+const HEX_SIZE = 18;
 const PLAN_SECONDS = Infinity; // v8.5: fase rencana tanpa batas waktu (berakhir saat tombol Eksekusi ditekan)
 
 // ---------- Terrain (Bagian 2 dokumen desain) ----------
@@ -38,15 +39,29 @@ const UNITS = {
   tankcrusher: { name: 'Tank Crusher',    price: 70, spd: 9,  range: 7,  atk: 84, def: 35,  hp: 250, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 4 },
   montir     : { name: 'Montir',          price: 50, spd: 6,  range: 16, atk: 45, def: 25,  hp: 100, jpd: 5, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 20, fuelUse: 2 },
   apc        : { name: 'APC',             price: 20, spd: 13, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 5, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 40, fuelUse: 2 },
-  // v9.7: unit Advanced (unit tersendiri, bukan upgrade). Tidak mewarisi kemampuan unit dasarnya.
+
+  // v9.7 Advanced (unit tersendiri, bukan upgrade; tidak mewarisi kemampuan unit dasarnya). Urutan = nomor unit 11-19 (20 = Advanced Corps, lihat ADV_CORPS_DEF).
   advinfantry: { name: 'Advanced Infantry', price: 20, spd: 8,  range: 6,  atk: 33, def: 20,  hp: 100, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
   advassault : { name: 'Advanced Assault',  price: 35, spd: 11, range: 4,  atk: 48, def: 25,  hp: 150, jpd: 2, vehicle: false, tank: false, combat: true,  hasFuel: false },
   advsniper  : { name: 'Advanced Sniper',   price: 35, spd: 7,  range: 9,  atk: 48, def: 15,  hp: 80,  jpd: 4, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  advantitank : { name: 'Advanced Anti-Tank',       price: 45, spd: 8,  range: 7,  atk: 48, def: 30,  hp: 150, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
   advtrapper : { name: 'Advanced Trapper',  price: 45, spd: 9,  range: 2,  atk: 48, def: 25,  hp: 150, jpd: 5, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  advmontir   : { name: 'Advanced Montir',          price: 55, spd: 1,  range: 16, atk: 45, def: 25,  hp: 100, jpd: 5, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 23, fuelUse: 2 },
+  advtanklapis: { name: 'Advanced Tank Lapis Baja', price: 75, spd: 9,  range: 6,  atk: 63, def: 45,  hp: 300, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 44, fuelUse: 5 },
+  advtankcrusher: { name: 'Advanced Tank Crusher', price: 75, spd: 9,  range: 7,  atk: 84, def: 35,  hp: 250, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 45, fuelUse: 4 },
+  advapc      : { name: 'Advanced APC',             price: 25, spd: 13, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 5, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 42, fuelUse: 2 },
 };
 const TRAPPER_TYPES = ['trapper', 'advtrapper'];   // unit pemasang bom (aturan di bombs.js)
 const isTrapperType = t => TRAPPER_TYPES.includes(t);
 const CORPS_DEF = { name: 'Corps', spd: 10, range: 0, atk: 0, def: 15, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
+// v10 unit 20: Advanced Corps bukan entri UNITS dan TIDAK dideploy di Barak; ia datang dari Garnisun (lihat corpsKinds() di rules-economy.js)
+const ADV_CORPS_DEF = { name: 'Advanced Corps', spd: 10, range: 0, atk: 0, def: 25, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
+
+// ---------- v9.7: helper tipe unit (dipakai di semua modul; jangan lagi memakai `type === 'corps' ? CORPS_DEF : UNITS[type]`) ----------
+function unitDef(type) { return type === 'corps' ? CORPS_DEF : type === 'advcorps' ? ADV_CORPS_DEF : UNITS[type]; }
+function isCorpsType(type) { return type === 'corps' || type === 'advcorps'; }   // Corps biasa + Advanced Corps
+function isApcType(type) { return type === 'apc' || type === 'advapc'; }         // APC biasa + Advanced APC
+const MAX_ADV_FUEL_LEAK_STACKS = 4, MAX_BURN_STACKS = 4;
 
 // ---------- Bangunan (Bagian 3) ----------
 // v9.5: HP semua bangunan 200; DEF bangunan minimal 10 (juga saat kena debuff). Benteng DEF 70.
@@ -114,6 +129,31 @@ const UNIT_ABILITIES = {
     ['Jangan Menganggur', 'SPD +2 saat tidak membawa muatan.'],
     ['Kerja Sampai Tuntas', 'DEF +20% saat sedang membangun.'],
   ],
+  // ---- v9.7 Advanced (batch B). Kemampuan tidak diwarisi dari unit dasar. ----
+  advantitank: [
+    ['Kebocoran Minyak', 'Serangan yang mengenai kendaraan yang selamat membuatnya bocor: −2 Fuel tiap giliran per tumpukan (maks 4 tumpukan = −8), 3 giliran. Tiap serangan menambah 1 tumpukan dan memperbarui durasi.'],
+    ['Penembusan', 'Serangan ke kendaraan menganggap DEF dasarnya 0. Kendaraan yang selamat mendapat DEF −20% selama 2 giliran (tidak menumpuk dengan sesama Penembusan).'],
+  ],
+  advmontir: [
+    ['Perubahan Model', 'SPD tetap 1. Sebagai kompensasi dapat diangkut semua jenis APC (APC & Advanced APC) di slot muatan (APC yang membawa Montir tidak bisa membawa muatan lain).'],
+    ['Peluru Pembakar', 'Serangan yang mengenai bangunan yang selamat membakarnya: damage tetap 5% ATK per tumpukan tiap giliran pemilik bangunan (mengabaikan DEF), maks 4 tumpukan, 5 giliran.'],
+  ],
+  advtanklapis: [
+    ['Tembok Berjalan', '60% ATK dasar diubah menjadi DEF dengan kurs 2 ATK = 1 DEF (ATK efektif 25,2; DEF efektif 63,9).'],
+    ['Tak Terkalahkan', 'Sekali per unit: saat HP ≤ 0 unit masuk mode gugur (tak bisa bertindak/ditarget), lalu hidup lagi di awal giliran berikutnya dengan HP 30% dan ATK −50% permanen.'],
+  ],
+  advtankcrusher: [
+    ['Laras Kedua', 'Tiap serangan = 2 tembakan (1 aksi), ATK tiap tembakan −45%. Tembakan kedua memilih target berbeda bila ada dalam jangkauan.'],
+    ['Pasukan Berani Mati', 'Selama HP < 40% HP maks: DEF dasar menjadi 0, SPD +2, ATK +10%.'],
+  ],
+  advapc: [
+    ['Kelebihan Muatan', 'Kapasitas maks +50% (Fuel 150, Medical 75; slot Corps/Montir tetap 1). SPD −3 selama muatan > 70% kapasitas dasar (Corps/Montir selalu).'],
+    ['Pantang Menyerah', 'Saat terkena serangan (selamat): DEF +20% dan SPD +2 selama 2 giliran, lalu cooldown 2 giliran.'],
+  ],
+  advcorps: [
+    ['Percepatan Pembangunan', 'Sekali per pertandingan per pemain: bangunan pertama yang dimulai Advanced Corps hanya butuh 1 giliran (Jembatan langsung selesai). Renov tidak dihitung.'],
+    ['Semangat Kerja', 'SPD 7 (dasar −3) tanpa muatan; 13 (+3) saat membawa muatan. Menggantikan Jangan Menganggur.'],
+  ],
   advinfantry: [
     ['Pengorbanan Terakhir', 'Sekali per unit: saat HP < 30%, SPD dan ATK ×2 pada giliran bertindak berikutnya, lalu unit gugur otomatis di awal giliran sesudahnya.'],
     ['Penerus Tekad', 'Tiap 1 unit sekutu gugur: DEF +2% (tumpuk maks 10 = +20%), permanen sepanjang pertandingan.'],
@@ -137,6 +177,7 @@ let mapData = null;          // array[ROWS][COLS] berisi kunci TERRAIN
 let players = [];            // diisi oleh setup.js
 let units = [];              // {id, owner(0/1), type, r, c, mp, fuel, hp}
 let uidCounter = 1;
+let selectedLoadoutUnits = []; // v9.8: jenis unit yang dipilih pemain sebelum pertandingan
 let bombs = [];              // v9.7: bom Trapper {id, owner, r, c, special, active, atk, trapperId, trapperType} — bukan entitas (lihat bombs.js)
 let bombSeq = 1;
 
@@ -152,6 +193,15 @@ let occupyHex = null;        // {r,c} hex untuk mode "tempati"
 let markasSites = [];        // lokasi Markas yang sedang dipesan/dibangun {id, owner, r, c, tiles(7), corpsIds, started, turnsRemaining}
 let siteSeq = 1;
 let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
+
+// ---------- v9.7: mode Campaign ----------
+// null = permainan klasik. Saat pertempuran Campaign aktif, campaign.js mengisinya dengan aturan chapter
+// ({ botMul, units, markasIncome, barakIncome, ... }). Semua modul aturan cukup mengecek `CAMPAIGN`.
+let CAMPAIGN = null;
+const statMul = owner => (CAMPAIGN && owner === BOT ? CAMPAIGN.botMul : 1);           // stat bot = botMul x stat pemain
+const scaleStat = (v, owner) => { const m = statMul(owner); return m === 1 ? v : Math.max(v > 0 ? 1 : 0, Math.round(v * m)); };
+const maxHpOf = (obj, def) => obj.maxHp || def.hp;                                    // HP maksimum nyata (bot Campaign < 100%)
+const deployableUnits = () => Object.entries(UNITS).filter(([k]) => !CAMPAIGN || CAMPAIGN.units.includes(k));
 
 let gameOver = false;
 let winner = null;           // index pemain yang menang
