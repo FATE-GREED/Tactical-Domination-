@@ -223,6 +223,124 @@ function drawMontirRig(c, x, y, s) {
 }
 
 // ---------- Dispatch per tipe unit: gambar unit LENGKAP (bukan 1 ikon) di (x,y) ----------
+// ---------- v9.7: Trapper (2 tentara: pembawa tas bom + penekan pemicu) ----------
+function drawBombBagCarrier(c, x, y, s) {
+  drawSoldier(c, x, y, s, { weapon: 'none', bodyColor: '#7a5238', pantsColor: '#3b3226' });
+  // tali tas melintang di dada
+  c.strokeStyle = '#4a3420'; c.lineWidth = s * 0.03; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x + s * 0.08, y - s * 0.09); c.lineTo(x - s * 0.12, y + s * 0.12); c.stroke();
+  // tas bom di sisi kiri badan
+  const bx = x - s * 0.31, by = y - s * 0.1, bw = s * 0.22, bh = s * 0.3;
+  const bg = c.createLinearGradient(bx, by, bx + bw, by + bh);
+  bg.addColorStop(0, '#a98450'); bg.addColorStop(1, '#6e5128');
+  c.fillStyle = bg;
+  c.beginPath();
+  if (c.roundRect) c.roundRect(bx, by, bw, bh, s * 0.04); else c.rect(bx, by, bw, bh);
+  c.fill();
+  c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = s * 0.012; c.stroke();
+  c.fillStyle = '#5a4020';                                    // tutup tas
+  c.fillRect(bx, by, bw, bh * 0.28);
+  c.fillStyle = '#c0352b';                                    // pita merah penanda bahan peledak
+  c.fillRect(bx, by + bh * 0.55, bw, bh * 0.14);
+  // dua bom menyembul dari tas (+ sumbu)
+  for (const [ox, oy] of [[0.3, -0.03], [0.68, -0.07]]) {
+    const cx = bx + bw * ox, cy = by + oy * bh;
+    c.fillStyle = '#1f2226'; c.beginPath(); c.arc(cx, cy, s * 0.062, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,255,255,0.35)'; c.beginPath(); c.arc(cx - s * 0.02, cy - s * 0.02, s * 0.018, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#d6c08f'; c.lineWidth = s * 0.014;
+    c.beginPath(); c.moveTo(cx + s * 0.01, cy - s * 0.06); c.quadraticCurveTo(cx + s * 0.05, cy - s * 0.12, cx + s * 0.08, cy - s * 0.09); c.stroke();
+    c.fillStyle = '#ff7a3a'; c.beginPath(); c.arc(cx + s * 0.08, cy - s * 0.09, s * 0.014, 0, Math.PI * 2); c.fill();
+  }
+}
+function drawDetonatorOperator(c, x, y, s) {
+  const skin = '#d8b48a';
+  drawSoldier(c, x, y, s, { weapon: 'none', bodyColor: '#7a5238', pantsColor: '#3b3226' });
+  // kotak pemicu merah di depan badan
+  const bw = s * 0.4, bh = s * 0.17, bx = x - bw / 2, by = y + s * 0.3;
+  const rg = c.createLinearGradient(bx, by, bx, by + bh);
+  rg.addColorStop(0, '#e24336'); rg.addColorStop(1, '#8e1d16');
+  c.fillStyle = rg; c.fillRect(bx, by, bw, bh);
+  c.strokeStyle = '#4d0e0a'; c.lineWidth = s * 0.014; c.strokeRect(bx, by, bw, bh);
+  c.fillStyle = 'rgba(255,255,255,0.28)'; c.fillRect(bx + s * 0.01, by + s * 0.01, bw - s * 0.02, s * 0.025);
+  c.fillStyle = '#ffd24a'; c.fillRect(bx + bw * 0.08, by + bh * 0.45, s * 0.04, s * 0.04);    // lampu indikator
+  // tuas (batang) + stir di atasnya, sedang ditekan ke bawah
+  const topY = y + s * 0.19;
+  c.strokeStyle = '#3a3a3a'; c.lineWidth = s * 0.04; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x, by); c.lineTo(x, topY + s * 0.02); c.stroke();
+  c.strokeStyle = '#1f1f1f'; c.lineWidth = s * 0.03;
+  c.beginPath(); c.ellipse(x, topY, s * 0.15, s * 0.05, 0, 0, Math.PI * 2); c.stroke();      // lingkar stir
+  c.lineWidth = s * 0.02;
+  c.beginPath(); c.moveTo(x - s * 0.15, topY); c.lineTo(x + s * 0.15, topY); c.stroke();    // jari-jari stir
+  c.beginPath(); c.moveTo(x, topY - s * 0.05); c.lineTo(x, topY + s * 0.05); c.stroke();
+  c.fillStyle = '#c0c4c9'; c.beginPath(); c.arc(x, topY, s * 0.025, 0, Math.PI * 2); c.fill();
+  // lengan menekan stir ke bawah + tangan
+  c.strokeStyle = skin; c.lineWidth = s * 0.045; c.lineCap = 'round';
+  for (const sg of [-1, 1]) {
+    c.beginPath(); c.moveTo(x + sg * s * 0.09, y - s * 0.04); c.lineTo(x + sg * s * 0.13, y + s * 0.08); c.lineTo(x + sg * s * 0.14, topY - s * 0.01); c.stroke();
+    c.fillStyle = skin; c.beginPath(); c.arc(x + sg * s * 0.14, topY - s * 0.01, s * 0.032, 0, Math.PI * 2); c.fill();
+  }
+  // panah kecil: stir ditekan ke bawah
+  c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineWidth = s * 0.014;
+  c.beginPath(); c.moveTo(x + s * 0.26, topY - s * 0.1); c.lineTo(x + s * 0.26, topY + s * 0.02);
+  c.moveTo(x + s * 0.23, topY - s * 0.02); c.lineTo(x + s * 0.26, topY + s * 0.025); c.lineTo(x + s * 0.29, topY - s * 0.02); c.stroke();
+}
+function drawTrapperUnit(c, x, y, s) {
+  const lx = x - s * 0.3, rx = x + s * 0.3, ly = y + s * 0.05, ry = y + s * 0.05, s1 = s * 0.95;
+  drawBombBagCarrier(c, lx, ly, s1);
+  // kabel dari kotak pemicu ke tas bom
+  c.strokeStyle = '#1c1c1c'; c.lineWidth = s * 0.022; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(rx - s1 * 0.2, ry + s1 * 0.4); c.quadraticCurveTo(x, y + s * 0.66, lx - s1 * 0.2, ly + s1 * 0.2); c.stroke();
+  c.strokeStyle = '#c0352b'; c.lineWidth = s * 0.008;
+  c.beginPath(); c.moveTo(rx - s1 * 0.2, ry + s1 * 0.4); c.quadraticCurveTo(x, y + s * 0.66, lx - s1 * 0.2, ly + s1 * 0.2); c.stroke();
+  drawDetonatorOperator(c, rx, ry, s1);
+}
+
+// ---------- v9.7: varian Advanced = sprite dasar + garis emas + selubung cahaya emas ----------
+// Dirender sekali ke canvas offscreen (cache) lalu digambar ulang, jadi murah di tiap frame.
+const ADV_S0 = 96, ADV_CACHE = {};
+function advancedSprite(key, baseFn) {
+  if (ADV_CACHE[key]) return ADV_CACHE[key];
+  const W = Math.round(ADV_S0 * 2.4), H = Math.round(ADV_S0 * 1.9);
+  const ox = W / 2, oy = Math.round(ADV_S0 * 1.02);
+  const mk = () => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; return cv; };
+  const base = mk(); baseFn(base.getContext('2d'), ox, oy, ADV_S0);
+  const sil = mk(); { const sc = sil.getContext('2d'); sc.drawImage(base, 0, 0); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#ffd24a'; sc.fillRect(0, 0, W, H); }
+  const out = mk(), c = out.getContext('2d');
+  // halo cahaya emas lembut di belakang unit
+  const hg = c.createRadialGradient(ox, oy - ADV_S0 * 0.05, ADV_S0 * 0.1, ox, oy - ADV_S0 * 0.05, ADV_S0 * 0.95);
+  hg.addColorStop(0, 'rgba(255,225,120,0.38)'); hg.addColorStop(0.6, 'rgba(255,200,70,0.16)'); hg.addColorStop(1, 'rgba(255,190,60,0)');
+  c.fillStyle = hg; c.fillRect(0, 0, W, H);
+  // pendar emas mengikuti siluet
+  c.save(); c.shadowColor = 'rgba(255,205,70,0.95)'; c.shadowBlur = ADV_S0 * 0.14; c.drawImage(sil, 0, 0); c.restore();
+  // garis tepi emas
+  const R = ADV_S0 * 0.026;
+  for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; c.drawImage(sil, Math.cos(a) * R, Math.sin(a) * R); }
+  // sprite dasar di atas
+  c.drawImage(base, 0, 0);
+  // lapisan kilau emas tipis di atas sprite (hanya pada area unit)
+  const sh = mk(); { const sc = sh.getContext('2d'); sc.drawImage(base, 0, 0); sc.globalCompositeOperation = 'source-atop';
+    const g = sc.createLinearGradient(0, oy - ADV_S0 * 0.6, W, oy + ADV_S0 * 0.6);
+    g.addColorStop(0, 'rgba(255,230,140,0.38)'); g.addColorStop(0.5, 'rgba(255,200,70,0.10)'); g.addColorStop(1, 'rgba(255,225,130,0.34)');
+    sc.fillStyle = g; sc.fillRect(0, 0, W, H); }
+  c.drawImage(sh, 0, 0);
+  // kilatan bintang kecil
+  c.fillStyle = 'rgba(255,248,210,0.95)';
+  for (const [dx, dy, r] of [[-0.62, -0.5, 0.05], [0.58, -0.38, 0.04], [0.05, -0.68, 0.045]]) {
+    const px = ox + dx * ADV_S0, py = oy + dy * ADV_S0, rr = r * ADV_S0;
+    c.beginPath(); c.moveTo(px, py - rr * 1.8); c.lineTo(px + rr * 0.4, py - rr * 0.4); c.lineTo(px + rr * 1.8, py); c.lineTo(px + rr * 0.4, py + rr * 0.4);
+    c.lineTo(px, py + rr * 1.8); c.lineTo(px - rr * 0.4, py + rr * 0.4); c.lineTo(px - rr * 1.8, py); c.lineTo(px - rr * 0.4, py - rr * 0.4); c.closePath(); c.fill();
+  }
+  out.ox = ox; out.oy = oy;
+  ADV_CACHE[key] = out;
+  return out;
+}
+function drawAdvanced(c, x, y, s, key, baseFn) {
+  const cv = advancedSprite(key, baseFn), k = s / ADV_S0;
+  c.save(); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.drawImage(cv, x - cv.ox * k, y - cv.oy * k, cv.width * k, cv.height * k);
+  c.restore();
+}
+
 const UNIT_RENDERERS = {
   infantry(c, x, y, s) {
     drawSoldier(c, x - s * 0.28, y + s * 0.12, s * 0.8, { weapon: 'rifle', bodyColor: '#7a9c52', pantsColor: '#5e7a40' });
@@ -267,6 +385,12 @@ const UNIT_RENDERERS = {
   apc(c, x, y, s) {
     drawAPCUnit(c, x, y, s * 0.95);
   },
+  // ---- v9.7 ----
+  trapper(c, x, y, s) { drawTrapperUnit(c, x, y, s); },
+  advinfantry(c, x, y, s) { drawAdvanced(c, x, y, s, 'advinfantry', UNIT_RENDERERS.infantry); },
+  advassault(c, x, y, s) { drawAdvanced(c, x, y, s, 'advassault', UNIT_RENDERERS.assault); },
+  advsniper(c, x, y, s) { drawAdvanced(c, x, y, s, 'advsniper', UNIT_RENDERERS.sniper); },
+  advtrapper(c, x, y, s) { drawAdvanced(c, x, y, s, 'advtrapper', UNIT_RENDERERS.trapper); },
 };
 
 // ---------- Tanda (!) : Corps/APC ber-job isi fuel/medical yang sedang menganggur ----------
@@ -304,7 +428,7 @@ function drawUnitSprite(u, x, y) {
   }
   const renderFn = UNIT_RENDERERS[u.type];
   if (renderFn) renderFn(ctx, x, y, unitScale);
-  drawHpBar(x, y - unitScale * 0.5, u.hp, maxHpOf(u, def), u.owner === HUMAN);
+  drawHpBar(x, y - unitScale * 0.5, u.hp, def.hp, u.owner === HUMAN);
   if (Settings.get('showIcons') && typeof activeAbilityIcons === 'function') {   // v9.6: ikon efek aktif di atas bar HP
     const barH = Settings.get('showHp') ? Math.max(HEX_SIZE * 0.16, 3 / scale) + 3 / scale : 1 / scale;
     drawStatusIcons(activeAbilityIcons(u), x, y - unitScale * 0.5 - barH);

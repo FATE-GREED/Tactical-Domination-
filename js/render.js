@@ -25,6 +25,11 @@ function initCanvas() {
 }
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; draw(); }
 
+// v9.7: label singkat unit pada ikon entitas. Advanced = huruf pertama nama dasar + '+'
+function unitTileLabel(type) {
+  if (type.startsWith('adv') && UNITS[type]) return UNITS[type].name.split(' ').pop()[0].toUpperCase() + '+';
+  return type.slice(0, 2).toUpperCase();
+}
 function drawIconCircle(x, y, r, color, label) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -115,6 +120,7 @@ function draw() {
   }
 
   drawEntityLayers(); // bangunan + unit (building-art.js), di atas semua tile
+  drawBombs();        // v9.7: bom milik pemain (bombs.js); tidak pernah menggambar bom musuh
   drawLanes();
   drawLockLines();
   drawFootprints();     // footprint.js: pratinjau + proyek bangunan berjalan
@@ -138,6 +144,7 @@ function draw() {
   // ---------- Ikon interaksi (screen-space, ukuran tetap walau zoom) ----------
   iconHitboxes.info = null;
   iconHitboxes.entity = null;
+  iconHitboxes.bomb = null;
   if (pendingTile) {
     const { x, y } = hexCenter(pendingTile.r, pendingTile.c);
     const screenX = x * scale + camX, screenY = y * scale + camY;
@@ -156,10 +163,16 @@ function draw() {
 
     if (occupant) {
       const isUnit = units.includes(occupant);
-      const label = isUnit ? (occupant.type === 'corps' ? 'C' : occupant.type.slice(0, 2).toUpperCase()) : BUILDING_TYPES[occupant.type].label;
+      const label = isUnit ? (occupant.type === 'corps' ? 'C' : unitTileLabel(occupant.type)) : BUILDING_TYPES[occupant.type].label;
       const entX = screenX + 16, entY = screenY - 28;
       drawIconCircle(entX, entY, iconR, isUnit ? '#d7b56d' : '#9b7a3f', label);
       iconHitboxes.entity = { x: entX, y: entY, r: iconR };
+    }
+    // v9.7: ikon bom (hanya bila ada bom milik pemain di tile ini)
+    if (!enemyView && bombsAtTile(pendingTile.r, pendingTile.c, HUMAN).length) {
+      const bmX = screenX, bmY = screenY + 30;
+      drawIconCircle(bmX, bmY, iconR, '#c0392b', '💣');
+      iconHitboxes.bomb = { x: bmX, y: bmY, r: iconR };
     }
   }
 }
@@ -196,12 +209,10 @@ function togglePanel(id) {
 
 function resourceHtml(p) {
   const i = players.indexOf(p), r = p.resources;
-  let h = CAMPAIGN   // v9.7: Campaign hanya menampilkan Kredit dan slot Barak (tanpa Fuel/Medical/Corps)
-    ? `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <small class="rs-s">B${totalBarakSlots(p)}/${2 * p.buildings.filter(b => b.type === 'barak').length}</small>`
-    : `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
+  let h = `<b style="color:${p.color}">${p.name}</b> <span>💰${r.kredit}</span> <span>⛽${r.fuel}</span> <span>✚${r.medical}</span>` +
     ` <small class="rs-s">C${p.corps.count}/10${p.corps.timer ? '+' + p.corps.timer : ''} · B${totalBarakSlots(p)}/${2 * p.buildings.filter(b => b.type === 'barak').length}</small>`;
   {                                                    // v9.4: bar HP seluruh Markas — untuk semua pemain, lengkap dengan angka sisa/total
-    const alive = p.buildings.filter(b => b.type === 'markas'), maxHp = (alive[0] && alive[0].maxHp) || BUILDING_TYPES.markas.hp;
+    const maxHp = BUILDING_TYPES.markas.hp, alive = p.buildings.filter(b => b.type === 'markas');
     const lost = (Stats.data[i] && Stats.data[i].bldLost.markas) || 0;
     const total = (alive.length + lost) * maxHp, cur = Math.max(0, Math.round(alive.reduce((a, b) => a + b.hp, 0)));
     h += `<div class="mk-hp" title="HP seluruh Markas">Markas ${cur}/${total}</div>` +
@@ -251,7 +262,6 @@ function renderLog() { if (typeof renderActFeed === 'function') renderActFeed();
 
 // ---------- Win Condition ----------
 function showGameOver() {
-  if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
   Sfx.end(winner === HUMAN);
   document.getElementById('winnerText').textContent = `${players[winner].name} Menang!`;
   document.getElementById('gameover').style.display = 'flex';
@@ -286,6 +296,20 @@ function updateActionPanel() {
 }
 
 // Panel rincian unit/bangunan (dari ikon entitas) + tombol aksi
+// v9.7: panel bom (ketuk ikon 💣 pada tile berisi bom milik pemain) — tombol Ledakkan pada fase rencana
+function openBombPanel(r, c) {
+  const el = document.getElementById('entitypanel');
+  const list = bombsAtTile(r, c, HUMAN);
+  if (!list.length) { el.style.display = 'none'; return; }
+  let html = `<span class="close" id="entityclose">✕</span><h3 style="color:${players[HUMAN].color}">Bom (${r},${c})</h3>`;
+  for (const b of list) html += `#${b.id} ${UNITS[b.trapperType].name} • radius ${bombRadius(b)}${b.special ? ' • KHUSUS (+30% damage)' : ''} • ${b.active ? 'aktif' : 'belum aktif'}<br>`;
+  html += '<div class="entityactions">' + list.map(b => `<button id="bombBtn${b.id}">💥 Ledakkan #${b.id}</button>`).join('') + '</div>';
+  el.innerHTML = html;
+  el.style.display = 'block';
+  document.getElementById('entityclose').addEventListener('click', () => { el.style.display = 'none'; });
+  for (const b of list) document.getElementById('bombBtn' + b.id).addEventListener('click', () => { manualDetonate(b.id); openBombPanel(r, c); });
+}
+
 function openEntityPanel(r, c) {
   const target = describeTarget(r, c);
   const el = document.getElementById('entitypanel');
@@ -299,11 +323,25 @@ function openEntityPanel(r, c) {
     const u = target.obj;
     const name = u.type === 'corps' ? 'Corps' : target.def.name;
     html += `<h3 style="color:${owner.color}">${name} — ${owner.name}</h3>`;
-    html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(target.def.spd, u.owner)}<br>`;
-    if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
+    html += `HP: ${u.hp}/${target.def.hp} &nbsp; MP: ${u.mp}/${target.def.spd}<br>`;
+    if (target.def.combat) html += `ATK: ${target.def.atk} &nbsp; DEF: ${target.def.def} &nbsp; Range: ${target.def.range}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${target.def.fuelMax}<br>`;
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;
     if (u.intimidatedTurns > 0) html += `<span style="color:#e08a4a">Terkena Intimidasi (${u.intimidatedTurns} giliran lagi)</span><br>`;
+    if (u.toxinTurns > 0) html += `<span style="color:#e08a4a">Racun: −${u.toxinDmg} HP/giliran, SPD −50% (${u.toxinTurns} giliran lagi)</span><br>`;
+    if (isMine) {   // v9.7: keadaan kemampuan unit Advanced (hanya terlihat pemilik)
+      if (u.type === 'advinfantry') {
+        if ((u.legacyStacks || 0) > 0) html += `<span style="color:#7fb3ff">Penerus Tekad: ${u.legacyStacks}/10 (DEF +${2 * u.legacyStacks}%)</span><br>`;
+        if (u.sacrificeState === 1) html += `<span style="color:#ff8a7a">Pengorbanan Terakhir: giliran depan SPD & ATK ×2, lalu gugur</span><br>`;
+        if (u.sacrificeState === 2) html += `<span style="color:#ff8a7a">Pengorbanan Terakhir AKTIF: SPD & ATK ×2, gugur di awal giliran depan</span><br>`;
+      }
+      if (u.type === 'advassault') {
+        html += `Lompatan Seketika: giliran ke-${u.jumpCycle || 0}/3${u.jumpCycle === 3 ? ' (melompat!)' : ''}<br>`;
+        if (u.camo) html += `<span style="color:#c9a6ff">Kamuflase aktif (tak terlihat musuh)</span><br>`;
+      }
+      if (u.type === 'advsniper') html += `JPD efektif: ${effectiveJPD(u)} (Mata Elang +${2 * (u.eagerTurns || 0)}) &nbsp; Rng efektif: ${effectiveRange(u)} (Titik Fokus +${u.focusTurns || 0})<br>`;
+      if (isTrapperType(u.type)) html += `Bom hidup: ${bombsOf(u).length}/${BOMB_MAX_PER_TRAPPER}<br>`;
+    }
 
     if (u.type === 'corps' && u.isBuilding) {
       html += `<br><i style="color:#d7b56d">Sedang membangun ${BUILDING_TYPES[u.buildType].name}: ${u.buildTurnsRemaining} giliran lagi</i>`;
@@ -313,6 +351,9 @@ function openEntityPanel(r, c) {
     }
 
     if (isMine) html += `<br><span style="color:#d7b56d">Tujuan: ${targetLabel(u)}</span><br>`;
+    if (isMine && canAct() && isTrapperType(u.type)) {
+      for (const bm of bombsOf(u)) buttons.push({ id: 'bombBtn' + bm.id, label: `💥 Ledakkan bom (${bm.r},${bm.c})${bm.special ? ' ★' : ''}` });
+    }
     if (isMine && canAct() && !(u.type === 'corps' && u.isBuilding)) {
       buttons.push({ id: 'targetBtn', label: 'Atur Target' });
       buttons.push({ id: 'lockBtn', label: u.locked ? '🔓 Buka Kunci' : '🔒 Kunci Gerak' });
@@ -351,11 +392,13 @@ function openEntityPanel(r, c) {
     }
   } else {
     const b = target.obj;
-    const maxHp = target.def.hp === Infinity ? '∞' : maxHpOf(b, target.def);
-    const defStat = target.def.def === Infinity ? '∞' : Math.round(target.def.def * statMul(buildingOwnerIdx(b)));
+    const maxHp = target.def.hp === Infinity ? '∞' : target.def.hp;
+    const defStat = target.def.def === Infinity ? '∞' : target.def.def;
     html += `<h3 style="color:${owner.color}">${target.def.name} — ${owner.name}</h3>`;
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
     if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
+    if (b.bombDefTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Pembuat Onar, ${b.bombDefTurns} giliran lagi)</span><br>`;
+    if (b.toxinTurns > 0) html += `<span style="color:#e08a4a">DEF -20% & racun −${b.toxinDmg} HP/giliran (Bom Beracun, ${b.toxinTurns} giliran lagi)</span><br>`;
     if (isMine && canAct() && b.type === 'barak') buttons.push({ id: 'deployBtn', label: 'Deploy Unit' });
   }
 
@@ -368,6 +411,8 @@ function openEntityPanel(r, c) {
   document.getElementById('entityclose').addEventListener('click', () => { el.style.display = 'none'; });
 
   const bind = (id, fn) => { const btn = document.getElementById(id); if (btn) btn.addEventListener('click', fn); };
+  if (target.kind === 'unit' && isTrapperType(target.obj.type))
+    for (const bm of bombsOf(target.obj)) bind('bombBtn' + bm.id, () => { manualDetonate(bm.id); openEntityPanel(r, c); });
   bind('targetBtn', () => { el.style.display = 'none'; startTargetMode(target.obj); });
   const refresh = () => { renderTargetPanel(); draw(); openEntityPanel(r, c); };
   bind('jobIdleBtn', () => { setJob(target.obj, 'idle'); refresh(); });
@@ -408,7 +453,7 @@ function openDeployModal(player) {
   const baraks = player.buildings.filter(b => b.type === 'barak');
   const slots = totalBarakSlots(player);
   let html = '<span class="close" id="deployclose">✕</span><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3>';
-  html += deployableUnits().map(([key, def]) => {
+  html += Object.entries(UNITS).map(([key, def]) => {
     const disabled = (slots <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
     return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
   }).join('');
@@ -423,7 +468,7 @@ function openDeployPanel(barak, player) {
   const el = document.getElementById('deploy');
   el.style.display = 'block';
   let html = '<span class="close" id="deployclose">✕</span><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3>';
-  html += deployableUnits().map(([key, def]) => {
+  html += Object.entries(UNITS).map(([key, def]) => {
     const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price) ? 'disabled' : '';
     return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>Deploy</button></div>`;
   }).join('');

@@ -6,8 +6,7 @@
 
 // ---------- Konfigurasi Peta ----------
 const HUMAN = 0, BOT = 1; // mode lawan bot: Pemain 1 = manusia (kiri), Pemain 2 = bot (kanan)
-let ROWS = 30, COLS = 45;   // v9.7: let (bukan const) karena pertempuran Campaign memakai peta 15x25
-const HEX_SIZE = 18;
+const ROWS = 30, COLS = 45, HALF_COLS = COLS / 2, HEX_SIZE = 18;
 const PLAN_SECONDS = Infinity; // v8.5: fase rencana tanpa batas waktu (berakhir saat tombol Eksekusi ditekan)
 
 // ---------- Terrain (Bagian 2 dokumen desain) ----------
@@ -34,11 +33,19 @@ const UNITS = {
   assault    : { name: 'Assault',         price: 30, spd: 11, range: 4,  atk: 48, def: 20,  hp: 150, jpd: 2, vehicle: false, tank: false, combat: true,  hasFuel: false },
   sniper     : { name: 'Sniper',          price: 30, spd: 7,  range: 9,  atk: 48, def: 10,  hp: 80,  jpd: 4, vehicle: false, tank: false, combat: true,  hasFuel: false },
   antitank   : { name: 'Anti-Tank',       price: 40, spd: 8,  range: 7,  atk: 48, def: 25,  hp: 150, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  trapper    : { name: 'Trapper',         price: 40, spd: 9,  range: 2,  atk: 48, def: 20,  hp: 150, jpd: 5, vehicle: false, tank: false, combat: true,  hasFuel: false },   // v9.7: pemasang bom tersembunyi
   tanklapis  : { name: 'Tank Lapis Baja', price: 70, spd: 9,  range: 6,  atk: 63, def: 45, hp: 300, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 5 },
   tankcrusher: { name: 'Tank Crusher',    price: 70, spd: 9,  range: 7,  atk: 84, def: 35,  hp: 250, jpd: 3, vehicle: true,  tank: true,  combat: true,  hasFuel: true, fuelMax: 40, fuelUse: 4 },
   montir     : { name: 'Montir',          price: 50, spd: 6,  range: 16, atk: 45, def: 25,  hp: 100, jpd: 5, vehicle: true,  tank: false, combat: true,  hasFuel: true, fuelMax: 20, fuelUse: 2 },
   apc        : { name: 'APC',             price: 20, spd: 13, range: 0,  atk: 0,  def: 25,  hp: 200, jpd: 5, vehicle: true,  tank: false, combat: false, hasFuel: true, fuelMax: 40, fuelUse: 2 },
+  // v9.7: unit Advanced (unit tersendiri, bukan upgrade). Tidak mewarisi kemampuan unit dasarnya.
+  advinfantry: { name: 'Advanced Infantry', price: 20, spd: 8,  range: 6,  atk: 33, def: 20,  hp: 100, jpd: 3, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  advassault : { name: 'Advanced Assault',  price: 35, spd: 11, range: 4,  atk: 48, def: 25,  hp: 150, jpd: 2, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  advsniper  : { name: 'Advanced Sniper',   price: 35, spd: 7,  range: 9,  atk: 48, def: 15,  hp: 80,  jpd: 4, vehicle: false, tank: false, combat: true,  hasFuel: false },
+  advtrapper : { name: 'Advanced Trapper',  price: 45, spd: 9,  range: 2,  atk: 48, def: 25,  hp: 150, jpd: 5, vehicle: false, tank: false, combat: true,  hasFuel: false },
 };
+const TRAPPER_TYPES = ['trapper', 'advtrapper'];   // unit pemasang bom (aturan di bombs.js)
+const isTrapperType = t => TRAPPER_TYPES.includes(t);
 const CORPS_DEF = { name: 'Corps', spd: 10, range: 0, atk: 0, def: 15, hp: 100, jpd: 5, vehicle: false, tank: false, combat: false, hasFuel: false };
 
 // ---------- Bangunan (Bagian 3) ----------
@@ -83,6 +90,10 @@ const UNIT_ABILITIES = {
     ['Semangat Besi', 'MP +2 (sekali per giliran) bila ada kendaraan (sekutu maupun musuh) dalam jarak 2 tile.'],
     ['Ayo Ledakkan', 'Serangan ke kendaraan memberi damage 2x (serangan tambahan).'],
   ],
+  trapper: [
+    ['Keberuntungan', 'Tiap bom yang dipasang berpeluang 20% menjadi bom khusus: radius pemicu & ledakan +1 tile (2 tile) dan damage +30%.'],
+    ['Pembuat Onar', 'Unit yang terkena ledakan bom: MP menjadi 0 seketika. Bangunan yang terkena: DEF −30% selama 3 giliran.'],
+  ],
   tanklapis: [
     ['Sang Pelindung', 'Sekutu dalam jangkauan 2 tile dari tank ini mendapat DEF +20% (tidak berlaku untuk dirinya sendiri).'],
     ['Pejuang Bertahan', 'DEF +50% saat HP di bawah 50%.'],
@@ -103,6 +114,22 @@ const UNIT_ABILITIES = {
     ['Jangan Menganggur', 'SPD +2 saat tidak membawa muatan.'],
     ['Kerja Sampai Tuntas', 'DEF +20% saat sedang membangun.'],
   ],
+  advinfantry: [
+    ['Pengorbanan Terakhir', 'Sekali per unit: saat HP < 30%, SPD dan ATK ×2 pada giliran bertindak berikutnya, lalu unit gugur otomatis di awal giliran sesudahnya.'],
+    ['Penerus Tekad', 'Tiap 1 unit sekutu gugur: DEF +2% (tumpuk maks 10 = +20%), permanen sepanjang pertandingan.'],
+  ],
+  advassault: [
+    ['Lompatan Seketika', 'Siklus 3 giliran: giliran 1 & 2 SPD −3; giliran 3 SPD +6 dan melompat mengabaikan semua rintangan ke tile kosong terdekat dari target.'],
+    ['Teknik Kamuflase', 'Diam 1 giliran penuh: tak terlihat musuh. Hilang bila ada musuh dalam JPD musuh + 3 tile atau saat bergerak. Menyerang tidak menghilangkannya.'],
+  ],
+  advsniper: [
+    ['Mata Elang', 'Tiap giliran tidak berpindah: JPD +2 (maks Rng saat ini + 5). Reset saat berpindah.'],
+    ['Titik Fokus', 'Tiap giliran tidak berpindah dan tidak menyerang: Rng +1 (maks +5). Reset setelah menyerang atau berpindah.'],
+  ],
+  advtrapper: [
+    ['Hadiah Kejutan', 'Bom aktif milik Advanced Trapper bergerak 1 tile per giliran menuju unit musuh terdekat (termasuk yang tak terlihat), melewati apa pun kecuali Valley.'],
+    ['Bom Beracun', 'Bom yang meledak: unit SPD −50%, bangunan DEF −20%, plus racun 10% ATK Trapper per giliran korban selama 3 giliran.'],
+  ],
 };
 
 // ---------- State yang berubah selama permainan ----------
@@ -110,6 +137,8 @@ let mapData = null;          // array[ROWS][COLS] berisi kunci TERRAIN
 let players = [];            // diisi oleh setup.js
 let units = [];              // {id, owner(0/1), type, r, c, mp, fuel, hp}
 let uidCounter = 1;
+let bombs = [];              // v9.7: bom Trapper {id, owner, r, c, special, active, atk, trapperId, trapperType} — bukan entitas (lihat bombs.js)
+let bombSeq = 1;
 
 let currentPlayerIdx = 0;
 let turnNumber = 1;
@@ -123,15 +152,6 @@ let occupyHex = null;        // {r,c} hex untuk mode "tempati"
 let markasSites = [];        // lokasi Markas yang sedang dipesan/dibangun {id, owner, r, c, tiles(7), corpsIds, started, turnsRemaining}
 let siteSeq = 1;
 let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
-
-// ---------- v9.7: mode Campaign ----------
-// null = permainan klasik. Saat pertempuran Campaign aktif, campaign.js mengisinya dengan aturan chapter
-// ({ botMul, units, markasIncome, barakIncome, ... }). Semua modul aturan cukup mengecek `CAMPAIGN`.
-let CAMPAIGN = null;
-const statMul = owner => (CAMPAIGN && owner === BOT ? CAMPAIGN.botMul : 1);           // stat bot = botMul x stat pemain
-const scaleStat = (v, owner) => { const m = statMul(owner); return m === 1 ? v : Math.max(v > 0 ? 1 : 0, Math.round(v * m)); };
-const maxHpOf = (obj, def) => obj.maxHp || def.hp;                                    // HP maksimum nyata (bot Campaign < 100%)
-const deployableUnits = () => Object.entries(UNITS).filter(([k]) => !CAMPAIGN || CAMPAIGN.units.includes(k));
 
 let gameOver = false;
 let winner = null;           // index pemain yang menang

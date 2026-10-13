@@ -184,7 +184,9 @@ function doDeploy(key, barak, player) {
   player.resources.kredit -= def.price;
   Stats.use(player, 'kredit', def.price);
   barak.slots = barakSlots(barak) - 1;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: scaleStat(def.hp, player.id - 1), maxHp: scaleStat(def.hp, player.id - 1), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false });
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false,
+    // v9.7 unit Advanced
+    legacyStacks: 0, sacrificeUsed: false, sacrificeState: 0, jumpCycle: 0, camo: false, eagerTurns: 0, focusTurns: 0, toxinTurns: 0, toxinDmg: 0 });
   return true;
 }
 
@@ -270,9 +272,13 @@ async function moveAlongPath(u, path) {
     if (free) u.roadFreeUsesLeft--;
     u.r = r; u.c = c;
     moved = true;
+    u.camo = false;                             // v9.7: bergerak menghilangkan Teknik Kamuflase
     startMoveAnim(u, fr, fc, 170);
     Sfx.move(u);
     await sleep(180);
+    refreshCamo();
+    await checkBombTriggers(u);                 // v9.7: bom musuh dicek tiap langkah (bombs.js)
+    if (!units.includes(u) || gameOver) break;  // gugur oleh bom
     if (lockOnStep(u)) break;                   // menginjak Baris Kunci -> langsung terkunci (lockrows.js)
     if (laneJoin(u)) break;                     // baru menginjak jalur -> langsung ikut jalur
   }
@@ -285,7 +291,7 @@ async function moveToward(u, goalFn, near) {
   if (u.locked || u.mp <= 0) return false;      // kunci: unit tidak ikut bergerak
   const extra = new Set();
   let movedAny = false;
-  for (let attempt = 0; attempt < 8 && u.mp > 0; attempt++) {
+  for (let attempt = 0; attempt < 8 && u.mp > 0 && units.includes(u); attempt++) {
     const path = findPath(u, goalFn, extra, near);
     if (!path || path.length === 0) break;
     const res = await moveAlongPath(u, path);
@@ -343,7 +349,8 @@ function goalForTarget(u, tgt, reach) {
     return (r, c) => tileFree(u, r, c) && (occupied ? hexDistance(r, c, tgt.r, tgt.c) <= 1 : (r === tgt.r && c === tgt.c));
   }
   const def = defOf(u);
-  return (r, c) => tileFree(u, r, c) && hexDistance(r, c, tgt.r, tgt.c) <= (reach === 'range' ? rangeAtTile(def, r, c) : reach);
+  // v9.7: di tile sekarang pakai Rng efektif (termasuk Titik Fokus) agar Advanced Sniper yang diam tidak ikut maju
+  return (r, c) => tileFree(u, r, c) && hexDistance(r, c, tgt.r, tgt.c) <= (reach === 'range' ? ((r === u.r && c === u.c) ? effectiveRange(u) : rangeAtTile(def, r, c)) : reach);
 }
 
 function clearReachedHex(u) {
@@ -365,7 +372,7 @@ function laneOpts(u) {
 }
 function laneJoin(u) {
   if (!defOf(u).combat) return false;           // v9.5: unit non-tempur (Corps/APC) tidak terpengaruh Jalur
-  if (u.owner !== HUMAN || u.locked || u.lane || !lanes.length) return false;
+  if (u.owner !== HUMAN || u.locked || u.lane || u.noLane || !lanes.length) return false;
   const o = laneOpts(u).filter(x => x.i < x.L.tiles.length - 1);
   if (!o.length) return false;
   const p = o[Math.floor(Math.random() * o.length)];
@@ -395,16 +402,77 @@ async function execLane(u) {
   return !!u.lane;
 }
 
+// v9.7 Lompatan Seketika (Advanced Assault, giliran ke-3 siklus): langsung tiba di tile pendaratan valid
+// terdekat ke target dalam jarak hex <= MP, tanpa memedulikan rintangan di antaranya (tiap tile = 1 MP).
+async function execJump(u, tgt) {
+  if (u.locked || u.mp <= 0) return false;
+  if (goalForTarget(u, tgt, 'range')(u.r, u.c)) return false;     // sudah dalam jangkauan: tak perlu melompat
+  const here = hexDistance(u.r, u.c, tgt.r, tgt.c);
+  let best = null, bestT = Infinity, bestJ = Infinity;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const d = hexDistance(u.r, u.c, r, c);
+    if (d === 0 || d > u.mp) continue;
+    if (mapData[r][c] === 'valley' || isTileBlocked(r, c, u)) continue;   // wajib kosong, bukan Valley, bukan bangunan/cadangan
+    const dt = hexDistance(r, c, tgt.r, tgt.c);
+    if (dt < bestT || (dt === bestT && d < bestJ)) { best = [r, c]; bestT = dt; bestJ = d; }
+  }
+  if (!best || bestT >= here) return false;
+  const fr = u.r, fc = u.c;
+  u.mp -= hexDistance(fr, fc, best[0], best[1]);
+  u.r = best[0]; u.c = best[1];
+  u.camo = false;
+  startMoveAnim(u, fr, fc, 420);
+  Sfx.move(u);
+  await sleep(440);
+  refreshCamo();
+  await checkBombTriggers(u);
+  if (units.includes(u)) { lockOnStep(u); }
+  draw();
+  return true;
+}
+
 async function execCombat(u) {
   applySemangatBesi(u);
   const busy = await execLane(u);
   const tgt = resolveTarget(u);
-  if (!busy && tgt && u.mp > 0) { await moveToward(u, goalForTarget(u, tgt, 'range'), tgt); if (u.lane) await execLane(u); }
+  if (!busy && tgt && u.mp > 0 && u.type === 'advassault' && u.jumpCycle === 3 && !u.locked) await execJump(u, tgt);
+  if (!busy && tgt && u.mp > 0 && units.includes(u)) { await moveToward(u, goalForTarget(u, tgt, 'range'), tgt); if (u.lane) await execLane(u); }
   clearReachedHex(u);
   await autoAttack(u);
 }
 
 // Markas: 2 Corps berdiri di tile samping Markas; hitungan giliran baru mulai saat keduanya sudah tiba.
+// ---------------------------------------------------------------
+// v9.7 Trapper / Advanced Trapper (aturan bom di bombs.js)
+// ---------------------------------------------------------------
+async function execTrapper(u) {
+  const mine = bombsOf(u).length;
+  let spot = null;
+  const manual = !!u.target;
+  if (manual) spot = manualBombSpot(u);                      // target hex / bangunan / unit (sistem target yang ada)
+  else if (mine >= 3) {                                      // 3 bom terpasang: mundur & diam dekat Markas sendiri
+    const mk = nearestOwnMarkas(u);
+    if (mk && distToBuilding(u.r, u.c, mk) > 4 && u.mp > 0) {
+      u.noLane = true;
+      try { await moveToward(u, (r, c) => tileFree(u, r, c) && distToBuilding(r, c, mk) <= 4, { r: mk.r, c: mk.c }); }
+      finally { u.noLane = false; }
+    }
+    await autoAttack(u);
+    return;
+  } else spot = defaultBombSpot(u);                          // jalur musuh terlihat terdekat -> Markas sendiri, ~10 tile dari musuh
+
+  if (!spot) { await execCombat(u); return; }                // tak ada musuh terlihat / target tak valid: perilaku tempur default
+
+  const goal = (r, c) => tileFree(u, r, c) && hexDistance(r, c, spot.r, spot.c) <= rangeAtTile(UNITS[u.type], r, c);
+  if (!goal(u.r, u.c) && u.mp > 0) {
+    u.noLane = true;
+    try { await moveToward(u, goal, { r: spot.r, c: spot.c }); }
+    finally { u.noLane = false; }
+  }
+  if (units.includes(u) && !u.attacked && hexDistance(u.r, u.c, spot.r, spot.c) <= effectiveRange(u)) { await placeBomb(u, spot); return; }
+  await autoAttack(u);
+}
+
 async function execMarkasOrder(u) {
   const o = u.buildOrder;
   const site = markasSites.find(s => s.id === o.site);
@@ -591,6 +659,21 @@ function beginPlanning() {
   // eksekusi berjalan saat pemain menekan tombol Eksekusi.
 }
 
+// v9.7: pembaruan penghitung di akhir eksekusi giliran pemilik (sr/sc = posisi awal)
+function afterUnitTurn(u, sr, sc) {
+  if (!units.includes(u)) return;
+  const moved = u.r !== sr || u.c !== sc;
+  if (u.type === 'advsniper') {
+    if (moved) { u.eagerTurns = 0; u.focusTurns = 0; }                                  // reset saat berpindah
+    else {
+      u.eagerTurns = (u.eagerTurns || 0) + 1;                                           // Mata Elang
+      u.focusTurns = u.attacked ? 0 : Math.min(5, (u.focusTurns || 0) + 1);             // Titik Fokus (reset bila menyerang)
+    }
+  } else if (u.type === 'advassault') {
+    if (moved) u.camo = false;                                                          // Teknik Kamuflase: diam 1 giliran penuh
+    else { u.camo = true; refreshCamo(); }
+  }
+}
 async function runExecution() {
   if (phase !== 'plan' || gameOver) return;
   phase = 'exec';
@@ -607,13 +690,16 @@ async function runExecution() {
   if (laneMode) toggleLaneMode();
   if (lockMode) toggleLockMode();
   if (pIdx === HUMAN) units.forEach(lockOnStep);   // unit yang sudah berdiri di tile Baris Kunci ikut terkunci
+  try { await moveBombs(pIdx); } catch (err) { console.warn('Gerak bom gagal:', err); }   // Hadiah Kejutan, sebelum unit pemilik bergerak
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;
     if (!units.includes(u) || u.isBuilding) continue;
+    const sr = u.r, sc = u.c;
     try {
-      await (defOf(u).combat ? execCombat(u) : execNonCombat(u));
+      await (isTrapperType(u.type) ? execTrapper(u) : defOf(u).combat ? execCombat(u) : execNonCombat(u));
     } catch (err) { console.warn('Eksekusi unit gagal:', err); }
+    afterUnitTurn(u, sr, sc);
     renderTargetPanel();
   }
   if (gameOver) { showGameOver(); return; }
@@ -621,5 +707,6 @@ async function runExecution() {
   currentPlayerIdx = 1 - pIdx;
   if (currentPlayerIdx === 0) turnNumber++;
   startTurn(currentPlayerIdx);
+  if (gameOver) { showGameOver(); return; }     // v9.7: racun/bakar bisa menghancurkan Markas di startTurn
   beginPlanning();
 }

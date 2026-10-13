@@ -21,7 +21,12 @@ function effectiveSpeed(unit) {
     const enemyWithin5 = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
     if (!enemyWithin5) spd += 2; // hilang seketika kalau ada musuh dalam radius 5 tile
   }
-  return scaleStat(spd, unit.owner);   // v9.7: stat bot Campaign = 70%
+  // ---- v9.7 unit Advanced ----
+  if (unit.type === 'advassault') {                                               // Lompatan Seketika: siklus 3 giliran
+    spd = (unit.jumpCycle || 0) === 3 ? def.spd + 6 : def.spd - 3;
+  }
+  if (unit.type === 'advinfantry' && unit.sacrificeState === 2) spd *= 2;         // Pengorbanan Terakhir (giliran bertindak)
+  return spd;
 }
 
 // ---------- Anti-Tank: Semangat Besi (+2 MP sekali/giliran jika ada kendaraan dalam jarak 2 tile) ----------
@@ -53,7 +58,6 @@ function hasAdjacentAllyProtector(unit) {   // nama lama dipertahankan; jangkaua
 
 // ---------- Kontribusi % ATK dari kemampuan unik milik attacker ----------
 function attackerAbilityATKPct(attackerUnit, targetInfo) {
-  if (CAMPAIGN) return 0;   // v9.7: tanpa kemampuan unik di Campaign
   let pct = 0;
   const owner = players[attackerUnit.owner];
 
@@ -90,7 +94,6 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
 
 // ---------- Kontribusi % DEF dari kemampuan unik milik target (bisa unit atau bangunan) ----------
 function defenderAbilityDEFPct(targetInfo) {
-  if (CAMPAIGN) return 0;
   let pct = 0;
 
   if (targetInfo.kind === 'unit') {
@@ -103,9 +106,12 @@ function defenderAbilityDEFPct(targetInfo) {
     if (u.type === 'apc' && u.cargo) pct += 20;                                // Kurir Setia
     if (u.type === 'corps' && u.isBuilding) pct += 20;                         // Kerja Sampai Tuntas
     if (u.intimidatedTurns > 0) pct -= 20;                                     // kena Intimidasi (Tank Crusher)
+    if (u.type === 'advinfantry') pct += 2 * Math.min(10, u.legacyStacks || 0); // Penerus Tekad: +2% per tumpukan (maks 10)
   } else if (targetInfo.kind === 'building') {
     const b = targetInfo.obj;
     if (b.defDebuffTurns > 0) pct -= 30;                                       // kena Penghancur Bangunan (Montir)
+    if (b.bombDefTurns > 0) pct -= 30;                                         // kena Pembuat Onar (bom Trapper) — medan terpisah
+    if (b.toxinTurns > 0) pct -= 20;                                           // kena Bom Beracun (bom Advanced Trapper)
   }
 
   return pct;
@@ -115,7 +121,6 @@ function defenderAbilityDEFPct(targetInfo) {
 // Hanya efek berbasis keadaan (timer / status / posisi). Efek yang baru terhitung saat serangan
 // (Konsentrasi Tinggi, Ayo Ledakkan, Perusak Formasi) tidak punya keadaan menetap, jadi tidak ditampilkan.
 function activeAbilityIcons(u) {
-  if (CAMPAIGN) return [];
   const out = [];
   const owner = players[u.owner];
   const seen = e => isVisibleToCurrentPlayer(e);
@@ -150,7 +155,27 @@ function activeAbilityIcons(u) {
       if (!u.cargo) out.push('Jangan Menganggur');
       if (u.isBuilding) out.push('Kerja Sampai Tuntas');
       break;
+    // ---- v9.7: hanya efek yang sedang aktif (berbasis keadaan) ----
+    case 'trapper':
+      if (bombs.some(b => b.trapperId === u.id && b.special)) out.push('Keberuntungan');
+      break;
+    case 'advinfantry':
+      if ((u.legacyStacks || 0) > 0) out.push('Penerus Tekad');
+      if (u.sacrificeState > 0) out.push('Pengorbanan Terakhir');
+      break;
+    case 'advassault':
+      if (u.jumpCycle === 3) out.push('Lompatan Seketika');
+      if (u.camo) out.push('Teknik Kamuflase');
+      break;
+    case 'advsniper':
+      if (u.eagerTurns > 0) out.push('Mata Elang');
+      if (u.focusTurns > 0) out.push('Titik Fokus');
+      break;
+    case 'advtrapper':
+      if (bombs.some(b => b.trapperId === u.id && b.active)) out.push('Hadiah Kejutan');
+      break;
   }
+  if (u.toxinTurns > 0) out.push('Bom Beracun');                        // korban Advanced Trapper
   if (hasAdjacentAllyProtector(u)) out.push('Sang Pelindung');          // diterima dari Tank Lapis Baja sekutu
   if (u.intimidatedTurns > 0) out.push('Intimidasi');                   // kena Tank Crusher
   if (owner && inTerritory(owner, u.r, u.c)) out.push('Wilayah Markas'); // efek bangunan (Markas): ATK/DEF +20%
@@ -159,5 +184,9 @@ function activeAbilityIcons(u) {
 
 // Ikon efek aktif pada sebuah bangunan
 function buildingStatusIcons(b) {
-  return b.defDebuffTurns > 0 ? ['Penghancur Bangunan'] : [];
+  const out = [];
+  if (b.defDebuffTurns > 0) out.push('Penghancur Bangunan');
+  if (b.bombDefTurns > 0) out.push('Pembuat Onar');
+  if (b.toxinTurns > 0) out.push('Bom Beracun');
+  return out;
 }

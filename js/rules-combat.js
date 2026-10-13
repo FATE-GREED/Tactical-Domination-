@@ -65,14 +65,10 @@ function specialRound(x) {
 // ---------- Formula Damage (Bagian 8) + kontribusi Kemampuan Unik (Bagian 5) ----------
 // Damage = FinalATK * 100 / (100 + FinalDEF)
 // Semua modifier % dikumpulkan dulu (dijumlahkan), baru dikalikan sekali ke stat dasar.
-function computeDamage(attackerUnit, targetInfo) {
-  const atkDef = attackerUnit.type === 'corps' ? CORPS_DEF : UNITS[attackerUnit.type];
-  const baseATK = atkDef.atk * statMul(attackerUnit.owner);        // v9.7: stat bot Campaign = 70%
-  const baseDEF = targetInfo.def.def * statMul(targetInfo.ownerIdx);
-
-  let atkPct = territoryATKBonusPct(attackerUnit.owner, attackerUnit.r, attackerUnit.c);
-  atkPct += attackerAbilityATKPct(attackerUnit, targetInfo);
-  const finalATK = baseATK * (1 + atkPct / 100);
+// v9.7: dipecah agar bom (bombs.js) memakai rumus & perhitungan DEF target yang sama persis.
+function damageFormula(baseATK, atkPct, targetInfo, atkMult) {
+  const baseDEF = targetInfo.def.def;
+  const finalATK = baseATK * (1 + atkPct / 100) * (atkMult || 1);
 
   const targetTerrain = mapData[targetInfo.obj.r][targetInfo.obj.c];
   let defPct = terrainDefModifierPct(targetTerrain, targetInfo.vehicle, targetInfo.tank);
@@ -81,8 +77,15 @@ function computeDamage(attackerUnit, targetInfo) {
   const defFloor = (targetInfo.kind === 'building' && targetInfo.def.destructible !== false) ? 10 : 0;   // v9.5: DEF bangunan minimal 10
   const finalDEF = Math.max(defFloor, baseDEF * (1 + defPct / 100));
 
-  const raw = finalATK * 100 / (100 + finalDEF);
-  let damage = specialRound(raw);
+  return specialRound(finalATK * 100 / (100 + finalDEF));
+}
+
+function computeDamage(attackerUnit, targetInfo) {
+  const atkDef = attackerUnit.type === 'corps' ? CORPS_DEF : UNITS[attackerUnit.type];
+  let atkPct = territoryATKBonusPct(attackerUnit.owner, attackerUnit.r, attackerUnit.c);
+  atkPct += attackerAbilityATKPct(attackerUnit, targetInfo);
+  const mult = attackerUnit.sacrificeState === 2 ? 2 : 1;      // v9.7 Pengorbanan Terakhir: ATK x2 (pengali pada nilai akhir)
+  let damage = damageFormula(atkDef.atk, atkPct, targetInfo, mult);
 
   // Anti-Tank: Ayo Ledakkan (serangan tambahan saat menyerang kendaraan -> total 2x)
   if (attackerUnit.type === 'antitank' && targetInfo.vehicle) damage *= 2;
@@ -90,32 +93,62 @@ function computeDamage(attackerUnit, targetInfo) {
   return damage;
 }
 
+// ---------- v9.7: jalur kematian & kerusakan terpusat ----------
+// Semua penghapusan unit lewat killUnit() agar Semangat Perjuangan, Penerus Tekad, dan Stats konsisten.
+function killUnit(u) {
+  if (!units.includes(u)) return;
+  units = units.filter(x => x.id !== u.id);
+  Stats.unitLost(u.owner, u.type);
+  if (u.type === 'infantry') players[u.owner].infantrySpiritTurns = 2;           // Semangat Perjuangan
+  for (const a of units)                                                         // Penerus Tekad: +1 tumpukan per sekutu gugur
+    if (a.owner === u.owner && a.type === 'advinfantry' && (a.legacyStacks || 0) < 10) a.legacyStacks = (a.legacyStacks || 0) + 1;
+}
+
+// Pemicu setelah unit terkena damage tapi selamat
+function afterUnitDamaged(u) {
+  if (u.type === 'advinfantry' && !u.sacrificeUsed && u.hp < UNITS.advinfantry.hp * 0.3) {   // Pengorbanan Terakhir
+    u.sacrificeUsed = true;
+    u.sacrificeState = 1;           // 1 = giliran bertindak berikutnya akan datang; 2 = sedang giliran bertindak
+  }
+}
+
+// Kurangi HP unit; mengembalikan true bila unit gugur
+function damageUnit(u, dmg, srcOwner, srcType) {
+  const before = u.hp;
+  u.hp -= dmg;
+  Stats.dmg(srcOwner, srcType, 'unit', Math.min(dmg, before));
+  if (u.hp <= 0) { killUnit(u); return true; }
+  afterUnitDamaged(u);
+  return false;
+}
+
+function destroyBuilding(ownerIdx, b) {
+  Stats.bldLost(ownerIdx, b.type);
+  const p = players[ownerIdx];
+  p.buildings = p.buildings.filter(x => x !== b);
+  checkWinCondition();
+}
+function damageBuilding(ownerIdx, b, dmg, srcOwner, srcType) {
+  const before = b.hp;
+  b.hp -= dmg;
+  Stats.dmg(srcOwner, srcType, 'building', Math.min(dmg, before));
+  if (b.hp <= 0) { destroyBuilding(ownerIdx, b); return true; }
+  return false;
+}
+
 // ---------- Eksekusi serangan: 1 unit, 1 tile target, hasil instan ----------
 function applyAttack(attackerUnit, targetR, targetC) {
   const target = describeTarget(targetR, targetC);
   if (!target) return { ok: false, message: 'Tidak ada target di tile itu.' };
   if (target.ownerIdx === attackerUnit.owner) return { ok: false, message: 'Tidak bisa menyerang unit/bangunan sendiri.' };
-  if (target.kind === 'building' && target.def.destructible === false) return { ok: false, message: 'Bangunan ini tidak bisa dihancurkan.' };
+  if (target.kind === 'building' && target.def.destructible === false) return { ok: false, message: 'Garnisun tidak bisa dihancurkan.' };
 
   const damage = computeDamage(attackerUnit, target);
-  const hpBefore = target.obj.hp;
-  target.obj.hp -= damage;
-  Stats.dmg(attackerUnit.owner, attackerUnit.type, target.kind, Math.min(damage, hpBefore));
+  let destroyed;
+  if (target.kind === 'unit') destroyed = damageUnit(target.obj, damage, attackerUnit.owner, attackerUnit.type);
+  else destroyed = damageBuilding(target.ownerIdx, target.obj, damage, attackerUnit.owner, attackerUnit.type);
 
-  let destroyed = false;
-  if (target.obj.hp <= 0) {
-    destroyed = true;
-    if (target.kind === 'unit') {
-      if (target.obj.type === 'infantry') players[target.ownerIdx].infantrySpiritTurns = 2; // Semangat Perjuangan
-      units = units.filter(u => u.id !== target.obj.id);
-      Stats.unitLost(target.ownerIdx, target.obj.type);
-    } else {
-      const p = players[target.ownerIdx];
-      Stats.bldLost(target.ownerIdx, target.obj.type);
-      p.buildings = p.buildings.filter(b => b !== target.obj);
-      checkWinCondition();
-    }
-  } else {
+  if (!destroyed) {
     if (target.kind === 'unit' && !target.def.combat) target.obj.speedDebuffTurns = 2;        // Bagian 6
     if (target.kind === 'unit' && attackerUnit.type === 'tankcrusher') target.obj.intimidatedTurns = 2; // Intimidasi
     if (target.kind === 'building' && attackerUnit.type === 'montir') target.obj.defDebuffTurns = 2;    // Penghancur Bangunan
@@ -129,16 +162,7 @@ function applyAttack(attackerUnit, targetR, targetC) {
     for (const [nr, nc] of neighborsOf(targetR, targetC)) {
       const other = units.find(u => u.r === nr && u.c === nc && u.owner !== attackerUnit.owner);
       if (!other) continue;
-      const otherBefore = other.hp;
-      other.hp -= splashDmg;
-      Stats.dmg(attackerUnit.owner, attackerUnit.type, 'unit', Math.min(splashDmg, otherBefore));
-      let otherDestroyed = false;
-      if (other.hp <= 0) {
-        otherDestroyed = true;
-        if (other.type === 'infantry') players[other.owner].infantrySpiritTurns = 2;
-        units = units.filter(u => u.id !== other.id);
-        Stats.unitLost(other.owner, other.type);
-      }
+      const otherDestroyed = damageUnit(other, splashDmg, attackerUnit.owner, attackerUnit.type);
       splashResults.push({ r: nr, c: nc, damage: splashDmg, destroyed: otherDestroyed });
     }
   }

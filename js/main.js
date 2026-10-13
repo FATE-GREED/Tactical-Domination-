@@ -18,12 +18,11 @@ function startGame(opts) {
 
   document.getElementById('game').style.display = 'block'; // canvas butuh ukuran nyata sebelum initCanvas
 
-  if (opts && opts.mode === 'campaign') Campaign.prepareBattle(opts);   // v9.7: aturan, ukuran peta 15x25, UI disederhanakan
-  mapData = CAMPAIGN ? Campaign.battleMap() : generateMap();          // map-gen.js (acak, tanpa simetri)
+  mapData = generateMap();          // map-gen.js (40x60, tanpa simetri)
   setupPlayersAndBuildings();       // setup.js
   Stats.init();                     // stats.js — statistik pertandingan mulai dari nol
 
-  currentPlayerIdx = CAMPAIGN ? HUMAN : (Math.random() < 0.5 ? 0 : 1);
+  currentPlayerIdx = Math.random() < 0.5 ? 0 : 1;
   turnNumber = 1;
 
   initCanvas();                     // render.js — siapkan canvas & pertama kali draw
@@ -45,7 +44,6 @@ function startGame(opts) {
     camY = canvas.height / 2 - y * scale;
   })();
 
-  if (CAMPAIGN) Campaign.fitView();   // seluruh peta kecil terlihat sekaligus
   renderLegend();
   renderResourcePanels();
   updateActionPanel();
@@ -53,7 +51,6 @@ function startGame(opts) {
   logAction('Permainan dimulai.');
   Sfx.music('plan');                // musik lobby berganti ke musik fase rencana
   beginPlanning();                  // rules-auto.js — fase rencana pertama
-  if (CAMPAIGN) Campaign.startTutorial();   // John memandu pemain
 }
 
 if ('serviceWorker' in navigator) {

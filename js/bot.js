@@ -18,7 +18,8 @@ let botWaveStarted = false;
 
 function botTakeTurn(me) {
   botDeploy(me);
-  if (!CAMPAIGN) { botBuild(me); botJobs(me); }   // v9.7: Campaign tanpa bangunan/Corps
+  botBuild(me);
+  botJobs(me);
   botTargets(me);
 }
 
@@ -57,14 +58,14 @@ function botDeploy(me) {
   const hasPom = p.buildings.some(b => b.type === 'pom');
 
   for (let guard = 0; guard < 4 && totalBarakSlots(p) > 0; guard++) {
-    const w = { infantry: 2, assault: 2, sniper: 1.6, antitank: 1.2, tanklapis: 2, tankcrusher: 1.6, montir: 0.8, apc: 0 };
+    const w = { infantry: 2, assault: 2, sniper: 1.6, antitank: 1.2, tanklapis: 2, tankcrusher: 1.6, montir: 0.8, apc: 0,
+      trapper: 1.2, advinfantry: 2, advassault: 2, advsniper: 1.6, advtrapper: 1.2 };   // v9.7: bobot sedang ≈ unit dasar setara
     if (tanks > 0) { w.antitank += 3 * tanks; w.tankcrusher += 1.5 * tanks; }
-    if (snipers > 0) w.assault += 2 * snipers;
+    if (snipers > 0) { w.assault += 2 * snipers; w.advassault += 2 * snipers; }
     if (infantry >= 3) { w.tanklapis += 2; w.tankcrusher += 1; }
     const fuelVeh = mine().filter(u => UNITS[u.type] && UNITS[u.type].hasFuel && u.type !== 'apc').length;
     const apcs = mine().filter(u => u.type === 'apc').length;
     if (hasPom && fuelVeh >= 2 && apcs < (fuelVeh >= 5 ? 2 : 1)) w.apc = 7;
-    if (CAMPAIGN) for (const k of Object.keys(w)) if (!CAMPAIGN.units.includes(k)) w[k] = 0;   // v9.7: unit bot = unit yang tersedia bagi pemain
     let bestKey = null, bestScore = -1;
     for (const key of Object.keys(w)) {
       if (UNITS[key].price > p.resources.kredit || w[key] <= 0) continue;
@@ -134,7 +135,10 @@ function botJobs(me) {
 function botTargets(me) {
   const mk = botMarkas(me), em = botEnemyMarkas(me);
   if (!mk || !em) return;
-  const combat = units.filter(u => u.owner === me && defOf(u).combat && !u.isBuilding);
+  const allCombat = units.filter(u => u.owner === me && defOf(u).combat && !u.isBuilding);
+  // v9.7: Trapper bot memakai perilaku default (bom di jalur musuh terlihat); target manual akan membuatnya memasang bom di atas musuh
+  for (const t of allCombat) if (isTrapperType(t.type)) { t.target = null; t.locked = false; }
+  const combat = allCombat.filter(u => !isTrapperType(u.type));
   if (!combat.length) return;
   const foes = botVisibleFoes(me);
 

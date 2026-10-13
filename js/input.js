@@ -21,7 +21,7 @@ let focusActor = null;           // Corps/APC supplier yang sedang memilih unit/
 let haulActor = null;            // APC yang sedang diatur job Angkut Corps
 let haulCorps = null;            // Corps yang sudah dipilih (langkah 2: pilih tujuan)
 let pendingTile = null;
-let iconHitboxes = { info: null, entity: null };
+let iconHitboxes = { info: null, entity: null, bomb: null };
 let lpTimer = null, suppressClickUntil = 0;
 const LONG_PRESS_MS = 550;
 
@@ -72,7 +72,7 @@ function initInput() {
   document.getElementById('lockLineBtn').addEventListener('click', toggleLockMode);
   // Main Lagi: muat ulang lalu langsung mulai ronde baru (lewati lobby). Lobby: muat ulang biasa.
   document.getElementById('restartBtn').addEventListener('click', () => {
-    try { sessionStorage.setItem('td-autostart', CAMPAIGN ? 'campaign' : '1'); } catch (e) {}   // v9.7: di Campaign = ulangi pertempuran chapter
+    try { sessionStorage.setItem('td-autostart', '1'); } catch (e) {}
     location.reload();
   });
   document.getElementById('lobbyBtn').addEventListener('click', () => {
@@ -312,6 +312,9 @@ function onCanvasClick(e) {
   }
   if (hitTestIcon(mx, my, iconHitboxes.entity)) {
     const t = pendingTile; pendingTile = null; draw(); openEntityPanel(t.r, t.c); return;
+  }
+  if (hitTestIcon(mx, my, iconHitboxes.bomb)) {          // v9.7: ikon bom milik pemain
+    const t = pendingTile; draw(); openBombPanel(t.r, t.c); return;
   }
 
   const tile = tileFromScreen(mx, my);

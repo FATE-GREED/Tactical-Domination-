@@ -390,7 +390,7 @@ function drawBuildingSprite(b, ownerColor, x, y) {
   ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5 / scale; ctx.stroke();
   const iconFn = BUILDING_ICONS[b.type];
   if (iconFn) drawIcon(iconFn, x, y, R * 0.88);
-  drawHpBar(x, y - R, b.hp, maxHpOf(b, BUILDING_TYPES[b.type]), players[HUMAN].buildings.includes(b));
+  drawHpBar(x, y - R, b.hp, BUILDING_TYPES[b.type].hp, players[HUMAN].buildings.includes(b));
 }
 
 // ---------- Animasi: gerak unit (tween linear singkat) ----------
@@ -409,8 +409,36 @@ function startAttackFx(fromR, fromC, toR, toC, damage) {
 
 // Dipanggil dari draw() (render.js), DI DALAM ctx.save()/scale() dunia peta,
 // SEBELUM ctx.restore(). Mengembalikan true kalau masih perlu frame lanjutan.
+// ---------- v9.7: efek ledakan bom (lingkaran radius melebar + kilatan) ----------
+let bombFx = [];   // {r,c,radius,startTime,duration}
+function startBombFx(r, c, radius) {
+  bombFx.push({ r, c, radius, startTime: performance.now(), duration: 520 * Settings.timeScale() });
+  requestAnimationFrame(draw);
+}
+
 function renderFx() {
   let needsMore = false;
+
+  if (bombFx.length) {
+    const now = performance.now();
+    bombFx = bombFx.filter(f => now - f.startTime < f.duration);
+    for (const f of bombFx) {
+      const t = Math.min(1, (now - f.startTime) / f.duration);
+      const { x, y } = hexCenter(f.r, f.c);
+      const R = HEX_SIZE * (0.6 + f.radius * 1.6) * (0.35 + 0.65 * t);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 0.75 * (1 - t));
+      const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+      g.addColorStop(0, '#fff6c8'); g.addColorStop(0.45, '#ff9a3c'); g.addColorStop(1, 'rgba(200,40,10,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = Math.max(0, 1 - t);
+      ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2.5 / scale;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    if (bombFx.length) needsMore = true;
+  }
 
   if (moveAnim) {
     const u = units.find(uu => uu.id === moveAnim.unitId);

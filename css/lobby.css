@@ -206,7 +206,7 @@
 #loading[hidden] { display: none; }
 #loading.hide { opacity: 0; pointer-events: none; }
 .ld-bg {
-  position: absolute; inset: -4%; background: #0c0e0a url(../img/campaign/lapangan-malam.webp) center 50% / cover no-repeat;   /* v9.7: lapangan malam, tanpa logo */
+  position: absolute; inset: -4%; background: #0c0e0a url(../img/lobby-bg.webp) center 42% / cover no-repeat;
   filter: brightness(.78) saturate(.9);
 }
 .ld-shade {

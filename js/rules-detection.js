@@ -15,18 +15,23 @@ function rangeAtTile(def, r, c) {
 }
 function effectiveRange(unit) {
   const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
-  const scaled = statMul(unit.owner) === 1 ? def : { ...def, range: scaleStat(def.range, unit.owner) };   // v9.7: stat bot Campaign = 70%
-  return rangeAtTile(scaled, unit.r, unit.c);
+  let rng = rangeAtTile(def, unit.r, unit.c);
+  if (unit.type === 'advsniper') rng += Math.min(5, unit.focusTurns || 0);   // Titik Fokus: ceil(Rng x Mountain) + focusTurns
+  return rng;
 }
 
 function effectiveJPD(unit) {
   const def = unit.type === 'corps' ? CORPS_DEF : UNITS[unit.type];
   const terr = mapData[unit.r][unit.c];
-  let jpd = scaleStat(def.jpd, unit.owner);            // JPD dasar (non-combat tetap 5); v9.7: bot Campaign 70%
+  let jpd = def.jpd;                                   // JPD dasar (non-combat tetap 5)
   if (def.combat && terr === 'mountain') jpd = effectiveRange(unit); // di Mountain: JPD = Rng saat ini
   if (unit.type === 'sniper') {
     const noAlliesNear = !units.some(e => e !== unit && e.owner === unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
     if (noAlliesNear) jpd = Math.ceil(jpd * 1.5 - 1e-9);   // Sang Pengamat: JPD +50%
+  }
+  if (unit.type === 'advsniper') {                      // Mata Elang: +2 JPD per giliran diam, maks Rng efektif + 5
+    const cap = effectiveRange(unit) + 5;
+    jpd = Math.max(jpd, Math.min(jpd + 2 * (unit.eagerTurns || 0), cap));
   }
   return jpd;
 }
@@ -45,7 +50,19 @@ function isHiddenByTerrain(unit) {
 // Assault "Yang Tersembunyi": jika baru saja masuk radius musuh, tetap
 // unseen 1 giliran ekstra (assaultExtend) — kecuali musuh sudah tepat
 // bersebelahan (dianggap "tahu tile pasti").
+// v9.7 Teknik Kamuflase: mode camo hilang bila ada musuh dalam JPD efektif musuh + 3 tile.
+// Setelah hilang, unit harus diam 1 giliran penuh lagi (flag camo dimatikan permanen sampai syarat terpenuhi lagi).
+function camoRevealed(unit) {
+  return units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e) + 3);
+}
+function refreshCamo() {
+  for (const u of units) if (u.camo && camoRevealed(u)) u.camo = false;
+}
 function isUnitUnseen(unit) {
+  if (unit.camo) {
+    if (!camoRevealed(unit)) return true;
+    unit.camo = false;
+  }
   if (!isHiddenByTerrain(unit)) return false;
   const revealed = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e));
   if (!revealed) return true;

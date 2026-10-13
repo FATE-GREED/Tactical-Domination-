@@ -207,7 +207,7 @@
   function startHTML() {
     return `<div class="picks">
       ${pick('data-start', 'klasik',   IC.klasik,   'Permainan Klasik', 'Lawan bot di medan tile hex', true)}
-      ${pick('data-start', 'campaign', IC.campaign, 'Campaign',         'Kisah para komandan', true)}
+      ${pick('data-start', 'campaign', IC.campaign, 'Campaign',         'Kisah para komandan', false)}
       ${pick('data-start', 'perang',   IC.perang,   'Perang Dunia',     'Penaklukan skala dunia', false)}
       ${pick('data-start', 'multi',    IC.multi,    'Multiplayer',      'Main bersama pemain lain', false)}
     </div>`;
@@ -271,12 +271,7 @@
     if (e.target.closest('#lbStartBtn')) { openStart(); return; }
 
     const st = e.target.closest('[data-start]');
-    if (st) {
-      if (st.dataset.start === 'klasik') openBots();
-      else if (st.dataset.start === 'campaign') { closeModal(); Campaign.enter(); }   // v9.7: Chapter 1 / peta Vanderick
-      else showDev();
-      return;
-    }
+    if (st) { if (st.dataset.start === 'klasik') openBots(); else showDev(); return; }
     if (e.target.closest('[data-back]')) { openStart(); return; }
 
     const mode = e.target.closest('[data-mode]');
@@ -292,20 +287,12 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
 
   // ---------- Masuk lobby: musik lobby, atau langsung main (tombol 'Main Lagi') ----------
-  Campaign.bind({ lobby, showLoading });
-  let auto = '', openAfter = '';
-  try {
-    auto = sessionStorage.getItem('td-autostart') || ''; sessionStorage.removeItem('td-autostart');
-    openAfter = sessionStorage.getItem('td-open') || ''; sessionStorage.removeItem('td-open');
-  } catch (e) {}
-  if (auto === 'campaign') {                 // "Ulangi" setelah kalah: langsung ke pertempuran Chapter 1
-    lobby.style.display = 'none';
-    Campaign.startBattle();
-  } else if (auto) {
+  let auto = false;
+  try { auto = sessionStorage.getItem('td-autostart') === '1'; sessionStorage.removeItem('td-autostart'); } catch (e) {}
+  if (auto) {
     lobby.style.display = 'none';
     showLoading(() => startGame({ mode: 'bot', level: 'sulit' }));
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
-    if (openAfter === 'campaign') Campaign.enter();   // selesai Chapter 1: tampilkan peta Vanderick
   }
 })();

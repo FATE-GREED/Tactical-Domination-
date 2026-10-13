@@ -6,7 +6,7 @@
 // Tile bangunan dipaksa jadi Grass.
 // ====================================================================
 
-function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cabang di bawah)
+function setupPlayersAndBuildings() {
   players = [
     { id: 1, name: 'Pemain', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
     { id: 2, name: 'Bot', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, corps: { count: 0, timer: null }, infantrySpiritTurns: 0 },
@@ -15,15 +15,8 @@ function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cab
     const tiles = footprintShapes(type, r, c)[0] || [[r, c]];           // Markas 7 tile, bangunan lain 3 tile (footprint.js)
     for (const [tr, tc] of tiles) mapData[tr][tc] = 'grass';
     for (const [tr, tc] of tiles) for (const [nr, nc] of neighborsOf(tr, tc)) if (mapData[nr][nc] === 'valley') mapData[nr][nc] = 'grass'; // jangan terkurung Valley
-    const hp = scaleStat(BUILDING_TYPES[type].hp, pIdx);                 // v9.7: bot Campaign 70%
-    players[pIdx].buildings.push({ r, c, tiles, type, hp, maxHp: hp, defDebuffTurns: 0, seq: buildingSeq++ });
+    players[pIdx].buildings.push({ r, c, tiles, type, hp: BUILDING_TYPES[type].hp, defDebuffTurns: 0, seq: buildingSeq++ });
   };
-  if (CAMPAIGN) {   // v9.7: Campaign — hanya Markas + Barak, tanpa Garnisun
-    const mr = Math.floor(ROWS / 2);
-    place(0, 'markas', mr, 3);              place(0, 'barak', mr - 4, 3);
-    place(1, 'markas', mr, COLS - 4);       place(1, 'barak', mr + 4, COLS - 4);
-    return;
-  }
   const midR = Math.floor(ROWS / 2);
   const cols = [10, COLS - 1 - 10];
   const p1Top = Math.random() < 0.5;
@@ -35,4 +28,3 @@ function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cab
     place(i, 'garnisun', top ? 3 : ROWS - 4, i === 0 ? 3 : COLS - 4);   // v9.0: footprint 3 tile digeser sedikit dari sudut agar Corps tidak terkurung
   }
 }
-

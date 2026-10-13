@@ -30,6 +30,17 @@ const SKILL_ICONS = {
   'Jangan Menganggur':   ['green',  '<path d="M6 3h5v8c0 .8.4 1.2 1 1.5L18 15c2 1 2.5 2 2.5 3.5V20H3.5V3z"/>'],
   'Wilayah Markas':      ['teal',   '<path d="M5.5 2.5h2v19h-2z"/><path d="M7.5 3.5h12l-3.2 4.2 3.2 4.3h-12z"/><rect x="3" y="19.5" width="9" height="2.4" rx="1.1"/>'],
   'Kerja Sampai Tuntas': ['yellow', '<path d="M3.5 17a8.5 8.5 0 0 1 17 0z"/><rect x="2" y="17" width="20" height="3" rx="1.2"/><rect x="10.5" y="4" width="3" height="6" rx="1" fill="#6e5a0a"/>'],
+  // ---- v9.7: kemampuan unit baru ----
+  'Keberuntungan':       ['red',    '<circle cx="8.3" cy="8.3" r="3.6"/><circle cx="15.7" cy="8.3" r="3.6"/><circle cx="8.3" cy="15.4" r="3.6"/><circle cx="15.7" cy="15.4" r="3.6"/><circle cx="12" cy="12" r="2" fill="#7d1f1a"/><path d="M12 14l-1 8" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/>'],
+  'Pembuat Onar':        ['orange', '<path d="M8.2 2.5h7.6l5.7 5.7v7.6l-5.7 5.7H8.2L2.5 15.8V8.2z"/><path d="M6.5 12h11" stroke="#7d4210" stroke-width="3" stroke-linecap="round" fill="none"/>'],
+  'Pengorbanan Terakhir':['red',    '<path d="M12 2l2.4 3.4V14H9.6V5.4z"/><rect x="6.5" y="14" width="11" height="2.6" rx="1.2"/><rect x="10.7" y="16.6" width="2.6" height="5.2" rx="1"/>'],
+  'Penerus Tekad':       ['blue',   '<path d="M12 2.8l8 6.4h-4.6L12 6.4 8.6 9.2H4z"/><path d="M12 10.8l8 6.4h-4.6L12 14.4l-3.4 2.8H4z"/>'],
+  'Lompatan Seketika':   ['green',  '<path d="M3 19c1.6-9.5 8-13.5 14.5-11.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/><path d="M15.5 3l5.8 4.6-6.6 3z"/><circle cx="3.6" cy="19.2" r="1.8"/>'],
+  'Teknik Kamuflase':    ['purple', '<path d="M20.5 3.5C9.5 3.5 4 9.5 4 16.5c0 1.2.2 2.2.5 3.2 1-1.1 2.2-2 3.5-2.8C14.5 17 19 12 20.5 3.5z"/><path d="M5 20c3-6 7-9.2 11-10.8" stroke="#43237a" stroke-width="1.5" fill="none" stroke-linecap="round"/>'],
+  'Mata Elang':          ['purple', '<rect x="3.5" y="4" width="4.4" height="7" rx="1.2"/><rect x="16.1" y="4" width="4.4" height="7" rx="1.2"/><circle cx="7" cy="15" r="4.6"/><circle cx="17" cy="15" r="4.6"/><rect x="9" y="11.5" width="6" height="3.6" rx="1"/><circle cx="7" cy="15" r="1.7" fill="#43237a"/><circle cx="17" cy="15" r="1.7" fill="#43237a"/>'],
+  'Titik Fokus':         ['red',    '<circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="1.9"/>'],
+  'Hadiah Kejutan':      ['green',  '<rect x="3.5" y="10" width="17" height="11" rx="1.4"/><rect x="2.5" y="6.8" width="19" height="4.2" rx="1"/><path d="M12 6.8V21" stroke="#1f5a21" stroke-width="2.2" fill="none"/><path d="M12 6.6C9 6.6 7.4 2.6 10 2.6c1.6 0 2 2.2 2 4zM12 6.6c3 0 4.6-4 2-4-1.6 0-2 2.2-2 4z"/>'],
+  'Bom Beracun':         ['orange', '<path d="M12 2.4c3.6 5 6.6 8 6.6 12a6.6 6.6 0 0 1-13.2 0c0-4 3-7 6.6-12z"/><circle cx="9.6" cy="15.2" r="1.5" fill="#7d4210"/><circle cx="13.8" cy="12.6" r="1.1" fill="#7d4210"/><circle cx="14.2" cy="16.8" r="1.3" fill="#7d4210"/>'],
 };
 
 // Deskripsi efek bangunan bertipe buff (untuk tampilan info).

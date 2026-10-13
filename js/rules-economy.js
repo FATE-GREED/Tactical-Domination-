@@ -7,7 +7,6 @@
 function getBuilding(player, type) { return player.buildings.find(b => b.type === type); }
 
 function inTerritory(player, r, c) {
-  if (CAMPAIGN) return false;   // v9.7: Campaign tanpa area Territory
   const m = getBuilding(player, 'markas');
   if (!m) return false;
   return r >= m.r - 5 && r < m.r + 5 && c >= m.c - 5 && c < m.c + 5;   // Territory 10x10
@@ -59,17 +58,25 @@ function startTurn(pIdx) {
   const barakCount = p.buildings.filter(b => b.type === 'barak').length;
   const pomCount = p.buildings.filter(b => b.type === 'pom').length;
   const pospemulihanCount = p.buildings.filter(b => b.type === 'pospemulihan').length;
-  const incKredit = CAMPAIGN ? CAMPAIGN.markasIncome * markasCount + CAMPAIGN.barakIncome * barakCount : 30 * markasCount + 20 * barakCount;
-  p.resources.kredit += incKredit; // klasik: Markas +30, tiap Barak +20; Campaign: nilai dari chapter
+  p.resources.kredit += 30 * markasCount + 20 * barakCount; // Markas +30, tiap Barak +20
   p.resources.fuel += 50 * pomCount;
   p.resources.medical += 50 * pospemulihanCount;
-  Stats.earn(pIdx, 'kredit', incKredit);
+  Stats.earn(pIdx, 'kredit', 30 * markasCount + 20 * barakCount);
   Stats.earn(pIdx, 'fuel', 50 * pomCount);
   Stats.earn(pIdx, 'medical', 50 * pospemulihanCount);
   for (const b of p.buildings) if (b.type === 'barak') b.slots = 2;   // 2 slot deploy PER Barak
 
   if (p.infantrySpiritTurns > 0) p.infantrySpiritTurns--;        // Semangat Perjuangan meluruh
   for (const b of p.buildings) if (b.defDebuffTurns > 0) b.defDebuffTurns--; // Penghancur Bangunan meluruh
+  activateBombs(pIdx);                                           // v9.7: bom pemilik yang dipasang giliran lalu kini aktif
+  for (const b of [...p.buildings]) {                            // v9.7: debuff bom pada bangunan
+    if (b.bombDefTurns > 0) b.bombDefTurns--;                    // Pembuat Onar meluruh (medan terpisah)
+    if (b.toxinTurns > 0) {                                      // Bom Beracun: racun tetap (abaikan DEF), lalu durasi turun
+      damageBuilding(pIdx, b, b.toxinDmg || 0, b.toxinSrcOwner, b.toxinSrcType || 'advtrapper');
+      b.toxinTurns--;
+    }
+  }
+  if (gameOver) return;
 
   processBuildProgress(pIdx); // Corps yang sedang Build maju 1 giliran / selesai jadi bangunan
 
@@ -80,6 +87,18 @@ function startTurn(pIdx) {
     u.semangatBesiUsed = false;
     u.roadFreeUsesLeft = 2;
     if (u.intimidatedTurns > 0) u.intimidatedTurns--;             // Intimidasi meluruh
+
+    // ---- v9.7 unit Advanced / racun ----
+    if (u.type === 'advinfantry') {                                // Pengorbanan Terakhir: gugur setelah giliran bertindak
+      if (u.sacrificeState === 2) {
+        if (pIdx === HUMAN) actAdd(pIdx, [[unitName(u), 'unit'], [' gugur (Pengorbanan Terakhir)']]);
+        killUnit(u);
+        continue;
+      }
+      if (u.sacrificeState === 1) u.sacrificeState = 2;            // giliran ini = giliran bertindak (SPD & ATK x2)
+    }
+    if (u.type === 'advassault') u.jumpCycle = ((u.jumpCycle || 0) % 3) + 1;   // Lompatan Seketika: 1-2-3-1-2-3
+    if (u.toxinTurns > 0 && damageUnit(u, u.toxinDmg || 0, u.toxinSrcOwner, u.toxinSrcType || 'advtrapper')) continue;   // racun Bom Beracun
 
     if (u.isBuilding) { u.mp = 0; continue; } // masih membangun, tidak bisa beraksi lain giliran ini
 
@@ -118,14 +137,13 @@ function startTurn(pIdx) {
     }
 
     let spd = effectiveSpeed(u);
-    if (u.speedDebuffTurns > 0) {           // Bagian 6: efek kena serangan (Non-Combat)
-      spd = Math.floor(spd / 2);
-      u.speedDebuffTurns--;
-    }
+    // SPD −50% dari serangan (Non-Combat) dan Bom Beracun tidak dikalikan dua kali: pakai yang terkuat (sama-sama /2)
+    const halve = u.speedDebuffTurns > 0 || u.toxinTurns > 0;
+    if (halve) spd = Math.floor(spd / 2);
+    if (u.speedDebuffTurns > 0) u.speedDebuffTurns--;
+    if (u.toxinTurns > 0) u.toxinTurns--;
     u.mp = (def.hasFuel && u.fuel <= 0) ? 0 : spd;
   }
-
-  if (CAMPAIGN) return;   // v9.7: Campaign tanpa Garnisun/Corps
 
   // Produksi Corps: jeda 1,2,3 lalu tetap 3 giliran; maks 10 Corps hidup bersamaan.
   // Kalau Corps mati dan jumlahnya di bawah 10, hitungan giliran produksi dimulai lagi.

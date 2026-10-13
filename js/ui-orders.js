@@ -91,10 +91,21 @@ function renderActFeed() {
 function targetLabel(u) {
   return targetLabelBase(u) + (u.locked ? ' 🔒' : '');
 }
+// v9.7: label Trapper = lokasi bom
+function trapperLabel(u) {
+  const n = ` • bom ${bombsOf(u).length}/${BOMB_MAX_PER_TRAPPER}`;
+  const t = u.target;
+  if (!t) return (bombsOf(u).length >= BOMB_MAX_PER_TRAPPER ? 'Mundur ke Markas (bom penuh)' : 'Bom di jalur musuh terdekat (default)') + n;
+  if (t.kind === 'hex') return `Bom di hex (${t.r},${t.c})` + n;
+  if (t.kind === 'unit') { const e = units.find(x => x.id === t.id); return (e ? `Bom di ${unitName(e)} musuh #${e.id}` : 'Bom di jalur musuh (default)') + n; }
+  if (t.kind === 'building') return `Bom di dekat ${BUILDING_TYPES[t.ref.type].name} musuh` + n;
+  return 'Bom (default)' + n;
+}
 function targetLabelBase(u) {
   const def = defOf(u);
   if (u.buildOrder) return `Bangun ${BUILDING_TYPES[u.buildOrder.type].name} di (${u.buildOrder.r},${u.buildOrder.c})`;
   if (u.isBuilding) return `Membangun ${BUILDING_TYPES[u.buildType].name} (${u.buildTurnsRemaining} gil.)`;
+  if (isTrapperType(u.type)) return trapperLabel(u);
   if (!def.combat) {
     const fs = u.focus ? (u.focus.unitId != null ? ` • fokus #${u.focus.unitId}` : ` • fokus (${u.focus.r},${u.focus.c})`) : '';
     if (u.job === 'fuel') return 'Job: Isi Fuel' + fs;
