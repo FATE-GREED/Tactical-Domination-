@@ -65,18 +65,28 @@ function manualBombSpot(u) {
     const nb = neighborsOf(t.r, t.c).filter(([r, c]) => bombTileOK(r, c));
     return nb.length ? { r: nb[0][0], c: nb[0][1] } : null;
   }
-  if (t.kind === 'building') {
-    const b = t.obj;
-    const cand = [];
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      if (distToBuilding(r, c, b) !== 1 || !bombTileOK(r, c)) continue;
-      cand.push({ r, c, n: bombsAtTile(r, c, u.owner).length, d: hexDistance(u.r, u.c, r, c) });
-    }
-    cand.sort((a, b2) => a.n - b2.n || a.d - b2.d);
-    return cand.length ? { r: cand[0].r, c: cand[0].c } : null;
-  }
+  if (t.kind === 'building') return bombSpotBeside(u, t.obj);
   return null;
 }
+
+// v10.1 (P2): tile kosong yang menempel di samping bangunan b (tile dengan bom paling sedikit, lalu terdekat dari Trapper).
+// Dipakai target manual bangunan dan tujuan default "samping Markas musuh".
+function bombSpotBeside(u, b) {
+  const cand = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (distToBuilding(r, c, b) !== 1 || !bombTileOK(r, c)) continue;
+    cand.push({ r, c, n: bombsAtTile(r, c, u.owner).length, d: hexDistance(u.r, u.c, r, c) });
+  }
+  cand.sort((a, b2) => a.n - b2.n || a.d - b2.d);
+  return cand.length ? { r: cand[0].r, c: cand[0].c } : null;
+}
+// v10.1 (P2) butir 3: tanpa target manual & tanpa unit musuh terlihat -> tile kosong di samping Markas musuh. Tak ada Markas / tile valid -> null (Trapper diam).
+function markasBombSpot(u) {
+  const m = nearestEnemyMarkas(u);
+  return m ? bombSpotBeside(u, m) : null;
+}
+// Ada unit musuh yang terlihat (syarat yang sama dengan defaultBombSpot)
+function hasVisibleFoe(u) { return units.some(e => e.owner !== u.owner && !isUnitUnseen(e)); }
 
 // ---------- Memasang ----------
 async function placeBomb(u, spot) {

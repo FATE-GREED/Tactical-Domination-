@@ -3,6 +3,7 @@
 // Pilihan membatasi unit yang dapat di-deploy pemain manusia dari Barak.
 // Bot tidak dibatasi (Garnisun bot meniru pilihan Corps pemain). Corps & Advanced Corps
 // tidak dibeli di Barak: Garnisun memproduksinya (v10, lihat rules-economy.js).
+// v10.1 (P4): wajib memilih minimal satu jenis Corps (Corps atau Advanced Corps).
 // ====================================================================
 
 let unitSelectPendingOpts = null;
@@ -59,6 +60,10 @@ function showUnitSelectScreen(opts) {
   screen.setAttribute('aria-hidden', 'false');
 }
 
+const UNITSELECT_HINT = 'Pilih 10 jenis unit. Wajib memilih minimal satu jenis Corps. Corps & Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).';
+const UNITSELECT_NEED_CORPS = 'Pilih minimal satu jenis Corps (Corps atau Advanced Corps).';
+function unitSelectHasCorps() { return unitSelectSelected.includes('corps') || unitSelectSelected.includes('advcorps'); }
+
 function toggleUnitSelection(unitKey, checked) {
   if (checked) {
     if (unitSelectSelected.length >= 10) {
@@ -72,8 +77,6 @@ function toggleUnitSelection(unitKey, checked) {
   } else {
     unitSelectSelected = unitSelectSelected.filter(key => key !== unitKey);
   }
-  const message = document.getElementById('unitselect-message');
-  if (message) message.textContent = 'Pilih 10 jenis unit. Corps & Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).';
   updateUnitSelectUI();
 }
 
@@ -81,7 +84,9 @@ function updateUnitSelectUI() {
   const count = document.getElementById('selected-num');
   const confirm = document.getElementById('unitselect-confirm');
   if (count) count.textContent = String(unitSelectSelected.length);
-  if (confirm) confirm.disabled = unitSelectSelected.length !== 10;
+  if (confirm) confirm.disabled = unitSelectSelected.length !== 10 || !unitSelectHasCorps();   // v10.1 (P4)
+  const message = document.getElementById('unitselect-message');
+  if (message) message.textContent = (unitSelectSelected.length === 10 && !unitSelectHasCorps()) ? UNITSELECT_NEED_CORPS : UNITSELECT_HINT;
   document.querySelectorAll('#unitselect-list input[data-unit-select]').forEach(input => {
     input.disabled = !input.checked && unitSelectSelected.length >= 10;
   });
@@ -93,8 +98,6 @@ function resetUnitSelection() {
     input.checked = false;
     input.disabled = false;
   });
-  const message = document.getElementById('unitselect-message');
-  if (message) message.textContent = 'Pilih 10 jenis unit. Corps & Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).';
   updateUnitSelectUI();
 }
 
@@ -106,6 +109,11 @@ function isHumanUnitAllowed(unitKey) {
 
 function confirmUnitSelection() {
   if (unitSelectSelected.length !== 10) return;
+  if (!unitSelectHasCorps()) {   // v10.1 (P4): minimal satu jenis Corps wajib
+    const msg = document.getElementById('unitselect-message');
+    if (msg) msg.textContent = UNITSELECT_NEED_CORPS;
+    return;
+  }
   selectedLoadoutUnits = unitSelectSelected.slice();
   const screen = document.getElementById('unitselect-screen');
   const message = document.getElementById('unitselect-message');

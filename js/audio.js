@@ -46,7 +46,7 @@ const Sfx = (() => {
     if (ctx.state === 'suspended') ctx.resume();
   }
   function play(base, vol = 1, rate = 1, cat = 'volFx') {
-    if (!ctx || !MODES[mode][3]) return;
+    if (!ctx || !MODES[mode][3] || FAST) return;   // v10.1 (P9): senyap selama mode cepat
     const list = buf[base]; if (!list || !list.length) return;
     let i = Math.floor(Math.random() * list.length);
     if (list.length > 1 && i === last[base]) i = (i + 1) % list.length;
@@ -55,7 +55,7 @@ const Sfx = (() => {
     s.buffer = list[i]; s.playbackRate.value = rate * (0.94 + Math.random() * 0.12);
     g.gain.value = vol * SFX_VOL * (Settings.get(cat) / 100); s.connect(g); g.connect(sfxG); s.start();
   }
-  function after(ms, fn) { setTimeout(fn, ms * Settings.timeScale()); }   // ikut kecepatan eksekusi
+  function after(ms, fn) { if (FAST) return; setTimeout(fn, ms * Settings.timeScale()); }   // ikut kecepatan eksekusi
   function audible(u, targetOwner) {
     if (u.owner === HUMAN || targetOwner === HUMAN) return true;
     return typeof isUnitUnseen !== 'function' || !isUnitUnseen(u);

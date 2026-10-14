@@ -59,6 +59,7 @@ function radarTiles() {
 }
 
 function draw() {
+  if (FAST) return;   // v10.1 (P9): digambar sekali di akhir tiap eksekusi & saat FAST padam (fastFlush)
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#12140f';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -223,6 +224,7 @@ function resourceHtml(p) {
   return h;
 }
 function renderResourcePanels() {
+  if (FAST) return;   // v10.1 (P9): ditunda (fastFlush)
   document.getElementById('resLeft').innerHTML = resourceHtml(players[0]);
   document.getElementById('resRight').innerHTML = resourceHtml(players[1]);
   if (typeof renderSidebar === 'function') renderSidebar();
@@ -264,6 +266,7 @@ function renderLog() { if (typeof renderActFeed === 'function') renderActFeed();
 
 // ---------- Win Condition ----------
 function showGameOver() {
+  if (typeof onGameOverAuto === 'function') onGameOverAuto();   // v10.1 (P7/P9): ∞ dan Skip mati sendiri
   if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
   Sfx.end(winner === HUMAN);
   document.getElementById('winnerText').textContent = `${players[winner].name} Menang!`;
@@ -275,7 +278,7 @@ function showGameOver() {
 function updateActionPanel() {
   const el = document.getElementById('actionpanel');
   const cancel = document.getElementById('cancelBtn');
-  if (!targetActor && !occupyHex && !specialActor && !haulActor && !focusActor) { el.style.display = 'none'; return; }
+  if (!targetActor && !occupyHex && !specialActor && !haulActor && !focusActor && !bombHexActor && !bombBldActor) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
   let text, btn = 'Batal';
   if (specialMode) {
@@ -285,10 +288,14 @@ function updateActionPanel() {
     text = `Target ${unitName(targetActor)} #${targetActor.id}: ketuk musuh, bangunan musuh, atau hex. Ketuk unit ini = default.`;
   } else if (focusActor) {
     text = `Fokus supply ${unitName(focusActor)} #${focusActor.id}: ketuk unit sekutu atau hex yang diprioritaskan (radius 15 tile). Ketuk unit ini = hapus fokus.`;
+  } else if (bombHexActor) {
+    text = `Ketuk hex tujuan bom (${unitName(bombHexActor)} #${bombHexActor.id}). Ketuk Trapper ini = batal.`;
+  } else if (bombBldActor) {
+    text = `Ketuk bangunan musuh (${unitName(bombBldActor)} #${bombBldActor.id}). Ketuk Trapper ini = batal.`;
   } else if (haulActor) {
     text = haulCorps
-      ? `Angkut Corps #${haulCorps.id}: ketuk hex tujuan pengantaran, atau Selesai = tanpa tujuan (APC diam).`
-      : `Angkut: ketuk Corps sekutu yang akan diangkut APC #${haulActor.id}.`;
+      ? `Angkut ${haulCorps.type === 'advmontir' ? 'Montir' : 'Corps'} #${haulCorps.id}: ketuk hex tujuan pengantaran, atau Selesai = tanpa tujuan (APC diam).`
+      : `Angkut: ketuk Corps atau Advanced Montir sekutu yang akan diangkut APC #${haulActor.id}.`;
     btn = haulCorps ? 'Selesai' : 'Batal';
   } else {
     text = `Tempati hex (${occupyHex.r},${occupyHex.c}): ketuk unit sendiri yang dikirim ke sana.`;
@@ -325,7 +332,8 @@ function openEntityPanel(r, c) {
   if (target.kind === 'unit') {
     const u = target.obj;
     html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(target.def.spd, u.owner)}<br>`;
-    if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
+    if (target.def.combat && isTrapperType(u.type)) html += `Daya bom (ATK): ${Math.round(target.def.atk * statMul(u.owner))} • Jarak pasang: ${scaleStat(target.def.range, u.owner)}<br>DEF: ${Math.round(target.def.def * statMul(u.owner))}<br>`;   // v10.1 (P2): Trapper tidak menembak
+    else if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${target.def.fuelMax}<br>`;
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;
     if (u.intimidatedTurns > 0) html += `<span style="color:#e08a4a">Terkena Intimidasi (${u.intimidatedTurns} giliran lagi)</span><br>`;
@@ -363,13 +371,16 @@ function openEntityPanel(r, c) {
       for (const bm of bombsOf(u)) buttons.push({ id: 'bombBtn' + bm.id, label: `💥 Ledakkan bom (${bm.r},${bm.c})${bm.special ? ' ★' : ''}` });
     }
     if (isMine && canAct() && !(isCorpsType(u.type) && u.isBuilding)) {
-      buttons.push({ id: 'targetBtn', label: 'Atur Target' });
+      if (isTrapperType(u.type)) {   // v10.1 (P2): Trapper memakai tombol pasang bom, bukan "Atur Target"
+        buttons.push({ id: 'bombHexBtn', label: '💣 Pasang Bom di Hex' });
+        buttons.push({ id: 'bombBldBtn', label: '🏢 Pasang Bom di Bangunan' });
+      } else buttons.push({ id: 'targetBtn', label: 'Atur Target' });
       buttons.push({ id: 'lockBtn', label: u.locked ? '🔓 Buka Kunci' : '🔒 Kunci Gerak' });
       if (!target.def.combat) {
         buttons.push({ id: 'jobIdleBtn', label: (u.job === 'idle' ? '✓ ' : '') + 'Nganggur' });
         buttons.push({ id: 'jobFuelBtn', label: (u.job === 'fuel' ? '✓ ' : '') + 'Isi Fuel' });
         buttons.push({ id: 'jobMedBtn', label: (u.job === 'medical' ? '✓ ' : '') + 'Isi Medical' });
-        if (isApcType(u.type)) buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps' });
+        if (isApcType(u.type)) buttons.push({ id: 'jobHaulBtn', label: (u.job === 'angkut' ? '✓ ' : '') + 'Angkut Corps/Montir' });
         if (u.job === 'fuel' || u.job === 'medical') buttons.push({ id: 'focusBtn', label: u.focus ? '🎯 Ubah Fokus' : '🎯 Fokus Unit' });
       }
       if (u.target || u.buildOrder || u.job !== 'idle') buttons.push({ id: 'resetBtn', label: 'Reset Default' });
@@ -427,6 +438,8 @@ function openEntityPanel(r, c) {
   if (target.kind === 'unit' && isTrapperType(target.obj.type))
     for (const bm of bombsOf(target.obj)) bind('bombBtn' + bm.id, () => { manualDetonate(bm.id); openEntityPanel(r, c); });
   bind('targetBtn', () => { el.style.display = 'none'; startTargetMode(target.obj); });
+  bind('bombHexBtn', () => { el.style.display = 'none'; startBombHexMode(target.obj); });
+  bind('bombBldBtn', () => { el.style.display = 'none'; startBombBldMode(target.obj); });
   const refresh = () => { renderTargetPanel(); draw(); openEntityPanel(r, c); };
   bind('jobIdleBtn', () => { setJob(target.obj, 'idle'); refresh(); });
   bind('jobFuelBtn', () => { setJob(target.obj, 'fuel'); refresh(); });

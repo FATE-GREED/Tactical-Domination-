@@ -19,7 +19,9 @@ let specialActor = null;
 let specialTargets = [];
 let focusActor = null;           // Corps/APC supplier yang sedang memilih unit/hex fokus
 let haulActor = null;            // APC yang sedang diatur job Angkut Corps
-let haulCorps = null;            // Corps yang sudah dipilih (langkah 2: pilih tujuan)
+let haulCorps = null;            // Corps / Advanced Montir yang sudah dipilih (langkah 2: pilih tujuan)
+let bombHexActor = null;         // v10.1 (P2): Trapper yang sedang memilih hex tujuan bom
+let bombBldActor = null;         // v10.1 (P2): Trapper yang sedang memilih bangunan musuh tujuan bom
 let pendingTile = null;
 let iconHitboxes = { info: null, entity: null, bomb: null };
 let lpTimer = null, suppressClickUntil = 0;
@@ -67,6 +69,9 @@ function initInput() {
 
   canvas.addEventListener('click', onCanvasClick);
   document.getElementById('endturn').addEventListener('click', onEndTurnClick);
+  document.getElementById('autoBtn').addEventListener('click', toggleAutoMode);   // v10.1 (P7): ∞
+  document.getElementById('skipBtn').addEventListener('click', toggleSkip);       // v10.1 (P9): Skip
+  document.getElementById('dmgPrevBtn').addEventListener('click', toggleDmgPrev); // v10.1 (P10): log eksekusi sebelumnya
   document.getElementById('cancelBtn').addEventListener('click', cancelActionMode);
   document.getElementById('laneBtn').addEventListener('click', toggleLaneMode);
   document.getElementById('lockLineBtn').addEventListener('click', toggleLockMode);
@@ -164,7 +169,7 @@ function closeAllPanels() {
 function onLongPress(x, y) {
   const tile = tileFromScreen(x, y);
   if (!tile) return;
-  if (targetActor || occupyHex || specialMode || haulActor || focusActor) return;
+  if (targetActor || occupyHex || specialMode || haulActor || focusActor || bombHexActor || bombBldActor) return;
   pendingTile = null;
   closeAllPanels();
   const own = units.find(u => u.r === tile.r && u.c === tile.c && u.owner === HUMAN);
@@ -212,14 +217,50 @@ function handleFocusPick(r, c) {
   updateActionPanel(); renderTargetPanel(); draw();
 }
 
-// ---------- Job Angkut Corps (APC): 1) pilih Corps, 2) (opsional) pilih tujuan ----------
+// ---------- v10.1 (P2): Pasang bom manual (Trapper) — mode Hex / Bangunan ----------
+function startBombHexMode(u) {
+  cancelActionMode();
+  bombHexActor = u; selectedUnit = u; pendingTile = null;
+  closeAllPanels(); updateActionPanel(); draw();
+}
+function startBombBldMode(u) {
+  cancelActionMode();
+  bombBldActor = u; selectedUnit = u; pendingTile = null;
+  closeAllPanels(); updateActionPanel(); draw();
+}
+function finishBombMode() {
+  bombHexActor = null; bombBldActor = null; selectedUnit = null;
+  updateActionPanel(); renderTargetPanel(); draw();
+}
+function handleBombHexPick(r, c) {
+  const u = bombHexActor;
+  if (r === u.r && c === u.c) { finishBombMode(); return; }               // ketuk Trapper itu sendiri = batal mode (target tidak berubah)
+  if (!bombTileOK(r, c)) { alert('Hex ini tidak bisa dipasangi bom.'); return; }   // bombTileOK (bukan isTileBlocked): hex yang ditempati unit boleh
+  setUnitTarget(u, { kind: 'hex', r, c });
+  logAction(`${unitName(u)} #${u.id} → pasang bom di hex (${r},${c})`);
+  finishBombMode();
+}
+function handleBombBldPick(r, c) {
+  const u = bombBldActor;
+  if (r === u.r && c === u.c) { finishBombMode(); return; }
+  const eb = buildingAt(r, c, 1 - u.owner);
+  if (eb && eb.type !== 'garnisun') {
+    setUnitTarget(u, { kind: 'building', ref: eb });
+    logAction(`${unitName(u)} #${u.id} → pasang bom di dekat ${BUILDING_TYPES[eb.type].name} musuh`);
+    finishBombMode();
+    return;
+  }
+  alert(eb ? 'Garnisun tidak bisa dijadikan target bom. Ketuk bangunan musuh lain.' : 'Ketuk bangunan musuh (bukan bangunan sendiri atau tile kosong).');
+}
+
+// ---------- Job Angkut Corps / Advanced Montir (APC): 1) pilih Corps atau Montir, 2) (opsional) pilih tujuan ----------
 function startHaulMode(apc) {
   cancelActionMode();
-  if (apc.cargo && apc.cargo.type !== 'corps') { alert('APC sedang membawa Fuel/Medical, tidak bisa mengangkut Corps.'); return; }
+  if (apc.cargo && apc.cargo.type !== 'corps' && apc.cargo.type !== 'montir') { alert('APC sedang membawa Fuel/Medical, tidak bisa mengangkut Corps atau Montir.'); return; }
   haulActor = apc; haulCorps = null; selectedUnit = apc; pendingTile = null;
-  if (apc.cargo) {                              // sudah membawa Corps -> langsung pilih tujuan
+  if (apc.cargo) {                              // sudah membawa Corps / Montir -> langsung pilih tujuan
     haulCorps = apc.cargo.unit;
-    setHaulJob(apc, haulCorps.id, null);
+    setHaulJob(apc, haulCorps.id, null, apc.cargo.type);
     renderTargetPanel();
   }
   closeAllPanels();
@@ -232,22 +273,24 @@ function finishHaul() {
 }
 function handleHaulPick(r, c) {
   const apc = haulActor;
-  if (!haulCorps) {                             // langkah 1: pilih Corps sekutu
-    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && isCorpsType(u.type));
+  if (!haulCorps) {                             // langkah 1: pilih Corps sekutu atau Advanced Montir sekutu
+    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && (isCorpsType(u.type) || u.type === 'advmontir'));
     if (!cu) return;
+    const montir = cu.type === 'advmontir', label = montir ? 'Montir' : 'Corps';
     if (cu.isBuilding) { alert('Corps ini sedang membangun.'); return; }
-    if (cu.cargo) { alert('Corps yang sedang membawa muatan tidak bisa diangkut.'); return; }
-    resetUnit(cu);                              // Corps berhenti dan menunggu dijemput
-    setHaulJob(apc, cu.id, null);
+    if (cu.cargo) { alert(`${label} yang sedang membawa muatan tidak bisa diangkut.`); return; }
+    resetUnit(cu);                              // Corps / Montir berhenti dan menunggu dijemput
+    setHaulJob(apc, cu.id, null, montir ? 'montir' : 'corps');
     haulCorps = cu;
-    logAction(`APC #${apc.id} → angkut Corps #${cu.id}`);
+    logAction(`APC #${apc.id} → angkut ${label} #${cu.id}`);
     updateActionPanel(); renderTargetPanel(); draw();
     return;
   }
   if (r === apc.r && c === apc.c) { finishHaul(); return; }   // ketuk APC = tanpa tujuan
-  if (tileMoveCost(r, c, CORPS_DEF) === Infinity) { alert('Corps tidak bisa diturunkan di hex ini.'); return; }
+  const montir = haulCorps.type === 'advmontir', label = montir ? 'Montir' : 'Corps';
+  if (tileMoveCost(r, c, montir ? UNITS.advmontir : CORPS_DEF) === Infinity) { alert(`${label} tidak bisa diturunkan di hex ini.`); return; }
   apc.haul.dest = { r, c };
-  logAction(`APC #${apc.id}: antar Corps #${haulCorps.id} ke (${r},${c})`);
+  logAction(`APC #${apc.id}: antar ${label} #${haulCorps.id} ke (${r},${c})`);
   finishHaul();
 }
 
@@ -281,6 +324,13 @@ function handleTargetPick(r, c) {
     return;
   }
   // hex biasa
+  if (isTrapperType(actor.type)) {   // v10.1 (P2): hex tujuan bom divalidasi dengan bombTileOK (hex yang ditempati unit boleh)
+    if (!bombTileOK(r, c)) { alert('Hex ini tidak bisa dipasangi bom.'); return; }
+    setUnitTarget(actor, { kind: 'hex', r, c });
+    logAction(`${unitName(actor)} #${actor.id} → pasang bom di hex (${r},${c})`);
+    finishTargetMode();
+    return;
+  }
   if (tileMoveCost(r, c, defOf(actor)) === Infinity) { alert('Hex ini tidak bisa dijangkau unit ini.'); return; }
   if (isTileBlocked(r, c)) { alert('Hex ini sudah terisi.'); return; }
   setUnitTarget(actor, { kind: 'hex', r, c });
@@ -303,7 +353,9 @@ function onCanvasClick(e) {
   if (gameOver || laneMode || lockMode) return;
   if (dragMoved) return;
   if (Date.now() < suppressClickUntil) return;
-  if (!canAct()) return;
+  // v10.1 (P7): saat ∞ aktif perintah manual mati, tetapi ketuk tile / ikon (melihat info & panel) tetap bisa
+  const viewOnly = !canAct();
+  if (viewOnly && !(autoMode && !paused)) return;
   const mx = e.clientX, my = e.clientY;
 
   // 0) Ikon "i" / ikon entitas
@@ -321,14 +373,18 @@ function onCanvasClick(e) {
   if (!tile) return;
   const { r, c } = tile;
 
-  // 1) Mode tempati / pilih target
-  if (haulActor) { handleHaulPick(r, c); return; }
-  if (focusActor) { handleFocusPick(r, c); return; }
-  if (occupyHex) { handleOccupyPick(r, c); return; }
-  if (targetActor) { handleTargetPick(r, c); return; }
+  // 1) Mode tempati / pilih target (tidak ada saat ∞ aktif: viewOnly)
+  if (!viewOnly) {
+    if (haulActor) { handleHaulPick(r, c); return; }
+    if (bombHexActor) { handleBombHexPick(r, c); return; }
+    if (bombBldActor) { handleBombBldPick(r, c); return; }
+    if (focusActor) { handleFocusPick(r, c); return; }
+    if (occupyHex) { handleOccupyPick(r, c); return; }
+    if (targetActor) { handleTargetPick(r, c); return; }
+  }
 
   // 2) Mode Supply manual (Recovery / Supply Fuel / Supply Medical)
-  if (specialMode && specialActor) {
+  if (!viewOnly && specialMode && specialActor) {
     const isTarget = specialTargets.some(t => t.r === r && t.c === c);
     if (isTarget) {
       const targetUnit = units.find(u => u.r === r && u.c === c);
@@ -361,6 +417,7 @@ function cancelActionMode() {
   selectedUnit = null; reachable.clear(); attackMode = false; attackable = [];
   specialMode = null; specialActor = null; specialTargets = [];
   targetActor = null; occupyHex = null; haulActor = null; haulCorps = null; focusActor = null;
+  bombHexActor = null; bombBldActor = null;
   updateActionPanel();
   draw();
 }

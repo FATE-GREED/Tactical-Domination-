@@ -199,7 +199,7 @@
 
 /* ---------- Loading screen (v8.7) ---------- */
 #loading {
-  position: fixed; inset: 0; z-index: 200; overflow: hidden; background: #0c0e0a;
+  position: fixed; inset: 0; z-index: 2100;   /* v10.1 (P1): di atas layar Pilih Unit (2000) dan semua layar lain */ overflow: hidden; background: #0c0e0a;
   display: flex; align-items: center; justify-content: center;
   transition: opacity .45s ease;
 }

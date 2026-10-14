@@ -40,14 +40,17 @@ function totalBarakSlots(p) { return p.buildings.filter(b => b.type === 'barak')
 // v10: jenis Corps yang diproduksi Garnisun, mengikuti pilihan 10 unit pemain (bot meniru pilihan pemain agar adil).
 //  - Corps + Advanced Corps terpilih -> model ganda (2 Corps per produksi, masing-masing 1 jenis)
 //  - hanya Advanced Corps terpilih  -> Garnisun memproduksi Advanced Corps (jadwal lama 1,2,3,3)
-//  - selain itu (hanya Corps / tidak ada / Campaign) -> Corps biasa (jadwal lama)
+//  - hanya Corps terpilih           -> Corps biasa (jadwal lama)
+//  - v10.1 (P4): tidak ada jenis Corps terpilih -> TIDAK memproduksi Corps ([]); layar Pilih Unit mewajibkan minimal satu jenis,
+//    jadi cabang ini hanya pengaman. Fallback ['corps'] hanya untuk Campaign dan keadaan tanpa pilihan (selectedLoadoutUnits kosong).
 function corpsKinds() {
   const sel = (typeof selectedLoadoutUnits !== 'undefined') ? selectedLoadoutUnits : [];
   if (CAMPAIGN || !Array.isArray(sel) || sel.length !== 10) return ['corps'];
   const hasC = sel.includes('corps'), hasA = sel.includes('advcorps');
   if (hasC && hasA) return ['corps', 'advcorps'];
   if (hasA) return ['advcorps'];
-  return ['corps'];
+  if (hasC) return ['corps'];
+  return [];
 }
 // Jeda produksi model ganda per "paket" (2 Corps): paket ke-1 langsung, ke-2 setelah 2 giliran, ke-3 setelah 4, ke-4 setelah 5, seterusnya tetap 5.
 // Paket ke-k dihitung dari jumlah Corps hidup: k = floor(hidup / 2) + 1 (Corps gugur => jadwal mundur, sama seperti jadwal lama).
@@ -187,6 +190,7 @@ function startTurn(pIdx) {
   // sama-sama terpilih): paket 2 Corps dengan jeda 0,2,4,5 lalu tetap 5 giliran, selalu 2 per paket. Maks 10 Corps hidup.
   // Kalau Corps mati dan jumlahnya di bawah 10, hitungan giliran produksi dimulai lagi.
   const kinds = corpsKinds();
+  if (!kinds.length) { p.corps.timer = null; return; }       // v10.1 (P4): tidak ada jenis Corps terpilih -> Garnisun tidak memproduksi
   const dual = kinds.length === 2;
   const waitFor = cnt => dual ? dualCorpsWait(Math.floor(cnt / 2) + 1) : corpsWait(cnt + 1);
   const produce = () => dual ? spawnCorpsBatch(pIdx, kinds) > 0 : spawnCorps(pIdx, kinds[0]);

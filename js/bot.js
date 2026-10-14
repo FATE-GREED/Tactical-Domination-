@@ -14,7 +14,8 @@
 //    fokus tembak (unit musuh terlemah/terdekat) dan membela Markas bila terancam.
 // ====================================================================
 
-let botWaveStarted = false;
+// v10.1 (P7): per-pemain (bot bisa memainkan pihak HUMAN saat ∞ aktif), indeks = nomor pemain
+let botWaveStarted = [false, false];
 
 function botTakeTurn(me) {
   botDeploy(me);
@@ -67,6 +68,8 @@ function botDeploy(me) {
     const apcs = mine().filter(u => isApcType(u.type)).length;
     if (hasPom && fuelVeh >= 2 && apcs < (fuelVeh >= 5 ? 2 : 1)) { w.apc = 4; w.advapc = 3; }
     if (CAMPAIGN) for (const k of Object.keys(w)) if (!CAMPAIGN.units.includes(k)) w[k] = 0;   // v9.7: unit bot = unit yang tersedia bagi pemain
+    // v10.1 (P7): bot yang memainkan pihak HUMAN hanya membeli dari 10 unit pilihan pemain (bobot jenis tak terpilih = 0; Corps/Advanced Corps tidak dibeli di Barak)
+    if (me === HUMAN && typeof isHumanUnitAllowed === 'function') for (const k of Object.keys(w)) if (!isHumanUnitAllowed(k)) w[k] = 0;
     let bestKey = null, bestScore = -1;
     for (const key of Object.keys(w)) {
       if (UNITS[key].price > p.resources.kredit || w[key] <= 0) continue;
@@ -163,7 +166,7 @@ function botTargets(me) {
   const attackers = combat.filter(u => !defenders.includes(u));
   attackers.forEach(u => { u.locked = false; });
   if (!attackers.length) return;
-  if (!botWaveStarted && (attackers.length >= 5 || turnNumber >= 8)) botWaveStarted = true;
+  if (!botWaveStarted[me] && (attackers.length >= 5 || turnNumber >= 8)) botWaveStarted[me] = true;
 
   const centroid = {
     r: Math.round(attackers.reduce((s, u) => s + u.r, 0) / attackers.length),
@@ -179,9 +182,9 @@ function botTargets(me) {
   const focus = threats[0] || near[0] || null;
 
   for (const u of attackers) {
-    if (focus && (botWaveStarted || threats.length)) {
+    if (focus && (botWaveStarted[me] || threats.length)) {
       setUnitTarget(u, { kind: 'unit', id: focus.id });
-    } else if (!botWaveStarted) {
+    } else if (!botWaveStarted[me]) {
       if (hexDistance(u.r, u.c, rally.r, rally.c) > 2) setUnitTarget(u, { kind: 'hex', r: rally.r, c: rally.c });
       else u.target = null, u.job = 'idle';
     } else if (hexDistance(u.r, u.c, centroid.r, centroid.c) > 9) {

@@ -26,6 +26,12 @@ function startGame(opts) {
   currentPlayerIdx = CAMPAIGN ? HUMAN : (Math.random() < 0.5 ? 0 : 1);
   turnNumber = 1;
 
+  // v10.1 (P7/P9/P10): reset mode otomatis, Skip, mode cepat, dan log eksekusi sebelumnya
+  autoMode = false; autoTurnBusy = false;
+  skipArmed = false; skipExecLeft = 0; FAST = false;
+  dmgFeedPrev = null; dmgFeedPrevOpen = false;
+  botWaveStarted = [false, false];
+
   initCanvas();                     // render.js — siapkan canvas & pertama kali draw
   initInput();                      // input.js  — pasang semua event listener
   initHud();                        // hud.js    — sidebar, kecepatan, rincian, pengaturan

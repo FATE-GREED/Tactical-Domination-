@@ -85,9 +85,10 @@ function resolveUnitLethal(unit) {
   return 'dead';
 }
 
-// ---------- v10: bonus DEF Markas di awal permainan ----------
-// +200% di giliran 1, berkurang tetap tiap giliran (200/14 ≈ 14,29 poin) hingga habis di giliran 15. Tidak berlaku di Campaign.
-const MARKAS_BONUS_START = 200, MARKAS_BONUS_END_TURN = 15;
+// ---------- v10.1 (P6): bonus DEF Markas di awal permainan ----------
+// +300% di giliran 1, berkurang tetap tiap giliran (300/19 ≈ 15,79 poin) hingga habis di giliran 20 (v10: 200% / giliran 15). Tidak berlaku di Campaign.
+// Rumus: 300 × (20 − t) ÷ 19, t = turnNumber dijepit 1..20 → giliran 1 = 300%, 2 = 284,2%, 10 = 157,9%, 19 = 15,8%, ≥20 = 0%.
+const MARKAS_BONUS_START = 300, MARKAS_BONUS_END_TURN = 20;
 function markasDefBonusPct() {
   if (CAMPAIGN) return 0;
   const t = Math.min(Math.max(turnNumber, 1), MARKAS_BONUS_END_TURN);
@@ -111,7 +112,7 @@ function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride) {
   let defPct = terrainDefModifierPct(targetTerrain, targetInfo.vehicle, targetInfo.tank);
   defPct += territoryDefModifierPct(targetInfo.ownerIdx, targetInfo.obj.r, targetInfo.obj.c);
   defPct += defenderAbilityDEFPct(targetInfo);
-  if (targetInfo.kind === 'building' && targetInfo.obj.type === 'markas') defPct += markasDefBonusPct();   // v10
+  if (targetInfo.kind === 'building' && targetInfo.obj.type === 'markas') defPct += markasDefBonusPct();   // v10.1 (P6)
   const defFloor = (targetInfo.kind === 'building' && targetInfo.def.destructible !== false) ? 10 : 0;   // v9.5: DEF bangunan minimal 10
   const finalDEF = Math.max(defFloor, baseDEF * (1 + defPct / 100));
 
@@ -217,6 +218,7 @@ function applyAttack(attackerUnit, targetR, targetC, opts) {
 function computeAttackable(unit) {
   const def = unitDef(unit.type);
   if (!def.combat) return [];
+  if (isTrapperType(unit.type)) return [];   // v10.1 (P2): Trapper bukan penyerang (hanya memasang bom)
   const out = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {

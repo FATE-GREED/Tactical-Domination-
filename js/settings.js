@@ -14,7 +14,7 @@ const Settings = (() => {
     musicShuffle: { 'bgm-plan': true, 'bgm-battle': true },
     panSens: 100,                                        // 40..250 (%)
     enemyDelay: 2,                                       // detik jeda sebelum eksekusi musuh (0..3)
-    speed: 1,                                            // v9.4: tombol kecepatan 1x..4x (klik berulang)
+    speed: 1,                                            // v9.4/v10.1 (P8): tombol kecepatan 1x..5x (klik berulang)
   };
   const TRACKS = { 'bgm-plan': 'Musik Rencana', 'bgm-battle': 'Musik Pertempuran' };
   let S = JSON.parse(JSON.stringify(DEF));
@@ -25,7 +25,7 @@ const Settings = (() => {
   function set(k, v) { S[k] = v; save(); apply(); listeners.forEach(f => f(k, v)); }
   function onChange(f) { listeners.push(f); }
   // Normal = 2x lebih lambat dari kecepatan v8.8; tombol 2x mengembalikan ke kecepatan lama.
-  const timeScale = () => 2 / Math.min(4, Math.max(1, +S.speed || 1));   // 1x=2, 2x=1, 3x=0.67, 4x=0.5
+  const timeScale = () => 2 / Math.min(5, Math.max(1, +S.speed || 1));   // v10.1 (P8): 1x=2, 2x=1, 3x=0.67, 4x=0.5, 5x=0.4
   function hexA(hex, a) {
     const h = /^#?([0-9a-f]{6})$/i.exec(hex || '');
     const n = h ? parseInt(h[1], 16) : 0x5aa9ff;
@@ -39,7 +39,7 @@ const Settings = (() => {
     b.classList.toggle('hide-act', !S.showActLog);
     b.classList.toggle('hide-kill', !S.showKill);
     const sb = document.getElementById('speedBtn');
-    if (sb) { const sp = Math.min(4, Math.max(1, +S.speed || 1)); sb.textContent = (sp > 1 ? '⏩ ' : '▶ ') + sp + 'x'; sb.classList.toggle('on', sp > 1); }
+    if (sb) { const sp = Math.min(5, Math.max(1, +S.speed || 1)); sb.textContent = (sp > 1 ? '⏩ ' : '▶ ') + sp + 'x'; sb.classList.toggle('on', sp > 1); }
     if (typeof draw === 'function' && typeof ctx !== 'undefined' && ctx) { try { draw(); } catch (e) {} }
   }
   function reset() { S = JSON.parse(JSON.stringify(DEF)); save(); apply(); listeners.forEach(f => f('*', null)); }
@@ -115,7 +115,7 @@ const Settings = (() => {
     sec('🎮 Permainan');
     body.append(slider('Sensitivitas geser layar', 'panSens', 40, 250, 10),
       select('Jeda sebelum eksekusi musuh', 'enemyDelay', [[0, 'Tanpa jeda'], [1, '1 detik'], [2, '2 detik'], [3, '3 detik']], true),
-      select('Kecepatan eksekusi', 'speed', [[1, 'Normal (1x)'], [2, 'Cepat (2x)'], [3, 'Cepat (3x)'], [4, 'Cepat (4x)']], true));
+      select('Kecepatan eksekusi', 'speed', [[1, 'Normal (1x)'], [2, 'Cepat (2x)'], [3, 'Cepat (3x)'], [4, 'Cepat (4x)'], [5, 'Cepat (5x)']], true));
   }
   function open() {
     if (!root) {

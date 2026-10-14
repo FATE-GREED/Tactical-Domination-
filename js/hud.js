@@ -33,7 +33,7 @@ function initHud() {
   clearInterval(matchTimer);
   matchTimer = setInterval(() => { if (!paused && !gameOver) { matchSec++; updateMatchTime(); } }, 1000);
 
-  document.getElementById('speedBtn').addEventListener('click', () => Settings.set('speed', (Math.min(4, Math.max(1, +Settings.get('speed') || 1)) % 4) + 1));
+  document.getElementById('speedBtn').addEventListener('click', () => Settings.set('speed', (Math.min(5, Math.max(1, +Settings.get('speed') || 1)) % 5) + 1));   // v10.1 (P8): 1→2→3→4→5→1
   document.getElementById('rincianBtn').addEventListener('click', () => Rincian.open());
   document.getElementById('goRincianBtn').addEventListener('click', () => Rincian.open());
   document.getElementById('pmSettings').addEventListener('click', () => Settings.open());

@@ -448,3 +448,56 @@ body.hide-dmg #dmgfeed, body.hide-act #actionlog, body.hide-kill #killfeed { dis
   #unitselect-message { margin-bottom: 3px; }
   #unitselect-screen .unitselect-footer { padding-top: 6px; }
 }
+
+
+/* ================= v10.1: tombol ∞ / Skip (P7, P9), panah log damage (P10), toast ================= */
+/* Urutan kanan bawah: [Skip] [∞] [Eksekusi] */
+#autoBtn, #skipBtn {
+  position: fixed; bottom: 15px; z-index: 25; width: 44px; height: 44px; padding: 0; margin: 0;
+  border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(60,64,56,0.85); border: 2px solid #666; color: #bbb; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5); font-family: inherit; line-height: 1;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+#autoBtn { right: 70px; font-size: 26px; font-weight: bold; }
+#skipBtn { right: 122px; font-size: 18px; }
+/* ∞: nonaktif = abu-abu; aktif = hijau terang berdenyut pelan */
+#autoBtn.on {
+  background: rgba(74,200,90,0.92); border-color: #b6ffb0; color: #fff;
+  animation: autoPulse 1.6s ease-in-out infinite;
+}
+@keyframes autoPulse {
+  0%, 100% { box-shadow: 0 0 4px 1px rgba(120,255,130,0.45), 0 2px 8px rgba(0,0,0,0.5); }
+  50%      { box-shadow: 0 0 14px 5px rgba(120,255,130,0.85), 0 2px 8px rgba(0,0,0,0.5); }
+}
+/* Skip: aktif (bisa ditekan) = hijau gelap seperti Eksekusi; terpasang = oranye berlabel "Skip siap"; nonaktif = abu-abu */
+#skipBtn:not(:disabled) { background: rgba(74,107,58,0.9); border-color: #9bd06b; color: #fff; }
+#skipBtn.armed:not(:disabled), #skipBtn.armed { background: rgba(217,130,43,0.95); border-color: #ffd27a; color: #fff; }
+#skipBtn:disabled { background: rgba(60,64,56,0.8); border-color: #555; color: #888; cursor: not-allowed; }
+#skipBtn .sk-lb { display: none; font-size: 8px; font-weight: bold; margin-top: 1px; white-space: nowrap; }
+#skipBtn.armed .sk-lb { display: block; }
+#skipBtn.armed .sk-ic { font-size: 15px; }
+#legend { right: 176px; }
+
+/* Panah log damage 1 eksekusi sebelumnya */
+#dmgPrevBtn {
+  position: fixed; top: calc(var(--row2) + 14px); right: 6px; z-index: 6;
+  width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px;
+  color: #ddd; font-size: 14px; line-height: 1; cursor: pointer; pointer-events: auto;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+#dmgPrevBtn[hidden] { display: none; }
+#dmgfeed.hasprev { right: 40px; }          /* ruang untuk panah di sampingnya; tidak menutupi baris log */
+#dmgfeed .dprev { margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.25); opacity: 0.92; }
+#dmgfeed .dprevlbl { color: #aaa; font-size: 10.5px; margin-bottom: 2px; }
+body.hide-dmg #dmgPrevBtn { display: none !important; }   /* pengaturan sembunyikan log damage menyembunyikan panah juga */
+
+/* Toast singkat ("Skip selesai") */
+#tdToast {
+  position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%) translateY(8px); z-index: 3000;
+  background: rgba(0,0,0,0.8); color: #fff; padding: 6px 16px; border-radius: 16px; font-size: 13px;
+  opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+}
+#tdToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }

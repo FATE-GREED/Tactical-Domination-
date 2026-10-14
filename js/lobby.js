@@ -227,7 +227,9 @@
   // startGame() sinkron & berat (generate peta), jadi garis dijalankan lewat transisi CSS
   // lebih dulu, baru startGame() dipanggil. Tampil minimal MIN ms supaya terlihat.
   const loading = $('loading'), ldFill = $('ldFill');
-  function showLoading(work) {
+  // v10.1 (P1): `after` (opsional) dijalankan SETELAH Loading benar-benar tersembunyi (loading.hidden = true),
+  // supaya layar Pilih Unit (z-index 2000) tidak terlihat saat Loading masih tampil.
+  function showLoading(work, after) {
     const MIN = 1400, t0 = performance.now();
     loading.hidden = false; loading.classList.remove('hide');
     ldFill.style.transition = 'none'; ldFill.style.transform = 'scaleX(0)';
@@ -240,7 +242,10 @@
         ldFill.style.transition = 'transform .25s ease-out'; ldFill.style.transform = 'scaleX(1)';
         setTimeout(() => {
           loading.classList.add('hide');
-          setTimeout(() => { loading.hidden = true; }, 450);
+          setTimeout(() => {
+            loading.hidden = true;
+            if (after) { try { after(); } catch (err) { console.warn('after-loading gagal:', err); } }
+          }, 450);
         }, 300);
       }, Math.max(0, MIN - (performance.now() - t0)));
     }, 40)));
@@ -248,7 +253,7 @@
 
   function enterGame(opts) {
     closeModal();
-    showLoading(() => { lobby.style.display = 'none'; showUnitSelectScreen(opts); });
+    showLoading(() => { lobby.style.display = 'none'; }, () => showUnitSelectScreen(opts));   // v10.1 (P1): Pilih Unit baru muncul setelah Loading hilang
   }
 
   // ---------- Event ----------
@@ -303,7 +308,7 @@
     Campaign.startBattle();
   } else if (auto) {
     lobby.style.display = 'none';
-    showLoading(() => showUnitSelectScreen({ mode: 'bot', level: 'sulit' }));
+    showLoading(() => { lobby.style.display = 'none'; }, () => showUnitSelectScreen({ mode: 'bot', level: 'sulit' }));   // v10.1 (P1)
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
     if (openAfter === 'campaign') Campaign.enter();   // selesai Chapter 1: tampilkan peta Vanderick

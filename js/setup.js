@@ -1,8 +1,8 @@
 // ====================================================================
 // setup.js — Penempatan bangunan awal & inisialisasi pemain.
-//  - Markas: di tengah atas-bawah, 10 tile dari sisi samping.
+//  - Markas: di tengah atas-bawah, 5 tile dari sisi samping (v10.1; sebelumnya 10).
 //  - Garnisun: sudut atas/bawah, pemain 2 di sudut yang berlawanan.
-//  - Barak: 10 tile di atas ATAU di bawah Markas (acak).
+//  - Barak: 10 tile di atas ATAU di bawah Markas, selalu di sisi berlawanan dengan Garnisun pemilik yang sama (v10.1).
 // Tile bangunan dipaksa jadi Grass.
 // ====================================================================
 
@@ -25,13 +25,14 @@ function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cab
     return;
   }
   const midR = Math.floor(ROWS / 2);
-  const cols = [10, COLS - 1 - 10];
+  const cols = [5, COLS - 1 - 5];            // v10.1 (P5): Markas 5 tile dari pinggir peta (kolom 5 dan 39)
   const p1Top = Math.random() < 0.5;
   for (let i = 0; i < 2; i++) {
     const c = cols[i];
-    place(i, 'markas', midR, c);
-    place(i, 'barak', midR + (Math.random() < 0.5 ? -10 : 10), c);
     const top = i === 0 ? p1Top : !p1Top;   // musuh di sudut berlawanan
+    place(i, 'markas', midR, c);
+    // v10.1 (P5): sisi Barak berlawanan dengan sisi Garnisun milik pemain yang sama (Garnisun atas -> Barak bawah, dan sebaliknya)
+    place(i, 'barak', midR + (top ? 10 : -10), c);
     place(i, 'garnisun', top ? 3 : ROWS - 4, i === 0 ? 3 : COLS - 4);   // v9.0: footprint 3 tile digeser sedikit dari sudut agar Corps tidak terkurung
   }
 }

@@ -12,15 +12,98 @@
 // Aturan dasar (damage, MP, terrain, supply, build) TIDAK diubah.
 // ====================================================================
 
+// ---------------------------------------------------------------
+// v10.1 (P7/P9): state Mode Otomatis (∞), Skip, dan mode cepat (FAST)
+// ---------------------------------------------------------------
+let autoMode = false;        // P7: tombol ∞ — gerak pihak HUMAN dikendalikan bot, eksekusi jalan sendiri tiap giliran
+let autoTurnBusy = false;    // P7: autoPlayTurn sedang berjalan (cegah pemanggilan ganda)
+let skipArmed = false;       // P9: Skip terpasang (berlaku untuk eksekusi HUMAN berikutnya)
+let skipExecLeft = 0;        // P9: sisa eksekusi pada set Skip yang sedang berjalan (kita + musuh = 2)
+let FAST = false;            // P9: mode cepat aktif selama skipExecLeft > 0 (tanpa animasi / suara / gambar bertahap)
+
 // sleep ikut berhenti selama game di-pause (eksekusi membeku di antara langkah)
+// v10.1 (P9): saat FAST, wait()/sleep() langsung selesai tanpa timer (pause tidak berpengaruh selama mode cepat).
 async function wait(ms) {
+  if (FAST) return;
   await new Promise(res => setTimeout(res, ms));
   while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));
 }
 // v8.9: kecepatan normal = 2x lebih lambat; tombol 2x mengembalikan kecepatan lama (Settings.timeScale)
 async function sleep(ms) { return wait(ms * Settings.timeScale()); }
-// Pemain manusia boleh memberi perintah: fase rencana, giliran manusia, tidak pause
-function canAct() { return phase === 'plan' && currentPlayerIdx === HUMAN && !paused && !gameOver; }
+// Pemain manusia boleh memberi perintah: fase rencana, giliran manusia, tidak pause. v10.1 (P7): tidak saat ∞ aktif.
+function canAct() { return phase === 'plan' && currentPlayerIdx === HUMAN && !paused && !gameOver && !autoMode; }
+
+// P9: gambar & perbarui panel sekali (dipakai di akhir tiap eksekusi FAST dan saat FAST padam)
+function fastFlush() {
+  const f = FAST;
+  FAST = false;
+  try {
+    draw();
+    renderResourcePanels();
+    renderTargetPanel();
+    renderDmgFeed();
+    if (typeof renderActFeed === 'function') renderActFeed();
+  } catch (err) { console.warn('fastFlush gagal:', err); }
+  FAST = f;
+}
+// P9: matikan mode cepat & Skip (akhir set, atau game over). toast = tampilkan "Skip selesai".
+function endFast(toast) {
+  const was = FAST || skipExecLeft > 0;
+  FAST = false; skipExecLeft = 0; skipArmed = false;
+  if (was) {
+    fastFlush();
+    if (toast && !gameOver) showToast('Skip selesai');
+  }
+  updateTimerUI();
+}
+// P7/P9: dipanggil showGameOver() — ∞ dan Skip mati sendiri saat game berakhir
+function onGameOverAuto() {
+  autoMode = false;
+  endFast(false);
+  updateAutoUI();
+}
+// P7/P9: sinkronkan tombol ∞ dan Skip dengan state
+function updateAutoUI() {
+  const a = document.getElementById('autoBtn');
+  if (a) { a.classList.toggle('on', autoMode); a.setAttribute('aria-pressed', autoMode ? 'true' : 'false'); a.title = autoMode ? '∞ Otomatis AKTIF (ketuk untuk mematikan)' : '∞ Otomatis: bot memainkan pihak kita'; }
+  const k = document.getElementById('skipBtn');
+  if (k) {
+    k.disabled = !canAct();
+    k.classList.toggle('armed', skipArmed);
+    k.title = skipArmed ? 'Skip siap (ketuk untuk batal)' : 'Skip: satu set eksekusi selesai seketika';
+  }
+  const e = document.getElementById('endturn');
+  if (e && autoMode) e.disabled = true;
+}
+// Toast singkat di tengah bawah
+let toastTimer = null;
+function showToast(msg) {
+  let el = document.getElementById('tdToast');
+  if (!el) { el = document.createElement('div'); el.id = 'tdToast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+// P9: tombol Skip — pasang / batalkan (hanya fase rencana kita, ∞ tidak aktif)
+function toggleSkip() {
+  if (!canAct()) return;
+  skipArmed = !skipArmed;
+  updateAutoUI();
+}
+// P7: tombol ∞ — nyala/mati
+function toggleAutoMode() {
+  if (gameOver) return;
+  autoMode = !autoMode;
+  if (autoMode) { cancelActionMode(); closeAllPanels(); pendingTile = null; }
+  updateAutoUI();
+  updateTimerUI();
+  renderTargetPanel();
+  draw();
+  // Nyala saat fase rencana HUMAN: langsung susun & eksekusi. Selain itu: mulai di fase rencana HUMAN berikutnya (beginPlanning).
+  if (autoMode && phase === 'plan' && currentPlayerIdx === HUMAN) autoPlayTurn(HUMAN);
+}
+
 function defOf(u) { return unitDef(u.type); }
 function unitName(u) { return unitDef(u.type).name; }
 function tileFree(u, r, c) { return (r === u.r && c === u.c) || !isTileBlocked(r, c, u); }
@@ -76,8 +159,9 @@ function dropBuildOrder(u) {
 function setUnitTarget(u, target) { dropBuildOrder(u); u.focus = null; u.target = target; u.buildOrder = null; u.haul = null; if (!defOf(u).combat) u.job = 'idle'; }
 function resetUnit(u) { dropBuildOrder(u); u.focus = null; u.target = null; u.buildOrder = null; u.haul = null; u.job = 'idle'; }
 function setJob(u, job) { dropBuildOrder(u); u.focus = null; u.job = job; u.target = null; u.buildOrder = null; u.haul = null; }
-// Job Angkut (APC): jemput Corps `corpsId`, antar ke `dest` ({r,c}) bila ada; tanpa tujuan APC diam.
-function setHaulJob(u, corpsId, dest) { dropBuildOrder(u); u.job = 'angkut'; u.target = null; u.buildOrder = null; u.haul = { corpsId, dest: dest || null }; }
+// Job Angkut (APC): jemput unit `unitId` (Corps atau Advanced Montir; kind = 'corps' | 'montir'), antar ke `dest` ({r,c}) bila ada; tanpa tujuan APC diam.
+// v10.1 (P3): corpsId dipertahankan sebagai id unit yang diangkut agar kode lama tetap jalan.
+function setHaulJob(u, unitId, dest, kind) { dropBuildOrder(u); u.job = 'angkut'; u.target = null; u.buildOrder = null; u.haul = { corpsId: unitId, kind: kind || 'corps', dest: dest || null }; }
 
 // ---------------------------------------------------------------
 // Perintah bangun (tekan lama hex -> Bangun)
@@ -343,6 +427,7 @@ async function fireShot(u, pick, keepAction) {
 }
 
 async function autoAttack(u) {
+  if (isTrapperType(u.type)) return;               // v10.1 (P2): Trapper tidak pernah menembak
   if (u.attacked || !units.includes(u) || u.downed) return;
   const pick = pickAutoTarget(u);
   if (!pick) return;
@@ -467,22 +552,33 @@ async function execCombat(u) {
 // v9.7 Trapper / Advanced Trapper (aturan bom di bombs.js)
 // ---------------------------------------------------------------
 async function execTrapper(u) {
+  // v10.1 (P2): Trapper TIDAK PERNAH menembak. ATK 48 hanya kekuatan bom; Rng 2 hanya jarak pasang.
+  // Prioritas tujuan: (1) target manual, (2) bom < 3 & ada musuh terlihat -> defaultBombSpot,
+  // (3) bom < 3 & tak ada musuh terlihat -> markasBombSpot (samping Markas musuh), (4) bom = 3 tanpa target -> mundur & diam.
   const mine = bombsOf(u).length;
-  let spot = null;
-  const manual = !!u.target;
-  if (manual) spot = manualBombSpot(u);                      // target hex / bangunan / unit (sistem target yang ada)
-  else if (mine >= 3) {                                      // 3 bom terpasang: mundur & diam dekat Markas sendiri
-    const mk = nearestOwnMarkas(u);
-    if (mk && distToBuilding(u.r, u.c, mk) > 4 && u.mp > 0) {
-      u.noLane = true;
-      try { await moveToward(u, (r, c) => tileFree(u, r, c) && distToBuilding(r, c, mk) <= 4, { r: mk.r, c: mk.c }); }
-      finally { u.noLane = false; }
+  let spot = null, manual = false;
+  if (u.target) {
+    spot = manualBombSpot(u);                                // resolveTarget mengosongkan target yang hilang (musuh gugur / bangunan hancur)
+    manual = !!u.target;
+    if (manual && !spot) {
+      if (u.target.kind === 'building') return;              // tak ada tile samping bangunan yang valid: diam
+      u.target = null; manual = false;                       // hex / unit tak valid lagi: kembali ke perilaku default
     }
-    await autoAttack(u);
-    return;
-  } else spot = defaultBombSpot(u);                          // jalur musuh terlihat terdekat -> Markas sendiri, ~10 tile dari musuh
-
-  if (!spot) { await execCombat(u); return; }                // tak ada musuh terlihat / target tak valid: perilaku tempur default
+    if (manual && u.target.kind === 'building' && mine >= BOMB_MAX_PER_TRAPPER) return;   // 3 bom hidup: tunggu di tempat, pasang lagi saat ada bom terpakai
+  }
+  if (!manual) {
+    if (mine >= BOMB_MAX_PER_TRAPPER) {                      // 3 bom terpasang: mundur & diam dekat Markas sendiri (tanpa menembak)
+      const mk = nearestOwnMarkas(u);
+      if (mk && distToBuilding(u.r, u.c, mk) > 4 && u.mp > 0) {
+        u.noLane = true;
+        try { await moveToward(u, (r, c) => tileFree(u, r, c) && distToBuilding(r, c, mk) <= 4, { r: mk.r, c: mk.c }); }
+        finally { u.noLane = false; }
+      }
+      return;
+    }
+    spot = hasVisibleFoe(u) ? defaultBombSpot(u) : markasBombSpot(u);
+    if (!spot) return;                                       // tak ada tujuan valid: diam
+  }
 
   const goal = (r, c) => tileFree(u, r, c) && hexDistance(r, c, spot.r, spot.c) <= rangeAtTile(UNITS[u.type], r, c);
   if (!goal(u.r, u.c) && u.mp > 0) {
@@ -490,8 +586,11 @@ async function execTrapper(u) {
     try { await moveToward(u, goal, { r: spot.r, c: spot.c }); }
     finally { u.noLane = false; }
   }
-  if (units.includes(u) && !u.attacked && hexDistance(u.r, u.c, spot.r, spot.c) <= effectiveRange(u)) { await placeBomb(u, spot); return; }
-  await autoAttack(u);
+  if (units.includes(u) && !u.attacked && hexDistance(u.r, u.c, spot.r, spot.c) <= effectiveRange(u)) {
+    await placeBomb(u, spot);
+    // Siklus target manual: hex / unit musuh -> setelah satu bom terpasang target dikosongkan (kembali default); bangunan -> tetap sampai hancur
+    if (manual && units.includes(u) && u.attacked && u.target && u.target.kind !== 'building') u.target = null;
+  }
 }
 
 async function execMarkasOrder(u) {
@@ -610,22 +709,24 @@ async function execJob(u) {
   else if (!pool.length && anchor && hexDistance(u.r, u.c, anchor.r, anchor.c) > FOCUS_LEASH_R) await moveToward(u, adj(anchor.r, anchor.c), anchor);   // jangan menjauh >20 tile dari fokus (kecuali isi ulang)
 }
 
-// Job Angkut (APC): jemput Corps terpilih -> antar ke tujuan -> turunkan. Tanpa tujuan APC diam.
+// Job Angkut (APC): jemput Corps / Advanced Montir terpilih -> antar ke tujuan -> turunkan. Tanpa tujuan APC diam.
 async function execHaul(u) {
   const h = u.haul;
   if (!h) { u.job = 'idle'; return; }
+  const kind = h.kind || 'corps';                             // v10.1 (P3): 'corps' | 'montir'
+  const label = kind === 'montir' ? 'Montir' : 'Corps';
   const adj = (tx, ty) => (r, c) => tileFree(u, r, c) && hexDistance(r, c, tx, ty) <= 1;
-  if (!(u.cargo && u.cargo.type === 'corps')) {
-    if (u.cargo) return;                                      // sedang membawa Fuel/Medical
+  if (!(u.cargo && u.cargo.type === kind)) {
+    if (u.cargo) return;                                      // sedang membawa muatan lain (Fuel/Medical/jenis lain)
     const cu = units.find(x => x.id === h.corpsId && x.owner === u.owner);
-    if (!cu || cu.isBuilding || cu.cargo) {                   // Corps hilang / sibuk -> job batal
-      logAction(`APC #${u.id}: Corps #${h.corpsId} tidak tersedia, job angkut batal`);
+    if (!cu || cu.isBuilding || cu.cargo) {                   // unit hilang / sibuk -> job batal
+      logAction(`APC #${u.id}: ${label} #${h.corpsId} tidak tersedia, job angkut batal`);
       resetUnit(u); return;
     }
     if (hexDistance(u.r, u.c, cu.r, cu.c) > 1) await moveToward(u, adj(cu.r, cu.c), cu);
     if (units.includes(cu) && hexDistance(u.r, u.c, cu.r, cu.c) === 1 && !u.attacked) {
-      const res = loadCorpsIntoAPC(u, cu);
-      if (res.ok) { logAction(`APC #${u.id}: Corps #${cu.id} naik`); renderTargetPanel(); draw(); await sleep(250); }
+      const res = kind === 'montir' ? loadMontirIntoAPC(u, cu) : loadCorpsIntoAPC(u, cu);
+      if (res.ok) { logAction(`APC #${u.id}: ${label} #${cu.id} naik`); renderTargetPanel(); draw(); await sleep(250); }
     }
     return;
   }
@@ -633,9 +734,9 @@ async function execHaul(u) {
   const d = h.dest;
   if (hexDistance(u.r, u.c, d.r, d.c) > 1 && u.mp > 0) await moveToward(u, adj(d.r, d.c), d);
   if (hexDistance(u.r, u.c, d.r, d.c) <= 1 && !u.attacked) {
-    const res = unloadCorpsFromAPC(u, d);
+    const res = kind === 'montir' ? unloadMontirFromAPC(u, d) : unloadCorpsFromAPC(u, d);
     if (res.ok) {
-      logAction(`APC #${u.id}: Corps diturunkan di dekat (${d.r},${d.c})`);
+      logAction(`APC #${u.id}: ${label} diturunkan di dekat (${d.r},${d.c})`);
       u.job = 'idle'; u.haul = null;
       renderTargetPanel(); draw(); await sleep(250);
     }
@@ -667,21 +768,34 @@ function beginPlanning() {
   renderResourcePanels();
   renderTargetPanel();
   draw();
-  if (currentPlayerIdx !== HUMAN) {            // giliran bot: susun rencana seketika, lalu eksekusi
-    const me = currentPlayerIdx;
-    setTimeout(async () => {
-      while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));
-      if (gameOver) return;
-      try { botTakeTurn(me); } catch (err) { console.warn('Bot gagal menyusun rencana:', err); }
-      renderTargetPanel(); draw();
-      await wait((Settings.get('enemyDelay') || 0) * 1000);   // jeda sebelum musuh bergerak (Pengaturan)
-      await sleep(500);
-      runExecution();
-    }, 400);
-    return;
-  }
+  updateAutoUI();
+  if (currentPlayerIdx !== HUMAN) { autoPlayTurn(currentPlayerIdx); return; }   // giliran bot: susun rencana seketika, lalu eksekusi
+  if (autoMode) { autoPlayTurn(HUMAN); return; }                               // v10.1 (P7): ∞ aktif -> bot memainkan pihak kita
   // v8.5: fase rencana pemain tanpa batas waktu — tidak ada hitung mundur;
   // eksekusi berjalan saat pemain menekan tombol Eksekusi.
+}
+
+// v10.1 (P7): siklus otomatis bersama — dipakai bot (musuh) dan HUMAN saat ∞ aktif.
+// jeda 400 ms -> botTakeTurn(me) -> jeda enemyDelay (hanya untuk bot) -> 500 ms -> runExecution().
+async function autoPlayTurn(me) {
+  if (autoTurnBusy) return;
+  autoTurnBusy = true;
+  try {
+    await wait(400);
+    while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));   // pause menahan awal eksekusi (juga saat FAST)
+    if (gameOver) return;
+    if (phase !== 'plan' || currentPlayerIdx !== me) return;
+    if (me === HUMAN && !autoMode) return;                                       // ∞ dimatikan sebelum rencana disusun
+    try { botTakeTurn(me); } catch (err) { console.warn('Bot gagal menyusun rencana:', err); }
+    renderTargetPanel(); draw();
+    if (me !== HUMAN) await wait((Settings.get('enemyDelay') || 0) * 1000);       // jeda sebelum musuh bergerak (Pengaturan)
+    await sleep(500);
+    while (paused && !gameOver) await new Promise(res => setTimeout(res, 100));
+    if (gameOver) return;
+    if (phase !== 'plan' || currentPlayerIdx !== me) return;
+    if (me === HUMAN && !autoMode) { updateAutoUI(); updateTimerUI(); return; }  // ∞ dimatikan: kontrol kembali ke pemain
+  } finally { autoTurnBusy = false; }
+  runExecution();
 }
 
 // v9.7: pembaruan penghitung di akhir eksekusi giliran pemilik (sr/sc = posisi awal)
@@ -702,14 +816,18 @@ function afterUnitTurn(u, sr, sc) {
 async function runExecution() {
   if (phase !== 'plan' || gameOver) return;
   phase = 'exec';
-  Sfx.executeStart(); Sfx.music('battle');
+  const pIdx = currentPlayerIdx;
+  // v10.1 (P9): Skip terpasang -> set ini (eksekusi kita + eksekusi musuh) berjalan tanpa animasi / suara
+  if (pIdx === HUMAN && skipArmed) { skipArmed = false; skipExecLeft = 2; }
+  FAST = skipExecLeft > 0;
+  if (!FAST) { Sfx.executeStart(); Sfx.music('battle'); }
   clearInterval(planTimer);
   cancelActionMode();
   closeAllPanels();
   updateTimerUI();
+  updateAutoUI();
   draw();
 
-  const pIdx = currentPlayerIdx;
   dmgFeedReset();                               // log damage dikosongkan di awal tiap eksekusi (sekutu / musuh)
   if (pIdx === HUMAN) actFeedReset();           // v9.0: log aktivitas juga dikosongkan di awal eksekusi pemain
   if (laneMode) toggleLaneMode();
@@ -719,6 +837,7 @@ async function runExecution() {
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;
+    if (FAST) await new Promise(res => setTimeout(res, 0));          // v10.1 (P9): beri napas ke browser (tanpa menggambar) agar layar tidak membeku
     if (!units.includes(u) || u.isBuilding || u.downed) continue;     // v9.7: unit mode gugur tidak bertindak
     const sr = u.r, sc = u.c;
     try {
@@ -727,11 +846,18 @@ async function runExecution() {
     afterUnitTurn(u, sr, sc);
     renderTargetPanel();
   }
-  if (gameOver) { showGameOver(); return; }
+  if (gameOver) { endFast(false); showGameOver(); return; }
+
+  // v10.1 (P9): satu eksekusi FAST selesai -> gambar sekali; set selesai setelah dua eksekusi -> mode cepat padam
+  if (skipExecLeft > 0) {
+    skipExecLeft--;
+    if (skipExecLeft > 0) fastFlush();
+    else endFast(true);
+  }
 
   currentPlayerIdx = 1 - pIdx;
   if (currentPlayerIdx === 0) turnNumber++;
   startTurn(currentPlayerIdx);
-  if (gameOver) { showGameOver(); return; }     // v9.7: Markas bisa hancur karena Peluru Pembakar di awal giliran
+  if (gameOver) { endFast(false); showGameOver(); return; }     // v9.7: Markas bisa hancur karena Peluru Pembakar di awal giliran
   beginPlanning();
 }

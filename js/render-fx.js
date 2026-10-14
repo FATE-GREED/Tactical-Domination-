@@ -396,6 +396,7 @@ function drawBuildingSprite(b, ownerColor, x, y) {
 // ---------- Animasi: gerak unit (tween linear singkat) ----------
 let moveAnim = null; // {unitId, fromR, fromC, toR, toC, startTime, duration}
 function startMoveAnim(unit, fromR, fromC, duration = 220) {
+  if (FAST) return;   // v10.1 (P9): mode cepat — tanpa animasi gerak
   moveAnim = { unitId: unit.id, fromR, fromC, toR: unit.r, toC: unit.c, startTime: performance.now(), duration: duration * Settings.timeScale() };
   requestAnimationFrame(draw);
 }
@@ -403,6 +404,7 @@ function startMoveAnim(unit, fromR, fromC, duration = 220) {
 // ---------- Animasi: efek serangan (tracer + flash + angka damage melayang) ----------
 let attackFx = null; // {fromR,fromC,toR,toC,damage,startTime,duration}
 function startAttackFx(fromR, fromC, toR, toC, damage) {
+  if (FAST) return;   // v10.1 (P9): tanpa kilatan / garis jejak / angka damage melayang
   attackFx = { fromR, fromC, toR, toC, damage, startTime: performance.now(), duration: 450 * Settings.timeScale() };
   requestAnimationFrame(draw);
 }
@@ -412,6 +414,7 @@ function startAttackFx(fromR, fromC, toR, toC, damage) {
 // ---------- v9.7: efek ledakan bom (lingkaran radius melebar + kilatan) ----------
 let bombFx = [];   // {r,c,radius,startTime,duration}
 function startBombFx(r, c, radius) {
+  if (FAST) return;   // v10.1 (P9): tanpa efek ledakan
   bombFx.push({ r, c, radius, startTime: performance.now(), duration: 520 * Settings.timeScale() });
   requestAnimationFrame(draw);
 }

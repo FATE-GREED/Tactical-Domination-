@@ -114,7 +114,7 @@
     <button class="collapse-btn" onclick="togglePanel('hud')">▾</button>
   </div>
   <div class="panel-body">
-    <small>v10 — Lawan Bot (Sulit)</small><br>
+    <small>v10.1 — Lawan Bot (Sulit)</small><br>
     <small>Ketuk tile = ikon info/entitas<br>Tahan lama unit = pilih target<br>Tahan lama hex = Bangun / Tempati<br>Kalah jika semua Markas hancur</small>
   </div>
 </div>
@@ -144,9 +144,12 @@
   <button id="rincianBtn" title="Rincian pertandingan">📊 Rincian</button>
 </div>
 
+<button id="skipBtn" type="button" title="Skip: satu set eksekusi selesai seketika" aria-label="Skip"><span class="sk-ic">⏭</span><span class="sk-lb">Skip siap</span></button>
+<button id="autoBtn" type="button" title="∞ Otomatis: bot memainkan pihak kita" aria-label="Mode otomatis" aria-pressed="false">∞</button>
 <button id="endturn" title="Eksekusi">▶</button>
 
 <div id="dmgfeed"></div>
+<button id="dmgPrevBtn" type="button" hidden aria-label="Log eksekusi sebelumnya">▸</button>
 <div id="killfeed"></div>
 <div id="targetpanel" class="panel"></div>
 <div id="deploy" class="panel"></div>
@@ -187,7 +190,7 @@
 <div id="unitselect-screen" role="dialog" aria-modal="true" aria-labelledby="unitselect-title" aria-hidden="true">
   <div class="unitselect-header" id="unitselect-title">Pilih 10 Unit untuk Bertempur</div>
   <div id="unitselect-count" aria-live="polite">Terpilih: <span id="selected-num">0</span> / 10</div>
-  <p id="unitselect-message">Pilih 10 jenis unit. Corps &amp; Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).</p>
+  <p id="unitselect-message">Pilih 10 jenis unit. Wajib memilih minimal satu jenis Corps. Corps &amp; Advanced Corps tidak dibeli di Barak: keduanya datang dari Garnisun. Jika keduanya dipilih, Garnisun mengirim 2 Corps per paket (1 per jenis).</p>
   <div id="unitselect-list"></div>
   <div class="unitselect-footer">
     <button id="unitselect-reset" type="button">Reset Pilihan</button>

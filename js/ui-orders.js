@@ -9,11 +9,12 @@ function updateTimerUI() {
   const b = document.getElementById('endturn');
   const pb = document.getElementById('pauseBtn');
   if (pb) pb.textContent = paused ? '▶' : '⏸';
+  if (typeof updateAutoUI === 'function') updateAutoUI();   // v10.1 (P7/P9): state tombol ∞ & Skip (Skip aktif hanya saat canAct())
   if (paused) { t.textContent = '⏸ Dijeda'; b.disabled = true; return; }
   if (phase === 'plan' && currentPlayerIdx === HUMAN) {
-    t.textContent = ''; // tanpa batas waktu: label timer disembunyikan (#timer:empty)
+    t.textContent = autoMode ? '∞ Otomatis' : ''; // tanpa batas waktu: label timer disembunyikan (#timer:empty)
     b.textContent = '▶'; b.title = 'Eksekusi';
-    b.disabled = false;
+    b.disabled = autoMode;                              // v10.1 (P7): ∞ aktif -> Eksekusi nonaktif
   } else if (phase === 'plan') {
     t.textContent = 'Bot menyusun...';
     b.textContent = '⏳'; b.title = 'Menunggu...';
@@ -39,8 +40,14 @@ function togglePause() {
 
 // ---------- Log damage eksekusi (kanan atas, teks tanpa latar) ----------
 let dmgFeed = { lines: [], total: 0 };
+let dmgFeedPrev = null;          // v10.1 (P10): log 1 eksekusi sebelumnya (hanya satu yang disimpan); null = belum ada
+let dmgFeedPrevOpen = false;     // v10.1 (P10): keadaan buka/tutup panah bertahan sampai pemain mengubahnya
 const DMG_COL = { ally: '#5aa9ff', foe: '#ff5f5f', dmg: '#c58cff' };
-function dmgFeedReset() { dmgFeed = { lines: [], total: 0 }; renderDmgFeed(); }
+function dmgFeedReset() {
+  if (dmgFeed.lines.length > 0) dmgFeedPrev = dmgFeed;      // v10.1 (P10): simpan log eksekusi yang baru selesai sebelum dikosongkan
+  dmgFeed = { lines: [], total: 0 };
+  renderDmgFeed();
+}
 function dmgFeedAdd(attacker, targetName, targetOwner, dmg) {
   dmgFeed.lines.push({ a: unitName(attacker), aOwn: attacker.owner, t: targetName, tOwn: targetOwner, dmg });
   dmgFeed.total += dmg;
@@ -58,15 +65,32 @@ function killFeedAdd(a, aOwn, t, tOwn) {
   while (el.children.length > 3) el.firstChild.remove();
   setTimeout(() => d.remove(), 3200);
 }
+// Satu blok log: 14 baris terakhir + total (format sama untuk log sekarang dan log sebelumnya)
+function dmgBlockHtml(feed) {
+  if (!feed || !feed.lines.length) return '';
+  const col = o => (o === HUMAN ? DMG_COL.ally : DMG_COL.foe);
+  const rows = feed.lines.slice(-14).map(l =>
+    `<div><span style="color:${col(l.aOwn)}">${l.a}</span> → <span style="color:${col(l.tOwn)}">${l.t}</span> <span style="color:${DMG_COL.dmg}">${l.dmg}</span></div>`).join('');
+  return rows + `<div class="dtotal">Total dmg<br><span style="color:${DMG_COL.dmg}">${feed.total}</span></div>`;
+}
 function renderDmgFeed() {
+  if (FAST) return;   // v10.1 (P9): data tetap tercatat; tampilan menyusul (fastFlush)
   const el = document.getElementById('dmgfeed');
   if (!el) return;
-  if (!dmgFeed.lines.length) { el.innerHTML = ''; return; }
-  const col = o => (o === HUMAN ? DMG_COL.ally : DMG_COL.foe);
-  const rows = dmgFeed.lines.slice(-14).map(l =>
-    `<div><span style="color:${col(l.aOwn)}">${l.a}</span> → <span style="color:${col(l.tOwn)}">${l.t}</span> <span style="color:${DMG_COL.dmg}">${l.dmg}</span></div>`).join('');
-  el.innerHTML = rows + `<div class="dtotal">Total dmg<br><span style="color:${DMG_COL.dmg}">${dmgFeed.total}</span></div>`;
+  // v10.1 (P10): panah di samping log — tersembunyi bila belum ada log sebelumnya
+  const btn = document.getElementById('dmgPrevBtn');
+  if (btn) {
+    btn.hidden = !dmgFeedPrev;
+    btn.textContent = dmgFeedPrevOpen ? '▾' : '▸';
+    btn.setAttribute('aria-expanded', dmgFeedPrevOpen ? 'true' : 'false');
+    btn.title = dmgFeedPrevOpen ? 'Sembunyikan log eksekusi sebelumnya' : 'Lihat log eksekusi sebelumnya';
+  }
+  el.classList.toggle('hasprev', !!dmgFeedPrev);
+  let html = dmgBlockHtml(dmgFeed);
+  if (dmgFeedPrev && dmgFeedPrevOpen) html += `<div class="dprev"><div class="dprevlbl">Eksekusi sebelumnya</div>${dmgBlockHtml(dmgFeedPrev)}</div>`;
+  el.innerHTML = html;
 }
+function toggleDmgPrev() { dmgFeedPrevOpen = !dmgFeedPrevOpen; renderDmgFeed(); }
 
 // ---------- Log aktivitas (v9.0): gaya log damage — hanya teks & angka, latar transparan ----------
 // Warna: unit biru, bangunan ungu, recovery + angkanya hijau, refuel + angkanya oranye.
@@ -82,6 +106,7 @@ function actAdd(owner, parts) {
 }
 function actFeedReset() { actFeed = []; renderActFeed(); }
 function renderActFeed() {
+  if (FAST) return;   // v10.1 (P9): data tetap tercatat; tampilan menyusul (fastFlush)
   const el = document.getElementById('actionlog');
   if (!el) return;
   el.innerHTML = actFeed.map(parts => '<div>' + parts.map(([t, k]) => k ? `<span style="color:${ACT_COL[k]}">${t}</span>` : t).join('') + '</div>').join('');
@@ -95,7 +120,7 @@ function targetLabel(u) {
 function trapperLabel(u) {
   const n = ` • bom ${bombsOf(u).length}/${BOMB_MAX_PER_TRAPPER}`;
   const t = u.target;
-  if (!t) return (bombsOf(u).length >= BOMB_MAX_PER_TRAPPER ? 'Mundur ke Markas (bom penuh)' : 'Bom di jalur musuh terdekat (default)') + n;
+  if (!t) return (bombsOf(u).length >= BOMB_MAX_PER_TRAPPER ? 'Mundur ke Markas (bom penuh)' : hasVisibleFoe(u) ? 'Bom di jalur musuh terdekat (default)' : 'Bom di samping Markas musuh (default)') + n;   // v10.1 (P2)
   if (t.kind === 'hex') return `Bom di hex (${t.r},${t.c})` + n;
   if (t.kind === 'unit') { const e = units.find(x => x.id === t.id); return (e ? `Bom di ${unitName(e)} musuh #${e.id}` : 'Bom di jalur musuh (default)') + n; }
   if (t.kind === 'building') return `Bom di dekat ${BUILDING_TYPES[t.ref.type].name} musuh` + n;
@@ -112,8 +137,9 @@ function targetLabelBase(u) {
     if (u.job === 'medical') return 'Job: Isi Medical' + fs;
     if (u.job === 'angkut') {
       const h = u.haul;
-      if (!h) return 'Job: Angkut Corps';
-      return h.dest ? `Job: Angkut Corps #${h.corpsId} → (${h.dest.r},${h.dest.c})` : `Job: Angkut Corps #${h.corpsId} (tanpa tujuan)`;
+      if (!h) return 'Job: Angkut Corps/Montir';
+      const k = h.kind === 'montir' ? 'Montir' : 'Corps';   // v10.1 (P3)
+      return h.dest ? `Job: Angkut ${k} #${h.corpsId} → (${h.dest.r},${h.dest.c})` : `Job: Angkut ${k} #${h.corpsId} (tanpa tujuan)`;
     }
     if (!u.target) return 'Nganggur';
   }
@@ -137,6 +163,7 @@ function focusOnTile(r, c) {
 }
 
 function renderTargetPanel() {
+  if (FAST) return;   // v10.1 (P9): ditunda (fastFlush)
   const el = document.getElementById('targetpanel');
   if (!el) return;
   if (typeof renderSidebar === 'function') renderSidebar();
@@ -220,6 +247,18 @@ function drawOrderMarkers() {
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(b.x, b.y, HEX_SIZE * 0.7, 0, Math.PI * 2); ctx.stroke();
+    if (isTrapperType(u.type) && t.kind === 'hex') {          // v10.1 (P2): ikon bom kecil di hex tujuan manual
+      const s = HEX_SIZE * 0.26;
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#23262b'; ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = Math.max(0.8, s * 0.2);
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#c9b48a'; ctx.lineWidth = Math.max(0.8, s * 0.16);
+      ctx.beginPath(); ctx.moveTo(s * 0.3, -s * 0.85); ctx.quadraticCurveTo(s * 0.75, -s * 1.5, s * 1.1, -s * 1.15); ctx.stroke();
+      ctx.fillStyle = '#ff4a3a'; ctx.beginPath(); ctx.arc(s * 1.1, -s * 1.15, s * 0.28, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
   }
   // Fokus supply: garis putus-putus kuning dari supplier ke unit/hex fokus
   for (const u of units) {
