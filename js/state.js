@@ -198,7 +198,10 @@ let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
 // null = permainan klasik. Saat pertempuran Campaign aktif, campaign.js mengisinya dengan aturan chapter
 // ({ botMul, units, markasIncome, barakIncome, ... }). Semua modul aturan cukup mengecek `CAMPAIGN`.
 let CAMPAIGN = null;
-const statMul = owner => (CAMPAIGN && owner === BOT ? CAMPAIGN.botMul : 1);           // stat bot = botMul x stat pemain
+// v10.2: tingkat bot (Lawan Bot, bukan Campaign). Pengali stat bot (HP, ATK, DEF, SPD, Range, JPD): Mudah 0,8 / Sedang 1 / Sulit 1,2.
+let BOT_LEVEL = 'sedang';
+const BOT_STAT_MUL = { mudah: 0.8, sedang: 1, sulit: 1.2 };
+const statMul = owner => owner !== BOT ? 1 : (CAMPAIGN ? CAMPAIGN.botMul : (BOT_STAT_MUL[BOT_LEVEL] || 1));   // stat bot = pengali x stat pemain
 const scaleStat = (v, owner) => { const m = statMul(owner); return m === 1 ? v : Math.max(v > 0 ? 1 : 0, Math.round(v * m)); };
 const maxHpOf = (obj, def) => obj.maxHp || def.hp;                                    // HP maksimum nyata (bot Campaign < 100%)
 const deployableUnits = () => Object.entries(UNITS).filter(([k]) => !CAMPAIGN || CAMPAIGN.units.includes(k));

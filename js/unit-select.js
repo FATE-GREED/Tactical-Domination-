@@ -31,7 +31,7 @@ function showUnitSelectScreen(opts) {
   const list = document.getElementById('unitselect-list');
   if (!screen || !list) throw new Error('Elemen layar pemilihan unit v9.8 tidak ditemukan.');
 
-  unitSelectPendingOpts = opts || { mode: 'bot', level: 'sulit' };
+  unitSelectPendingOpts = opts || { mode: 'bot', level: 'sedang' };
   unitSelectSelected = [];
   const options = unitSelectOptions();
   const categoryOrder = ['Infanteri', 'Kendaraan', 'Advanced', 'Corps'];
@@ -118,7 +118,7 @@ function confirmUnitSelection() {
   const screen = document.getElementById('unitselect-screen');
   const message = document.getElementById('unitselect-message');
   try {
-    startGame(unitSelectPendingOpts || { mode: 'bot', level: 'sulit' });
+    startGame(unitSelectPendingOpts || { mode: 'bot', level: 'sedang' });
     screen.classList.remove('is-open');
     screen.setAttribute('aria-hidden', 'true');
   } catch (err) {

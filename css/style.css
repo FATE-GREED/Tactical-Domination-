@@ -99,6 +99,8 @@ html, body {
   padding: 30px 40px; text-align: center; max-width: 320px;
 }
 #gameover h2 { margin: 0 0 10px; color: #d7b56d; font-size: 22px; }
+#gameover h2.victory { color: #7fd36b; font-size: 32px; letter-spacing: 5px; text-shadow: 0 0 14px rgba(127,211,107,.45); }
+#gameover h2.defeat  { color: #e0594a; font-size: 32px; letter-spacing: 5px; text-shadow: 0 0 14px rgba(224,89,74,.45); }
 #gameover p { color: #ccc; margin: 0 0 18px; font-size: 13px; }
 #gameover button {
   background: #4a6b3a; border: 1px solid #6b9b3f; color: #eee;

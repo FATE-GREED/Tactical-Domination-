@@ -1,5 +1,5 @@
 // ====================================================================
-// bot.js — Lawan bot tingkat SULIT. Bot memakai aturan yang sama dengan
+// bot.js — Lawan bot (v10.2: Mudah / Sedang / Sulit lewat BOT_LEVELS; perilaku v10.1 = LEGACY untuk Campaign & ∞). Bot memakai aturan yang sama dengan
 // manusia (kredit, slot Barak, MP, BBM, deteksi unit unseen) dan hanya
 // memanggil API yang sama: doDeploy, orderBuild, setJob, setUnitTarget,
 // locked. Bot menyusun rencana seketika di awal gilirannya; eksekusinya
@@ -13,6 +13,32 @@
 //  - Sisanya berkumpul di titik kumpul, lalu menyerbu berkelompok dengan
 //    fokus tembak (unit musuh terlemah/terdekat) dan membela Markas bila terancam.
 // ====================================================================
+
+// ---------------- v10.2: konfigurasi per tingkat bot ----------------
+// LEGACY = perilaku v10.1 (dipakai Campaign dan mode ∞ saat bot memainkan pihak kita).
+// Stat bot (Mudah 0,8 / Sedang 1 / Sulit 1,2) diatur di state.js (BOT_STAT_MUL); di sini hanya perilaku.
+const BOT_LEVELS = {
+  legacy: { deployMax: 4, deployChance: 1, counter: true, advBoost: 1,
+            pom: true, pos: true, jembatan: true, benteng: 3, bentengTurn: 3, barak: 2, barakTurn: 5, barakKredit: 60,
+            defMax: 3, defDiv: 3, waveAttackers: 5, waveTurn: 8, rallyMin: 6, rallyMax: 8,
+            defendRadius: 10, defendShare: 1, chaseRange: 99, focusFire: true, regroup: 9, idleChance: 0 },
+  mudah:  { deployMax: 1, deployChance: 0.6, counter: false, advBoost: 0.6,
+            pom: true, pos: false, jembatan: false, benteng: 0, bentengTurn: 99, barak: 1, barakTurn: 99, barakKredit: 999,
+            defMax: 0, defDiv: 99, waveAttackers: 8, waveTurn: 12, rallyMin: 7, rallyMax: 9,
+            defendRadius: 6, defendShare: 1, chaseRange: 6, focusFire: false, regroup: 9, idleChance: 0.25 },
+  sedang: { deployMax: 5, deployChance: 1, counter: true, advBoost: 1.1,
+            pom: true, pos: true, jembatan: true, benteng: 1, bentengTurn: 8, barak: 2, barakTurn: 4, barakKredit: 60,
+            defMax: 1, defDiv: 4, waveAttackers: 3, waveTurn: 5, rallyMin: 5, rallyMax: 7,
+            defendRadius: 8, defendShare: 1, chaseRange: 10, focusFire: true, regroup: 11, idleChance: 0 },
+  sulit:  { deployMax: 6, deployChance: 1, counter: true, advBoost: 1.4,
+            pom: true, pos: true, jembatan: true, benteng: 0, bentengTurn: 99, barak: 3, barakTurn: 3, barakKredit: 50,
+            defMax: 0, defDiv: 99, waveAttackers: 3, waveTurn: 3, rallyMin: 4, rallyMax: 6,
+            defendRadius: 7, defendShare: 0.5, chaseRange: 9, focusFire: true, regroup: 12, idleChance: 0 },
+};
+function botCfg(me) {
+  if (CAMPAIGN || me === HUMAN) return BOT_LEVELS.legacy;   // Campaign & mode ∞ tidak berubah
+  return BOT_LEVELS[BOT_LEVEL] || BOT_LEVELS.sedang;
+}
 
 // v10.1 (P7): per-pemain (bot bisa memainkan pihak HUMAN saat ∞ aktif), indeks = nomor pemain
 let botWaveStarted = [false, false];
@@ -56,14 +82,17 @@ function botDeploy(me) {
   const infantry = foes.filter(u => u.type === 'infantry' || u.type === 'assault').length;
   const mine = () => units.filter(u => u.owner === me);
   const hasPom = p.buildings.some(b => b.type === 'pom');
+  const cfg = botCfg(me);
+  if (cfg.deployChance < 1 && Math.random() > cfg.deployChance) return;   // v10.2: Mudah kadang melewatkan deploy
 
-  for (let guard = 0; guard < 4 && totalBarakSlots(p) > 0; guard++) {
+  for (let guard = 0; guard < cfg.deployMax && totalBarakSlots(p) > 0; guard++) {
     const w = { infantry: 2, assault: 2, sniper: 1.6, antitank: 1.2, tanklapis: 2, tankcrusher: 1.6, montir: 0.8, apc: 0, trapper: 1.2 };
     // v9.7 Advanced + Trapper: bobot sedang ≈ unit dasar setara (Bagian 6 butir 3)
     Object.assign(w, { advinfantry: 2, advassault: 2, advsniper: 1.6, advantitank: 1.2, advtrapper: 1.2, advmontir: 0.8, advtanklapis: 2, advtankcrusher: 1.6, advapc: 0 });
-    if (tanks > 0) { w.antitank += 3 * tanks; w.advantitank += 3 * tanks; w.tankcrusher += 1.5 * tanks; w.advtankcrusher += 1.5 * tanks; }
-    if (snipers > 0) { w.assault += 2 * snipers; w.advassault += 2 * snipers; }
-    if (infantry >= 3) { w.tanklapis += 2; w.advtanklapis += 2; w.tankcrusher += 1; w.advtankcrusher += 1; }
+    if (cfg.counter && tanks > 0) { w.antitank += 3 * tanks; w.advantitank += 3 * tanks; w.tankcrusher += 1.5 * tanks; w.advtankcrusher += 1.5 * tanks; }
+    if (cfg.counter && snipers > 0) { w.assault += 2 * snipers; w.advassault += 2 * snipers; }
+    if (cfg.counter && infantry >= 3) { w.tanklapis += 2; w.advtanklapis += 2; w.tankcrusher += 1; w.advtankcrusher += 1; }
+    if (cfg.advBoost !== 1) for (const k of Object.keys(w)) if (k.startsWith('adv')) w[k] *= cfg.advBoost;   // v10.2: Sulit lebih suka unit Advanced
     const fuelVeh = mine().filter(u => UNITS[u.type] && UNITS[u.type].hasFuel && !isApcType(u.type)).length;
     const apcs = mine().filter(u => isApcType(u.type)).length;
     if (hasPom && fuelVeh >= 2 && apcs < (fuelVeh >= 5 ? 2 : 1)) { w.apc = 4; w.advapc = 3; }
@@ -93,6 +122,7 @@ function botBuild(me) {
   const mine = units.filter(u => u.owner === me && !isCorpsType(u.type));
   const fuelUnits = mine.filter(u => UNITS[u.type].hasFuel).length;
   const front = (r, c) => hexDistance(r, c, em.r, em.c);
+  const cfg = botCfg(me);
 
   const tryBuild = (type, spots) => {
     for (const s of spots.slice(0, 6)) {
@@ -101,11 +131,11 @@ function botBuild(me) {
     return false;
   };
 
-  if (!has('pom') && (fuelUnits >= 1 || turnNumber >= 2)) tryBuild('pom', botSpots(mk, 2, 6, (r, c) => hexDistance(r, c, mk.r, mk.c), avoid));
-  if (!has('pospemulihan') && turnNumber >= 3 && mine.length >= 4) tryBuild('pospemulihan', botSpots(mk, 2, 6, (r, c) => hexDistance(r, c, mk.r, mk.c) + 1, avoid));
+  if (cfg.pom && !has('pom') && (fuelUnits >= 1 || turnNumber >= 2)) tryBuild('pom', botSpots(mk, 2, 6, (r, c) => hexDistance(r, c, mk.r, mk.c), avoid));
+  if (cfg.pos && !has('pospemulihan') && turnNumber >= 3 && mine.length >= 4) tryBuild('pospemulihan', botSpots(mk, 2, 6, (r, c) => hexDistance(r, c, mk.r, mk.c) + 1, avoid));
 
   // Jembatan: bila kendaraan tak punya rute darat ke Markas musuh, bangun di titik penyeberangan sungai
-  if (turnNumber >= 2 && count('jembatan') < 3 && mine.some(u => UNITS[u.type].vehicle)) {
+  if (cfg.jembatan && turnNumber >= 2 && count('jembatan') < 3 && mine.some(u => UNITS[u.type].vehicle)) {
     const veh = { type: 'tanklapis', owner: me, r: mk.r, c: mk.c, mp: 0 };
     const goal = (r, c) => hexDistance(r, c, em.r, em.c) <= 1 && !isTileBlocked(r, c);
     const vehPath = findPath(veh, goal);
@@ -119,8 +149,8 @@ function botBuild(me) {
     }
   }
 
-  if (turnNumber >= 3 && count('benteng') < 3) tryBuild('benteng', botSpots(mk, 3, 5, (r, c) => front(r, c), avoid));
-  if (turnNumber >= 5 && count('barak') < 2 && p.resources.kredit >= 60) tryBuild('barak', botSpots(mk, 3, 7, (r, c) => hexDistance(r, c, mk.r, mk.c), avoid));
+  if (turnNumber >= cfg.bentengTurn && count('benteng') < cfg.benteng) tryBuild('benteng', botSpots(mk, 3, 5, (r, c) => front(r, c), avoid));
+  if (turnNumber >= cfg.barakTurn && count('barak') < cfg.barak && p.resources.kredit >= cfg.barakKredit) tryBuild('barak', botSpots(mk, 3, 7, (r, c) => hexDistance(r, c, mk.r, mk.c), avoid));
 }
 
 // ---------------- Job APC / Corps ----------------
@@ -145,10 +175,11 @@ function botTargets(me) {
   const combat = allCombat.filter(u => !isTrapperType(u.type));
   if (!combat.length) return;
   const foes = botVisibleFoes(me);
+  const cfg = botCfg(me);
 
   // Slot baris pertahanan: depan Markas (jarak 3-5), condong ke arah musuh
   const slots = botSpots(mk, 3, 5, (r, c) => hexDistance(r, c, em.r, em.c));
-  const maxDef = Math.min(3, Math.floor(combat.length / 3));
+  const maxDef = cfg.defMax > 0 ? Math.min(cfg.defMax, Math.floor(combat.length / cfg.defDiv)) : 0;   // v10.2: Sedang/Sulit tidak terlalu fokus bertahan
   const defenders = combat.filter(u => u.type === 'sniper' || u.type === 'antitank').sort((a, b) => a.id - b.id).slice(0, maxDef);
   const taken = new Set();
   for (const d of defenders) {
@@ -166,28 +197,42 @@ function botTargets(me) {
   const attackers = combat.filter(u => !defenders.includes(u));
   attackers.forEach(u => { u.locked = false; });
   if (!attackers.length) return;
-  if (!botWaveStarted[me] && (attackers.length >= 5 || turnNumber >= 8)) botWaveStarted[me] = true;
+  if (!botWaveStarted[me] && (attackers.length >= cfg.waveAttackers || turnNumber >= cfg.waveTurn)) botWaveStarted[me] = true;
 
   const centroid = {
     r: Math.round(attackers.reduce((s, u) => s + u.r, 0) / attackers.length),
     c: Math.round(attackers.reduce((s, u) => s + u.c, 0) / attackers.length),
   };
-  const rally = botSpots(mk, 6, 8, (r, c) => hexDistance(r, c, em.r, em.c))[0] || mk;
+  const rally = botSpots(mk, cfg.rallyMin, cfg.rallyMax, (r, c) => hexDistance(r, c, em.r, em.c))[0] || mk;
 
   // Ancaman dekat Markas -> semua unit dalam jangkauan bantu membela
-  const threats = foes.filter(f => hexDistance(f.r, f.c, mk.r, mk.c) <= 10).sort((a, b) => hexDistance(a.r, a.c, mk.r, mk.c) - hexDistance(b.r, b.c, mk.r, mk.c));
+  const threats = foes.filter(f => hexDistance(f.r, f.c, mk.r, mk.c) <= cfg.defendRadius).sort((a, b) => hexDistance(a.r, a.c, mk.r, mk.c) - hexDistance(b.r, b.c, mk.r, mk.c));
   // Fokus tembak: unit musuh terlemah (rasio HP) di sekitar pasukan
-  const near = foes.filter(f => hexDistance(f.r, f.c, centroid.r, centroid.c) <= 12)
-    .sort((a, b) => (a.hp / defOf(a).hp) - (b.hp / defOf(b).hp) || hexDistance(a.r, a.c, centroid.r, centroid.c) - hexDistance(b.r, b.c, centroid.r, centroid.c));
+  const dC = f => hexDistance(f.r, f.c, centroid.r, centroid.c);
+  const near = foes.filter(f => dC(f) <= 12)
+    .sort(cfg.focusFire ? (a, b) => (a.hp / defOf(a).hp) - (b.hp / defOf(b).hp) || dC(a) - dC(b) : (a, b) => dC(a) - dC(b));   // Mudah: tanpa fokus tembak lemah
   const focus = threats[0] || near[0] || null;
 
+  // v10.2 (Sulit): hanya sebagian unit terdekat Markas yang pulang membela; sisanya terus menyerang
+  const homeGuard = new Set();
+  if (threats.length && cfg.defendShare < 1) {
+    attackers.slice().sort((a, b) => hexDistance(a.r, a.c, mk.r, mk.c) - hexDistance(b.r, b.c, mk.r, mk.c))
+      .slice(0, Math.max(1, Math.ceil(attackers.length * cfg.defendShare))).forEach(u => homeGuard.add(u));
+  }
+
   for (const u of attackers) {
-    if (focus && (botWaveStarted[me] || threats.length)) {
+    if (cfg.idleChance && !threats.length && Math.random() < cfg.idleChance) { u.locked = true; u.target = null; continue; }   // Mudah: kadang diam
+    const isGuard = threats.length && (cfg.defendShare >= 1 || homeGuard.has(u));
+    if (focus && isGuard) {
+      setUnitTarget(u, { kind: 'unit', id: threats[0].id });
+    } else if (focus && botWaveStarted[me] && hexDistance(u.r, u.c, focus.r, focus.c) <= cfg.chaseRange) {
       setUnitTarget(u, { kind: 'unit', id: focus.id });
+    } else if (threats.length && botWaveStarted[me]) {
+      u.target = null;                                                   // v10.2: bukan penjaga -> terus ke Markas musuh
     } else if (!botWaveStarted[me]) {
       if (hexDistance(u.r, u.c, rally.r, rally.c) > 2) setUnitTarget(u, { kind: 'hex', r: rally.r, c: rally.c });
       else u.target = null, u.job = 'idle';
-    } else if (hexDistance(u.r, u.c, centroid.r, centroid.c) > 9) {
+    } else if (hexDistance(u.r, u.c, centroid.r, centroid.c) > cfg.regroup) {
       setUnitTarget(u, { kind: 'hex', r: centroid.r, c: centroid.c });   // berkumpul dulu agar maju berkelompok
     } else {
       u.target = null;                                                   // default: Markas musuh terdekat

@@ -77,7 +77,7 @@ function initInput() {
   document.getElementById('lockLineBtn').addEventListener('click', toggleLockMode);
   // Main Lagi: muat ulang langsung ke pemilihan unit. Lobby: muat ulang biasa.
   document.getElementById('restartBtn').addEventListener('click', () => {
-    try { sessionStorage.setItem('td-autostart', CAMPAIGN ? 'campaign' : '1'); } catch (e) {}   // v9.7: di Campaign = ulangi pertempuran chapter
+    try { sessionStorage.setItem('td-autostart', CAMPAIGN ? 'campaign' : BOT_LEVEL); } catch (e) {}   // v9.7: di Campaign = ulangi pertempuran chapter
     location.reload();
   });
   document.getElementById('lobbyBtn').addEventListener('click', () => {

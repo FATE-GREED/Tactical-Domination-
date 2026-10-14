@@ -14,7 +14,8 @@ let gameStarted = false;
 function startGame(opts) {
   if (gameStarted) return;
   gameStarted = true;
-  // opts (mis. { mode: 'bot', level: 'sulit' }) disiapkan untuk mode lain nanti.
+  // opts: { mode: 'bot', level: 'mudah' | 'sedang' | 'sulit' } (v10.2); { mode: 'campaign' } untuk Campaign.
+  BOT_LEVEL = (opts && BOT_STAT_MUL[opts.level]) ? opts.level : 'sedang';   // v10.2
 
   document.getElementById('game').style.display = 'block'; // canvas butuh ukuran nyata sebelum initCanvas
 

@@ -3,7 +3,7 @@
 //  - Tile / Unit / Bangunan: katalog, dibaca langsung dari state.js
 //    (TERRAIN, UNITS, CORPS_DEF, BUILDING_TYPES) jadi otomatis ikut
 //    berubah kalau angka di state.js diubah.
-//  - Mulai: modal tegak 4 mode (Klasik, Campaign, Perang Dunia, Multiplayer); Klasik -> 3 bot. Hanya Bot Sulit yang jalan.
+//  - Mulai: modal tegak 4 mode (Klasik, Campaign, Perang Dunia, Multiplayer); Klasik -> 3 bot (Mudah, Sedang, Sulit — semua aktif sejak v10.2).
 //  - Tombol lain: "Dalam tahap pengembangan".
 //  - Musik lobby (bgm-battle) + auto-start untuk 'Main Lagi'.
 // Meminta unit-select.js menampilkan pemilihan roster sebelum startGame() (main.js).
@@ -215,9 +215,9 @@
   function botHTML() {
     return `<button class="pk-back" data-back>‹ Kembali</button>
     <div class="picks">
-      ${pick('data-mode', 'mudah',  IC.bot, 'Bot Mudah',  'Cocok untuk belajar dasar', false)}
-      ${pick('data-mode', 'sedang', IC.bot, 'Bot Sedang', 'Lawan yang lebih santai', false)}
-      ${pick('data-mode', 'sulit',  IC.bot, 'Bot Sulit',  'Lawan bot dengan taktik penuh', true)}
+      ${pick('data-mode', 'mudah',  IC.bot, 'Bot Mudah',  'Pasif, stat musuh 80%', true)}
+      ${pick('data-mode', 'sedang', IC.bot, 'Bot Sedang', 'Seimbang, rajin menyerang', true)}
+      ${pick('data-mode', 'sulit',  IC.bot, 'Bot Sulit',  'Agresif, stat musuh 120%', true)}
     </div>`;
   }
   function openStart() { openModal('Pilih mode', startHTML(), false); modal.classList.add('tall'); }
@@ -286,7 +286,7 @@
 
     const mode = e.target.closest('[data-mode]');
     if (mode) {
-      if (mode.dataset.mode === 'sulit') enterGame({ mode: 'bot', level: 'sulit' });
+      if (['mudah', 'sedang', 'sulit'].includes(mode.dataset.mode)) enterGame({ mode: 'bot', level: mode.dataset.mode });
       else showDev();
       return;
     }
@@ -308,7 +308,7 @@
     Campaign.startBattle();
   } else if (auto) {
     lobby.style.display = 'none';
-    showLoading(() => { lobby.style.display = 'none'; }, () => showUnitSelectScreen({ mode: 'bot', level: 'sulit' }));   // v10.1 (P1)
+    showLoading(() => { lobby.style.display = 'none'; }, () => showUnitSelectScreen({ mode: 'bot', level: ['mudah', 'sedang', 'sulit'].includes(auto) ? auto : 'sedang' }));   // v10.1 (P1); v10.2: tingkat bot dipertahankan saat Main Lagi
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
     if (openAfter === 'campaign') Campaign.enter();   // selesai Chapter 1: tampilkan peta Vanderick

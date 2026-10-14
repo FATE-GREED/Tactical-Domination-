@@ -269,7 +269,12 @@ function showGameOver() {
   if (typeof onGameOverAuto === 'function') onGameOverAuto();   // v10.1 (P7/P9): ∞ dan Skip mati sendiri
   if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
   Sfx.end(winner === HUMAN);
-  document.getElementById('winnerText').textContent = `${players[winner].name} Menang!`;
+  // v10.2: lawan bot -> VICTORY bila pemain menang, DEFEAT bila bot menang
+  const won = winner === HUMAN;
+  const wt = document.getElementById('winnerText');
+  wt.textContent = won ? 'VICTORY' : 'DEFEAT';
+  wt.className = won ? 'victory' : 'defeat';
+  document.querySelector('#gameover p').textContent = won ? 'Seluruh Markas lawan telah hancur.' : 'Seluruh Markasmu telah hancur.';
   document.getElementById('gameover').style.display = 'flex';
   Rincian.open();                               // rincian pertandingan muncul saat game berakhir
 }
