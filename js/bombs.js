@@ -147,7 +147,7 @@ function explodeBombNow(bomb) {
     if (!units.includes(u)) continue;
     const def = defOf(u);
     const info = { kind: 'unit', obj: u, def, ownerIdx: u.owner, vehicle: !!def.vehicle, tank: !!def.tank };
-    const dmg = damageFormula(bomb.atk * statMul(bomb.owner), atkPct, info, 1);
+    const dmg = damageFormula(bomb.atk * statMul(bomb.owner), atkPct, info, 1, undefined, bomb.owner);
     const destroyed = damageUnit(u, dmg, bomb.owner, bomb.trapperType);
     dmgFeedAdd(src, unitName(u), u.owner, dmg);
     if (destroyed) { killFeedAdd(UNITS[bomb.trapperType].name, bomb.owner, unitName(u), u.owner); continue; }
@@ -158,7 +158,7 @@ function explodeBombNow(bomb) {
     if (!players[foeIdx].buildings.includes(b)) continue;
     const def = BUILDING_TYPES[b.type];
     const info = { kind: 'building', obj: b, def, ownerIdx: foeIdx, vehicle: false, tank: false };
-    const dmg = damageFormula(bomb.atk * statMul(bomb.owner), atkPct, info, 1);
+    const dmg = damageFormula(bomb.atk * statMul(bomb.owner), atkPct, info, 1, undefined, bomb.owner);
     const destroyed = damageBuilding(foeIdx, b, dmg, bomb.owner, bomb.trapperType);
     dmgFeedAdd(src, def.name, foeIdx, dmg);
     if (destroyed) { killFeedAdd(UNITS[bomb.trapperType].name, bomb.owner, def.name, foeIdx); continue; }

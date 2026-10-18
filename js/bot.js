@@ -99,9 +99,11 @@ function botDeploy(me) {
     if (CAMPAIGN) for (const k of Object.keys(w)) if (!CAMPAIGN.units.includes(k)) w[k] = 0;   // v9.7: unit bot = unit yang tersedia bagi pemain
     // v10.1 (P7): bot yang memainkan pihak HUMAN hanya membeli dari 10 unit pilihan pemain (bobot jenis tak terpilih = 0; Corps/Advanced Corps tidak dibeli di Barak)
     if (me === HUMAN && typeof isHumanUnitAllowed === 'function') for (const k of Object.keys(w)) if (!isHumanUnitAllowed(k)) w[k] = 0;
+    // v11 (5.1): World War — bot hanya membeli dari 10 unit faksinya (bobot jenis di luar daftar = 0)
+    if (WW && me === BOT) for (const k of Object.keys(w)) if (!wwBotAllowed(k)) w[k] = 0;
     let bestKey = null, bestScore = -1;
     for (const key of Object.keys(w)) {
-      if (UNITS[key].price > p.resources.kredit || w[key] <= 0) continue;
+      if (priceOf(key, me) > p.resources.kredit || w[key] <= 0) continue;   // v11: harga faksi (Elite)
       const have = mine().filter(u => u.type === key).length;
       const score = (w[key] / (1 + have * 0.35)) * (0.85 + Math.random() * 0.3);
       if (score > bestScore) { bestScore = score; bestKey = key; }
@@ -149,7 +151,7 @@ function botBuild(me) {
     }
   }
 
-  if (turnNumber >= cfg.bentengTurn && count('benteng') < cfg.benteng) tryBuild('benteng', botSpots(mk, 3, 5, (r, c) => front(r, c), avoid));
+  if (turnNumber >= cfg.bentengTurn && count('benteng') < cfg.benteng + (bentengUnlimited(me) ? 2 : 0)) tryBuild('benteng', botSpots(mk, 3, 5, (r, c) => front(r, c), avoid));
   if (turnNumber >= cfg.barakTurn && count('barak') < cfg.barak && p.resources.kredit >= cfg.barakKredit) tryBuild('barak', botSpots(mk, 3, 7, (r, c) => hexDistance(r, c, mk.r, mk.c), avoid));
 }
 

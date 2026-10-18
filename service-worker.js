@@ -2,7 +2,7 @@
 // bisa dimainkan offline setelahnya (khas PWA). Versi cache dinaikkan
 // manual kalau ada update file game.
 // v10.1 lengkap (P1-P10). Baris komentar ini mengubah isi berkas agar browser memasang ulang SW dan menimpa cache build P1-P5.
-const CACHE_NAME = 'tactical-domination-v10-2';
+const CACHE_NAME = 'tactical-domination-v11';
 const ASSETS = [
   './',
   './manifest.json',
@@ -10,6 +10,7 @@ const ASSETS = [
   './css/lobby.css',
   './css/settings.css',
   './css/story.css',
+  './css/worldwar.css',
   './js/state.js',
   './js/commanders.js',
   './js/skill-icons.js',
@@ -41,6 +42,9 @@ const ASSETS = [
   './js/input.js',
   './js/story.js',
   './js/campaign.js',
+  './js/map-types.js',
+  './js/worldwar-data.js',
+  './js/worldwar.js',
   './js/main.js',
   './js/unit-select.js',
   './js/lobby.js',

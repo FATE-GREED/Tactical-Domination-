@@ -20,9 +20,10 @@ function startBuild(corps, type, tiles) {
 
   const owner = players[corps.owner];
   const existingCount = owner.buildings.filter(b => b.type === type).length;
-  if (existingCount >= spec.maxCount) return { ok: false, message: `Sudah mencapai batas maksimal ${spec.name} (${spec.maxCount}).` };
+  const capCount = maxCountOf(corps.owner, type);   // v11: faksi Pembangunan
+  if (existingCount >= capCount) return { ok: false, message: `Sudah mencapai batas maksimal ${spec.name} (${capCount}).` };
 
-  if (type === 'benteng' && bentengInProgress(corps.owner, corps)) return { ok: false, message: 'Benteng lain masih dibangun (maks 1 sekaligus).' };
+  if (type === 'benteng' && !bentengUnlimited(corps.owner) && bentengInProgress(corps.owner, corps)) return { ok: false, message: 'Benteng lain masih dibangun (maks 1 sekaligus).' };
 
   tiles = tiles || [[corps.r, corps.c]];
   if (tiles[0][0] !== corps.r || tiles[0][1] !== corps.c) return { ok: false, message: 'Corps belum berada di tile tengah lokasi.' };
@@ -56,7 +57,7 @@ function finishBuildFor(u) {
   const spec = BUILDING_TYPES[u.buildType], tiles = u.buildTiles || [[u.r, u.c]];
   const spot = outsideSpots(tiles, CORPS_DEF, 1)[0];   // Corps berdiri di footprint -> pindah ke luar
   if (!spot) return false;
-  p.buildings.push({ r: tiles[0][0], c: tiles[0][1], tiles, type: u.buildType, hp: spec.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+  p.buildings.push({ r: tiles[0][0], c: tiles[0][1], tiles, type: u.buildType, hp: bldHpOf(spec.hp, u.owner), maxHp: bldHpOf(spec.hp, u.owner), defDebuffTurns: 0, seq: buildingSeq++ });   // v11: buff HP bangunan
   actAdd(u.owner, [[spec.name, 'bld'], [' selesai di bangun']]);
   u.r = spot[0]; u.c = spot[1];
   u.isBuilding = false; u.buildType = null; u.buildTiles = null; u.buildTurnsRemaining = 0;
@@ -95,7 +96,7 @@ function processBuildProgress(pIdx) {
       const spots = outsideSpots(site.tiles, CORPS_DEF, mates.length);   // Corps berdiri di dalam footprint -> pindah ke luar
       if (spots.length < mates.length) continue;                          // belum ada tempat keluar, coba lagi giliran depan
       markasSites = markasSites.filter(s => s !== site);
-      p.buildings.push({ r: site.r, c: site.c, tiles: site.tiles, type: 'markas', hp: BUILDING_TYPES.markas.hp, defDebuffTurns: 0, seq: buildingSeq++ });
+      p.buildings.push({ r: site.r, c: site.c, tiles: site.tiles, type: 'markas', hp: bldHpOf(BUILDING_TYPES.markas.hp, site.owner), maxHp: bldHpOf(BUILDING_TYPES.markas.hp, site.owner), defDebuffTurns: 0, seq: buildingSeq++ });
       mates.forEach((m, i) => { m.r = spots[i][0]; m.c = spots[i][1]; free(m); });
       logAction(`Markas selesai dibangun di (${site.r},${site.c}).`);
       actAdd(pIdx, [['Markas', 'bld'], [' selesai di bangun']]);
@@ -239,9 +240,9 @@ function computeSupplyTargets(actor, mode) {
     if (!u || u.downed) continue;                     // v9.7: unit mode gugur tidak bisa ditarget
     const def = unitDef(u.type);
     if (mode === 'recovery' || mode === 'supplyMedical') {
-      if (u.hp < def.hp) out.push({ r: nr, c: nc });
+      if (u.hp < maxHpOf(u, def)) out.push({ r: nr, c: nc });   // v11: HP maks nyata
     } else if (mode === 'supplyFuel') {
-      if (def.hasFuel && u.fuel < def.fuelMax) out.push({ r: nr, c: nc });
+      if (def.hasFuel && u.fuel < fuelMaxOf(def, u.owner)) out.push({ r: nr, c: nc });   // v11: fuelMaxOf
     }
   }
   return out;
@@ -254,7 +255,7 @@ function performRecovery(healer, targetUnit) {
   if (targetUnit.owner !== healer.owner) return { ok: false, message: 'Hanya bisa merawat unit sekutu.' };
   if (hexDistance(healer.r, healer.c, targetUnit.r, targetUnit.c) !== 1) return { ok: false, message: 'Target harus bersebelahan.' };
   const targetDef = unitDef(targetUnit.type);
-  const missing = targetDef.hp - targetUnit.hp;
+  const missing = maxHpOf(targetUnit, targetDef) - targetUnit.hp;
   if (missing <= 0) return { ok: false, message: 'Unit target sudah full HP.' };
   const p = players[healer.owner];
   const healed = Math.min(missing, p.resources.medical);
@@ -275,7 +276,7 @@ function performSupplyFuel(carrier, targetUnit) {
   const targetDef = unitDef(targetUnit.type);
   if (!targetDef.hasFuel) return { ok: false, message: 'Unit target tidak memakai Fuel.' };
   if (hexDistance(carrier.r, carrier.c, targetUnit.r, targetUnit.c) !== 1) return { ok: false, message: 'Target harus bersebelahan.' };
-  const missing = targetDef.fuelMax - targetUnit.fuel;
+  const missing = fuelMaxOf(targetDef, targetUnit.owner) - targetUnit.fuel;
   if (missing <= 0) return { ok: false, message: 'Tangki target sudah penuh.' };
   const given = Math.min(missing, carrier.cargo.amount);
   if (given <= 0) return { ok: false, message: 'Muatan Fuel sudah habis.' };
@@ -294,7 +295,7 @@ function performSupplyMedical(carrier, targetUnit) {
   if (targetUnit.owner !== carrier.owner) return { ok: false, message: 'Hanya bisa merawat unit sekutu.' };
   if (hexDistance(carrier.r, carrier.c, targetUnit.r, targetUnit.c) !== 1) return { ok: false, message: 'Target harus bersebelahan.' };
   const targetDef = unitDef(targetUnit.type);
-  const missing = targetDef.hp - targetUnit.hp;
+  const missing = maxHpOf(targetUnit, targetDef) - targetUnit.hp;
   if (missing <= 0) return { ok: false, message: 'Unit target sudah full HP.' };
   const healed = Math.min(missing, carrier.cargo.amount);
   if (healed <= 0) return { ok: false, message: 'Muatan Medical sudah habis.' };
@@ -313,7 +314,7 @@ function selfRefuel(unit) {
   if (!def.hasFuel) return { ok: false, message: 'Unit ini tidak memakai Fuel.' };
   if (unit.attacked) return { ok: false, message: 'Unit ini sudah memakai Action giliran ini.' };
   const p = players[unit.owner];
-  const missing = def.fuelMax - unit.fuel;
+  const missing = fuelMaxOf(def, unit.owner) - unit.fuel;
   if (missing <= 0) return { ok: false, message: 'Tangki sudah penuh.' };
   const given = Math.min(missing, p.resources.fuel);
   if (given <= 0) return { ok: false, message: 'Fuel pool habis.' };

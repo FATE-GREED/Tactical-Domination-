@@ -25,7 +25,7 @@ function advTryDowned(u) {
 // Awal giliran pemilik: hidup lagi dengan HP 30% HP maks dan ATK −50% permanen (pengali ×0,5, lihat atkFinalMultiplier).
 function advRevive(u) {
   u.downed = false;
-  u.hp = specialRound(unitDef(u.type).hp * 0.3);
+  u.hp = specialRound(maxHpOf(u, unitDef(u.type)) * 0.3);   // v11: HP maks nyata (buff HP World War)
   u.weakened = true;
   logAction(`${unitName(u)} #${u.id} hidup kembali: HP ${u.hp}, ATK −50%`, 'combat');
 }

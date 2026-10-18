@@ -195,8 +195,8 @@ function buildOrderBlockReason(owner, type, r, c) {
   const spec = BUILDING_TYPES[type];
   const p = players[owner];
   const count = p.buildings.filter(b => b.type === type).length + pendingBuildCount(owner, type);
-  if (count >= spec.maxCount) return 'maks tercapai';
-  if (type === 'benteng' && bentengInProgress(owner)) return 'Benteng lain masih dibangun (maks 1 sekaligus)';
+  if (count >= maxCountOf(owner, type)) return 'maks tercapai';   // v11: faksi Pembangunan (Benteng tanpa batas, lainnya +1)
+  if (type === 'benteng' && !bentengUnlimited(owner) && bentengInProgress(owner)) return 'Benteng lain masih dibangun (maks 1 sekaligus)';
   if (!footprintOptions(owner, type, r, c).length) return footprintWhy(owner, type, r, c);   // footprint.js
   if (type === 'markas') {
     if (idleCorpsSorted(owner, r, c).length < spec.corpsRequired) return `butuh ${spec.corpsRequired} Corps nganggur`;
@@ -248,7 +248,7 @@ function orderBuild(owner, type, r, c, tiles) {
 function doDeployAuto(key, player) {
   const def = unitDef(key);
   if (player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key)) return { ok: false, reason: 'Unit ini tidak termasuk dalam pilihan 10 unit.' };
-  if (player.resources.kredit < def.price) return { ok: false, reason: 'Kredit tidak cukup.' };
+  if (player.resources.kredit < priceOf(key, player.id - 1)) return { ok: false, reason: 'Kredit tidak cukup.' };   // v11: priceOf (diskon Elite)
   if (key === 'advcorps') return { ok: false, reason: 'Advanced Corps tidak dideploy di Barak; ia datang dari Garnisun.' };   // v10
   const baraks = player.buildings.filter(b => b.type === 'barak');
   const usable = baraks.filter(b => barakSlots(b) > 0 && emptyAdjacentBuilding(b, def));
@@ -265,14 +265,15 @@ function doDeployAuto(key, player) {
 function doDeploy(key, barak, player) {
   const def = unitDef(key);
   if (player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key)) return false;
-  if (barakSlots(barak) <= 0 || player.resources.kredit < def.price) return false;
+  const price = priceOf(key, player.id - 1);                              // v11: diskon faksi Elite
+  if (barakSlots(barak) <= 0 || player.resources.kredit < price) return false;
   if (key === 'advcorps') return false;                                  // v10: Advanced Corps hanya dari Garnisun
   const spot = emptyAdjacentBuilding(barak, def);
   if (!spot) return false;
-  player.resources.kredit -= def.price;
-  Stats.use(player, 'kredit', def.price);
+  player.resources.kredit -= price;
+  Stats.use(player, 'kredit', price);
   barak.slots = barakSlots(barak) - 1;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? def.fuelMax : 0, hp: scaleStat(def.hp, player.id - 1), maxHp: scaleStat(def.hp, player.id - 1), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false,
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? fuelMaxOf(def, player.id - 1) : 0, hp: unitHpOf(def, player.id - 1), maxHp: unitHpOf(def, player.id - 1), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false,
     // v9.7 unit Advanced (batch A)
     legacyStacks: 0, sacrificeUsed: false, sacrificeState: 0, jumpCycle: 0, camo: false, eagerTurns: 0, focusTurns: 0, toxinTurns: 0, toxinDmg: 0 });
   return true;

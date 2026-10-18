@@ -208,7 +208,7 @@
     return `<div class="picks">
       ${pick('data-start', 'klasik',   IC.klasik,   'Permainan Klasik', 'Lawan bot di medan tile hex', true)}
       ${pick('data-start', 'campaign', IC.campaign, 'Campaign',         'Kisah para komandan', true)}
-      ${pick('data-start', 'perang',   IC.perang,   'Perang Dunia',     'Penaklukan skala dunia', false)}
+      ${pick('data-start', 'ww',       IC.perang,   'World War',        'Rebut 6 ibukota benua', true)}
       ${pick('data-start', 'multi',    IC.multi,    'Multiplayer',      'Main bersama pemain lain', false)}
     </div>`;
   }
@@ -279,6 +279,7 @@
     if (st) {
       if (st.dataset.start === 'klasik') openBots();
       else if (st.dataset.start === 'campaign') { closeModal(); Campaign.enter(); }   // v9.7: Chapter 1 / peta Vanderick
+      else if (st.dataset.start === 'ww') { closeModal(); showLoading(() => { lobby.style.display = 'none'; }, () => WorldWar.enter()); }   // v11
       else showDev();
       return;
     }
@@ -298,6 +299,7 @@
 
   // ---------- Masuk lobby: musik lobby, atau langsung main (tombol 'Main Lagi') ----------
   Campaign.bind({ lobby, showLoading });
+  WorldWar.bind({ lobby, showLoading });
   let auto = '', openAfter = '';
   try {
     auto = sessionStorage.getItem('td-autostart') || ''; sessionStorage.removeItem('td-autostart');
@@ -312,5 +314,6 @@
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
     if (openAfter === 'campaign') Campaign.enter();   // selesai Chapter 1: tampilkan peta Vanderick
+    if (openAfter === 'ww') WorldWar.enter();         // v11: selesai pertandingan World War: kembali ke peta benua
   }
 })();

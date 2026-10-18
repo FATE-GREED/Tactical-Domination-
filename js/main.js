@@ -15,12 +15,14 @@ function startGame(opts) {
   if (gameStarted) return;
   gameStarted = true;
   // opts: { mode: 'bot', level: 'mudah' | 'sedang' | 'sulit' } (v10.2); { mode: 'campaign' } untuk Campaign.
-  BOT_LEVEL = (opts && BOT_STAT_MUL[opts.level]) ? opts.level : 'sedang';   // v10.2
+  BOT_LEVEL = (opts && BOT_STAT_MUL[opts.level]) ? opts.level : 'sedang';   // v10.2 (World War: WW_BOT_LEVEL, K8)
+  WW = null; document.body.classList.remove('ww');   // v11: data World War hanya ada di mode 'ww'
+  if (opts && opts.mode === 'ww') { WW = WorldWar.prepareBattle(); document.body.classList.add('ww'); }
 
   document.getElementById('game').style.display = 'block'; // canvas butuh ukuran nyata sebelum initCanvas
 
   if (opts && opts.mode === 'campaign') Campaign.prepareBattle(opts);   // v9.7: aturan, ukuran peta 15x25, UI disederhanakan
-  mapData = CAMPAIGN ? Campaign.battleMap() : generateMap();          // map-gen.js (acak, tanpa simetri)
+  mapData = CAMPAIGN ? Campaign.battleMap() : (WW ? generateMapByType(WW.mapType) : generateMap());   // map-gen.js (acak, tanpa simetri); v11: World War memakai 7 jenis map (map-types.js)
   setupPlayersAndBuildings();       // setup.js
   Stats.init();                     // stats.js — statistik pertandingan mulai dari nol
 
@@ -39,7 +41,7 @@ function startGame(opts) {
   document.getElementById('pauseBtn').addEventListener('click', togglePause);
   document.getElementById('pmResume').addEventListener('click', togglePause);
   document.getElementById('pmRestart').addEventListener('click', () => document.getElementById('restartBtn').click());
-  document.getElementById('pmLobby').addEventListener('click', () => document.getElementById('lobbyBtn').click());
+  document.getElementById('pmLobby').addEventListener('click', () => { if (WW) WorldWar.confirmLeave(); else document.getElementById('lobbyBtn').click(); });   // v11 (5.4): keluar = KALAH
 
   startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
 

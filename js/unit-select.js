@@ -55,6 +55,12 @@ function showUnitSelectScreen(opts) {
   });
   document.getElementById('unitselect-reset').onclick = resetUnitSelection;
   document.getElementById('unitselect-confirm').onclick = confirmUnitSelection;
+  if (unitSelectPendingOpts.mode === 'ww') {   // v11: pilihan terakhir terisi otomatis (stats.loadout)
+    for (const k of WorldWar.loadout()) {
+      const inp = list.querySelector(`input[data-unit-select="${k}"]`);
+      if (inp && unitSelectSelected.length < 10) { inp.checked = true; unitSelectSelected.push(k); }
+    }
+  }
   updateUnitSelectUI();
   screen.classList.add('is-open');
   screen.setAttribute('aria-hidden', 'false');
@@ -117,12 +123,15 @@ function confirmUnitSelection() {
   selectedLoadoutUnits = unitSelectSelected.slice();
   const screen = document.getElementById('unitselect-screen');
   const message = document.getElementById('unitselect-message');
+  const wwOpts = unitSelectPendingOpts && unitSelectPendingOpts.mode === 'ww' ? unitSelectPendingOpts : null;
   try {
+    if (wwOpts) { WorldWar.saveLoadout(unitSelectSelected); WorldWar.beginBattle(wwOpts.target, wwOpts.role); }   // v11: pending tersimpan sebelum startGame (K9)
     startGame(unitSelectPendingOpts || { mode: 'bot', level: 'sedang' });
     screen.classList.remove('is-open');
     screen.setAttribute('aria-hidden', 'true');
   } catch (err) {
     selectedLoadoutUnits = [];
+    if (wwOpts) WorldWar.cancelBattle();
     if (typeof gameStarted !== 'undefined') gameStarted = false;
     if (message) message.textContent = 'Permainan gagal dimulai. Coba lagi; detail error ada di console.';
     console.error('Gagal memulai Tactical Domination setelah pemilihan unit:', err);

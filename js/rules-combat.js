@@ -102,10 +102,11 @@ function markasDefBonusPct() {
 // (c) DEF dasar (+konversi) + modifier % DEF; (d) rumus; (e) specialRound; (f) pengali khusus.
 // Dipecah agar bom (bombs.js) memakai rumus & perhitungan DEF target yang sama persis.
 // baseDEFOverride (opsional): dipakai Penembusan (DEF dasar kendaraan dianggap 0).
-function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride) {
+function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride, attackerOwner) {   // v11: attackerOwner (opsional) = pemilik penyerang/bom, untuk buff ATK World War
   let baseDEF = targetInfo.kind === 'unit' ? baseDEFOfUnit(targetInfo.obj) : targetInfo.def.def;
   if (baseDEFOverride !== undefined && baseDEFOverride !== null) baseDEF = baseDEFOverride;
   baseDEF *= statMul(targetInfo.ownerIdx);                       // v9.7: stat bot Campaign = 70%
+  if (attackerOwner !== undefined && attackerOwner !== null) atkPct += wwAtkPct(attackerOwner);   // v11 (6.6): buff ATK World War (0 di mode lain)
   const finalATK = baseATK * (1 + atkPct / 100) * (atkMult || 1);
 
   const targetTerrain = mapData[targetInfo.obj.r][targetInfo.obj.c];
@@ -113,6 +114,7 @@ function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride) {
   defPct += territoryDefModifierPct(targetInfo.ownerIdx, targetInfo.obj.r, targetInfo.obj.c);
   defPct += defenderAbilityDEFPct(targetInfo);
   if (targetInfo.kind === 'building' && targetInfo.obj.type === 'markas') defPct += markasDefBonusPct();   // v10.1 (P6)
+  defPct += wwDefPct(targetInfo);                                                                          // v11 (6.6): buff DEF World War (0 di mode lain)
   const defFloor = (targetInfo.kind === 'building' && targetInfo.def.destructible !== false) ? 10 : 0;   // v9.5: DEF bangunan minimal 10
   const finalDEF = Math.max(defFloor, baseDEF * (1 + defPct / 100));
 
@@ -125,7 +127,7 @@ function computeDamage(attackerUnit, targetInfo) {
   atkPct += attackerAbilityATKPct(attackerUnit, targetInfo);
   // Penembusan (Advanced Anti-Tank): DEF dasar kendaraan dianggap 0
   const pierce = (attackerUnit.type === 'advantitank' && targetInfo.kind === 'unit' && targetInfo.vehicle) ? 0 : null;
-  let damage = damageFormula(baseATK, atkPct, targetInfo, atkFinalMultiplier(attackerUnit), pierce);
+  let damage = damageFormula(baseATK, atkPct, targetInfo, atkFinalMultiplier(attackerUnit), pierce, attackerUnit.owner);
 
   // Anti-Tank: Ayo Ledakkan (serangan tambahan saat menyerang kendaraan -> total 2x). Hanya tipe dasar 'antitank'.
   if (attackerUnit.type === 'antitank' && targetInfo.vehicle) damage *= 2;

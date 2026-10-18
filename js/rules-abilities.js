@@ -45,7 +45,7 @@ function advApcOverloaded(unit) {
   return unit.cargo.amount > baseCap * 0.7;
 }
 // Pasukan Berani Mati: aktif selama HP < 40% HP maks (dievaluasi terus-menerus)
-function isBeraniMati(unit) { return unit.type === 'advtankcrusher' && unit.hp < unitDef(unit.type).hp * 0.4; }
+function isBeraniMati(unit) { return unit.type === 'advtankcrusher' && unit.hp < maxHpOf(unit, unitDef(unit.type)) * 0.4; }
 // ATK dasar efektif: Tembok Berjalan mengubah 60% ATK dasar menjadi DEF -> ATK efektif 63 × 0,4 = 25,2
 function baseATKOf(unit) {
   const def = unitDef(unit.type);
@@ -141,7 +141,7 @@ function defenderAbilityDEFPct(targetInfo) {
     const def = targetInfo.def;
 
     if (u.type === 'infantry' && hasAllyNearby(u, 2)) pct += 20;        // Moral Persatuan
-    if (u.type === 'tanklapis' && u.hp < def.hp * 0.5) pct += 50;              // Pejuang Bertahan
+    if (u.type === 'tanklapis' && u.hp < maxHpOf(u, def) * 0.5) pct += 50;              // Pejuang Bertahan
     if (hasAdjacentAllyProtector(u)) pct += 20;                                // Sang Pelindung (dari sekutu)
     if (u.type === 'apc' && u.cargo) pct += 20;                                // Kurir Setia
     if (u.type === 'corps' && u.isBuilding) pct += 20;                         // Kerja Sampai Tuntas
@@ -183,7 +183,7 @@ function activeAbilityIcons(u) {
       if (u.semangatBesiUsed) out.push('Semangat Besi');
       break;
     case 'tanklapis':
-      if (u.hp < UNITS.tanklapis.hp * 0.5) out.push('Pejuang Bertahan');
+      if (u.hp < maxHpOf(u, UNITS.tanklapis) * 0.5) out.push('Pejuang Bertahan');
       break;
     case 'tankcrusher': {
       const range = effectiveRange(u);

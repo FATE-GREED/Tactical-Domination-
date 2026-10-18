@@ -175,8 +175,11 @@ function generateMapOnce() {
 }
 
 // Kedua Markas harus bisa dihubungkan lewat darat (Valley memblokir, River boleh untuk infanteri)
-function mapConnected(grid) {
-  const midR = Math.floor(ROWS / 2), a = [midR, 10], b = [midR, COLS - 1 - 10];
+// v11: Markas ada di kolom 5 dan COLS-1-5 (sejak v10.1 P5; sebelumnya salah memakai kolom 10).
+// vehicle=true: versi kendaraan — River, Valley, dan City juga memblokir (dipakai map Padang Rumput).
+function mapConnected(grid, vehicle) {
+  const midR = Math.floor(ROWS / 2), a = [midR, 5], b = [midR, COLS - 1 - 5];
+  const blocked = vehicle ? (t => t === 'valley' || t === 'river' || t === 'city') : (t => t === 'valley');
   const seen = new Set([a[0] * COLS + a[1]]);
   const queue = [a];
   while (queue.length) {
@@ -184,7 +187,7 @@ function mapConnected(grid) {
     if (r === b[0] && c === b[1]) return true;
     for (const [nr, nc] of neighborsOf(r, c)) {
       const k = nr * COLS + nc;
-      if (seen.has(k) || grid[nr][nc] === 'valley') continue;
+      if (seen.has(k) || blocked(grid[nr][nc])) continue;
       seen.add(k); queue.push([nr, nc]);
     }
   }

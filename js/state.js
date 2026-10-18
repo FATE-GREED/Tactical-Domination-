@@ -198,6 +198,8 @@ let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
 // null = permainan klasik. Saat pertempuran Campaign aktif, campaign.js mengisinya dengan aturan chapter
 // ({ botMul, units, markasIncome, barakIncome, ... }). Semua modul aturan cukup mengecek `CAMPAIGN`.
 let CAMPAIGN = null;
+// v11: data pertandingan World War (js/worldwar.js: WorldWar.prepareBattle()); null di mode lain.
+let WW = null;
 // v10.2: tingkat bot (Lawan Bot, bukan Campaign). Pengali stat bot (HP, ATK, DEF, SPD, Range, JPD): Mudah 0,8 / Sedang 1 / Sulit 1,2.
 let BOT_LEVEL = 'sedang';
 const BOT_STAT_MUL = { mudah: 0.8, sedang: 1, sulit: 1.2 };

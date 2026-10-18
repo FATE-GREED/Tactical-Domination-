@@ -14,8 +14,8 @@ function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cab
   const place = (pIdx, type, r, c) => {
     const tiles = footprintShapes(type, r, c)[0] || [[r, c]];           // Markas 7 tile, bangunan lain 3 tile (footprint.js)
     for (const [tr, tc] of tiles) mapData[tr][tc] = 'grass';
-    for (const [tr, tc] of tiles) for (const [nr, nc] of neighborsOf(tr, tc)) if (mapData[nr][nc] === 'valley') mapData[nr][nc] = 'grass'; // jangan terkurung Valley
-    const hp = scaleStat(BUILDING_TYPES[type].hp, pIdx);                 // v9.7: bot Campaign 70%
+    for (const [tr, tc] of tiles) for (const [nr, nc] of neighborsOf(tr, tc)) if (mapData[nr][nc] === 'valley' && !(WW && WW.mapType === 5 && nc >= 7 && nc <= COLS - 8)) mapData[nr][nc] = 'grass'; // jangan terkurung Valley (v11: Labirin menjaga dinding kolom 7-37)
+    const hp = bldHpOf(scaleStat(BUILDING_TYPES[type].hp, pIdx), pIdx);   // v9.7: bot Campaign 70%; v11: x buff HP bangunan World War
     players[pIdx].buildings.push({ r, c, tiles, type, hp, maxHp: hp, defDebuffTurns: 0, seq: buildingSeq++ });
   };
   if (CAMPAIGN) {   // v9.7: Campaign — hanya Markas + Barak, tanpa Garnisun
@@ -25,7 +25,7 @@ function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cab
     return;
   }
   const midR = Math.floor(ROWS / 2);
-  const cols = [5, COLS - 1 - 5];            // v10.1 (P5): Markas 5 tile dari pinggir peta (kolom 5 dan 39)
+  const cols = (WW && WW.mapType === 6) ? [8, COLS - 1 - 8] : [5, COLS - 1 - 5];   // v10.1 (P5): Markas 5 tile dari pinggir (kolom 5 dan 39); v11 K14: Lapangan Tembak kolom 8 dan 36
   const p1Top = Math.random() < 0.5;
   for (let i = 0; i < 2; i++) {
     const c = cols[i];

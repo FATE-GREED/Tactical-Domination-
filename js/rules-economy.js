@@ -43,7 +43,8 @@ function totalBarakSlots(p) { return p.buildings.filter(b => b.type === 'barak')
 //  - hanya Corps terpilih           -> Corps biasa (jadwal lama)
 //  - v10.1 (P4): tidak ada jenis Corps terpilih -> TIDAK memproduksi Corps ([]); layar Pilih Unit mewajibkan minimal satu jenis,
 //    jadi cabang ini hanya pengaman. Fallback ['corps'] hanya untuk Campaign dan keadaan tanpa pilihan (selectedLoadoutUnits kosong).
-function corpsKinds() {
+function corpsKinds(pIdx) {
+  if (WW && pIdx === BOT) return wwCorpsKinds(BOT);   // v11 (3.4): Corps Garnisun bot ditentukan faksinya
   const sel = (typeof selectedLoadoutUnits !== 'undefined') ? selectedLoadoutUnits : [];
   if (CAMPAIGN || !Array.isArray(sel) || sel.length !== 10) return ['corps'];
   const hasC = sel.includes('corps'), hasA = sel.includes('advcorps');
@@ -64,7 +65,7 @@ function spawnCorps(pIdx, type) {
   const def = unitDef(type);
   const spot = emptyAdjacentBuilding(g, def);
   if (!spot) return false; // tidak ada ruang, coba lagi giliran berikutnya
-  const u = { id: uidCounter++, owner: pIdx, type, r: spot.r, c: spot.c, mp: def.spd, fuel: 0, hp: def.hp, attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false };
+  const u = { id: uidCounter++, owner: pIdx, type, r: spot.r, c: spot.c, mp: def.spd, fuel: 0, hp: corpsHpOf(def, pIdx), maxHp: corpsHpOf(def, pIdx), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false };   // v11: HP x buff World War
   units.push(u);
   if (type === 'advcorps') u.mp = effectiveSpeed(u);          // Semangat Kerja: 7 tanpa muatan
   p.corps.count = corpsAlive(pIdx);
@@ -92,12 +93,14 @@ function startTurn(pIdx) {
   const pomCount = p.buildings.filter(b => b.type === 'pom').length;
   const pospemulihanCount = p.buildings.filter(b => b.type === 'pospemulihan').length;
   const incKredit = CAMPAIGN ? CAMPAIGN.markasIncome * markasCount + CAMPAIGN.barakIncome * barakCount : 30 * markasCount + 20 * barakCount;
-  p.resources.kredit += incKredit; // klasik: Markas +30, tiap Barak +20; Campaign: nilai dari chapter
-  p.resources.fuel += 50 * pomCount;
-  p.resources.medical += 50 * pospemulihanCount;
-  Stats.earn(pIdx, 'kredit', incKredit);
-  Stats.earn(pIdx, 'fuel', 50 * pomCount);
-  Stats.earn(pIdx, 'medical', 50 * pospemulihanCount);
+  // v11 (6.3/6.6): World War — Kredit kota ditambahkan dulu, lalu pengali faksi Ekonomi (x1,3) untuk Kredit, Fuel, Medical. Di luar WW = nilai asli.
+  const inc = wwIncome(pIdx, { kredit: incKredit, fuel: 50 * pomCount, medical: 50 * pospemulihanCount });
+  p.resources.kredit += inc.kredit; // klasik: Markas +30, tiap Barak +20; Campaign: nilai dari chapter
+  p.resources.fuel += inc.fuel;
+  p.resources.medical += inc.medical;
+  Stats.earn(pIdx, 'kredit', inc.kredit);
+  Stats.earn(pIdx, 'fuel', inc.fuel);
+  Stats.earn(pIdx, 'medical', inc.medical);
   for (const b of p.buildings) if (b.type === 'barak') b.slots = 2;   // 2 slot deploy PER Barak
 
   if (p.infantrySpiritTurns > 0) p.infantrySpiritTurns--;        // Semangat Perjuangan meluruh
@@ -189,7 +192,7 @@ function startTurn(pIdx) {
   // Produksi Corps (Garnisun). Model tunggal: jeda 1,2,3 lalu tetap 3 giliran. Model ganda (Corps + Advanced Corps
   // sama-sama terpilih): paket 2 Corps dengan jeda 0,2,4,5 lalu tetap 5 giliran, selalu 2 per paket. Maks 10 Corps hidup.
   // Kalau Corps mati dan jumlahnya di bawah 10, hitungan giliran produksi dimulai lagi.
-  const kinds = corpsKinds();
+  const kinds = corpsKinds(pIdx);
   if (!kinds.length) { p.corps.timer = null; return; }       // v10.1 (P4): tidak ada jenis Corps terpilih -> Garnisun tidak memproduksi
   const dual = kinds.length === 2;
   const waitFor = cnt => dual ? dualCorpsWait(Math.floor(cnt / 2) + 1) : corpsWait(cnt + 1);

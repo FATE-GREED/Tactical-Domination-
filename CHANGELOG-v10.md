@@ -37,3 +37,16 @@ Stat bot Campaign (70%) berlaku juga pada damage, HP, SPD, Range unit baru.
    - Sulit: tanpa Benteng & baris pertahanan, Barak sampai 3 sejak giliran 3, serbuan mulai 3 unit atau giliran 3, bobot unit Advanced x1,4, deploy hingga 6 unit/giliran, hanya separuh unit terdekat yang pulang membela Markas, sisanya terus menyerang.
 4. Main Lagi mempertahankan tingkat bot yang sama.
 5. Layar akhir lawan bot: VICTORY (pemain menang) / DEFEAT (bot menang). Campaign tetap memakai layar akhirnya sendiri.
+
+# v11 — World War, tahap 1 (separuh pertama rancangan: lapisan strategis)
+Dikerjakan: Bagian 3 (data), 4 (aturan peta), 5.2–5.5 (alur pertandingan dari/ke peta), 8 (antarmuka peta), 9 (penyimpanan), 8.7 (pintu masuk lobby), tampilan buff (rumus 6.2/6.4/6.5).
+Berkas baru: js/worldwar-data.js, js/worldwar.js, css/worldwar.css. Diubah: index.html, state.js (global WW), main.js, render.js (showGameOver), unit-select.js, lobby.js, service-worker.js (CACHE v11).
+Belum (tahap 2): buff masuk ke damage/HP/harga/fuel/penghasilan/batas bangunan (6.3, 6.6), 7 jenis map pertempuran (Bagian 7; saat ini selalu tipe 1 klasik), bot dibatasi 10 unit faksi, Corps Garnisun per faksi, perbaikan mapConnected, uji 16–19 dan 23–24.
+Catatan: lawan sementara memakai bot Sedang tanpa buff/eskalasi; kotak "Buff musuh" di kartu kota sudah dihitung tetapi belum diterapkan di pertandingan.
+
+
+# v11 — World War, tahap 2 (separuh kedua rancangan: pertempuran)
+Dikerjakan: Bagian 6.3/6.6 (buff masuk ke damage, HP unit/bangunan, harga, fuel, penghasilan, batas bangunan), Bagian 7 (tujuh jenis map), 5.1 (bot hanya 10 unit faksi, Corps Garnisun per faksi), perbaikan mapConnected (Markas kolom 5/39 + versi kendaraan), setup.js (Markas/Barak kolom 8/36 di Lapangan Tembak).
+Berkas baru: js/map-types.js. Diubah: worldwar.js (hook wwAtkPct, wwDefPct, wwHpMul, unitHpOf, corpsHpOf, bldHpOf, fuelMaxOf, priceOf, maxCountOf, bentengUnlimited, wwIncome, wwBotAllowed, wwCorpsKinds, wwBuffLine; prepareBattle membangun WW.side[0/1]), rules-combat.js, bombs.js, rules-auto.js, rules-economy.js (corpsKinds(pIdx)), rules-supply.js, adv-units.js & rules-abilities.js (HP maks nyata), setup.js, map-gen.js, main.js, render.js, input.js, bot.js, index.html, service-worker.js.
+Keputusan kecil di luar dokumen: (1) pemberontak (K3) memakai daftar 10 unit faksi acak tetapi TANPA buff faksi; (2) bot faksi Pembangunan boleh membangun 2 Benteng lebih banyak dari konfigurasi levelnya; (3) heal/Pejuang Bertahan/Berani Mati/Tak Terkalahkan memakai HP maks nyata (maxHpOf) agar benar saat HP dibuff; (4) Labirin: place() tidak membuang Valley di kolom 7-37 agar jumlah pintu tetap 4 per sisi.
+Di luar mode ww semua hook netral (uji 23).

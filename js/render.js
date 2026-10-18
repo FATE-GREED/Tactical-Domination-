@@ -268,6 +268,7 @@ function renderLog() { if (typeof renderActFeed === 'function') renderActFeed();
 function showGameOver() {
   if (typeof onGameOverAuto === 'function') onGameOverAuto();   // v10.1 (P7/P9): ∞ dan Skip mati sendiri
   if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
+  if (WW) { WorldWar.onBattleEnd(winner === HUMAN); return; }         // v11: World War — hasil ke peta (5.3)
   Sfx.end(winner === HUMAN);
   // v10.2: lawan bot -> VICTORY bila pemain menang, DEFEAT bila bot menang
   const won = winner === HUMAN;
@@ -339,7 +340,8 @@ function openEntityPanel(r, c) {
     html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(target.def.spd, u.owner)}<br>`;
     if (target.def.combat && isTrapperType(u.type)) html += `Daya bom (ATK): ${Math.round(target.def.atk * statMul(u.owner))} • Jarak pasang: ${scaleStat(target.def.range, u.owner)}<br>DEF: ${Math.round(target.def.def * statMul(u.owner))}<br>`;   // v10.1 (P2): Trapper tidak menembak
     else if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
-    if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${target.def.fuelMax}<br>`;
+    if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${fuelMaxOf(target.def, u.owner)}<br>`;
+    if (WW) html += wwBuffLine(target);                                   // v11: baris "Buff WW"
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;
     if (u.intimidatedTurns > 0) html += `<span style="color:#e08a4a">Terkena Intimidasi (${u.intimidatedTurns} giliran lagi)</span><br>`;
     if (u.downed) html += `<span style="color:#e3c445">MODE GUGUR — hidup lagi di awal giliran pemilik (HP 30%, ATK −50%)</span><br>`;
@@ -412,7 +414,7 @@ function openEntityPanel(r, c) {
       if (u.cargo && u.cargo.type === 'fuel') buttons.push({ id: 'supplyFuelBtn', label: 'Supply Fuel' });
       if (u.cargo && u.cargo.type === 'medical') buttons.push({ id: 'supplyMedicalBtn', label: 'Supply Medical' });
 
-      if ((isApcType(u.type) || isCorpsType(u.type)) && target.def.hasFuel && u.fuel < target.def.fuelMax && owner.resources.fuel > 0) {
+      if ((isApcType(u.type) || isCorpsType(u.type)) && target.def.hasFuel && u.fuel < fuelMaxOf(target.def, u.owner) && owner.resources.fuel > 0) {
         buttons.push({ id: 'selfRefuelBtn', label: 'Isi Ulang Sendiri' });
       }
       if (owner.resources.medical > 0 && !(isCorpsType(u.type) && u.isBuilding)) {
@@ -424,6 +426,7 @@ function openEntityPanel(r, c) {
     const maxHp = target.def.hp === Infinity ? '∞' : maxHpOf(b, target.def);
     const defStat = target.def.def === Infinity ? '∞' : Math.round(target.def.def * statMul(buildingOwnerIdx(b)));
     html += `HP: ${b.hp === Infinity ? '∞' : b.hp}/${maxHp} &nbsp; DEF: ${defStat}<br>`;
+    if (WW) html += wwBuffLine(target);                                   // v11: baris "Buff WW"
     if (b.type === 'markas' && markasDefBonusPct() > 0) html += `<span style="color:#7fb4ff">Bonus DEF awal: +${Math.round(markasDefBonusPct())}% (menyusut tiap giliran, habis di giliran ${MARKAS_BONUS_END_TURN})</span><br>`;
     if (b.defDebuffTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Penghancur Bangunan, ${b.defDebuffTurns} giliran lagi)</span><br>`;
     if (b.bombDefTurns > 0) html += `<span style="color:#e08a4a">DEF -30% (Pembuat Onar, ${b.bombDefTurns} giliran lagi)</span><br>`;
@@ -495,9 +498,9 @@ function openDeployModal(player) {
   let html = '<div class="panel-header"><h3>Deploy Unit — slot Barak: ' + slots + '/' + (2 * baraks.length) + '</h3><button class="close" id="deployclose" type="button" aria-label="Tutup">✕</button></div>';
   html += deployEntries().map(([key, def]) => {
     const rosterBlocked = player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key);
-    const disabled = (slots <= 0 || player.resources.kredit < def.price || rosterBlocked) ? 'disabled' : '';
+    const disabled = (slots <= 0 || player.resources.kredit < priceOf(key, player.id - 1) || rosterBlocked) ? 'disabled' : '';
     const label = rosterBlocked ? 'Tidak dipilih' : 'Deploy';
-    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
+    return `<div class="unitrow"><span>${def.name} (${priceOf(key, player.id - 1)} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
@@ -512,9 +515,9 @@ function openDeployPanel(barak, player) {
   let html = '<div class="panel-header"><h3>Deploy dari Barak — slot Barak ini: ' + barakSlots(barak) + '/2</h3><button class="close" id="deployclose" type="button" aria-label="Tutup">✕</button></div>';
   html += deployEntries().map(([key, def]) => {
     const rosterBlocked = player.id - 1 === HUMAN && typeof isHumanUnitAllowed === 'function' && !isHumanUnitAllowed(key);
-    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < def.price || rosterBlocked) ? 'disabled' : '';
+    const disabled = (barakSlots(barak) <= 0 || player.resources.kredit < priceOf(key, player.id - 1) || rosterBlocked) ? 'disabled' : '';
     const label = rosterBlocked ? 'Tidak dipilih' : 'Deploy';
-    return `<div class="unitrow"><span>${def.name} (${def.price} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
+    return `<div class="unitrow"><span>${def.name} (${priceOf(key, player.id - 1)} Kredit)</span><button data-unit="${key}" ${disabled}>${label}</button></div>`;
   }).join('');
   el.innerHTML = html;
   document.getElementById('deployclose').addEventListener('click', () => { el.style.display = 'none'; });
