@@ -45,7 +45,8 @@ function totalBarakSlots(p) { return p.buildings.filter(b => b.type === 'barak')
 //    jadi cabang ini hanya pengaman. Fallback ['corps'] hanya untuk Campaign dan keadaan tanpa pilihan (selectedLoadoutUnits kosong).
 function corpsKinds(pIdx) {
   if (WW && pIdx === BOT) return wwCorpsKinds(BOT);   // v11 (3.4): Corps Garnisun bot ditentukan faksinya
-  const sel = (typeof selectedLoadoutUnits !== 'undefined') ? selectedLoadoutUnits : [];
+  let sel = (typeof selectedLoadoutUnits !== 'undefined') ? selectedLoadoutUnits : [];
+  if (MPM && pIdx !== HUMAN) sel = MPM.oppLoadout || [];   // v12: Garnisun lawan manusia mengikuti pilihan unit LAWAN
   if (CAMPAIGN || !Array.isArray(sel) || sel.length !== 10) return ['corps'];
   const hasC = sel.includes('corps'), hasA = sel.includes('advcorps');
   if (hasC && hasA) return ['corps', 'advcorps'];

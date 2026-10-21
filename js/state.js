@@ -200,6 +200,9 @@ let reachable = new Map();   // "r,c" -> sisa MP yang dipakai untuk sampai situ
 let CAMPAIGN = null;
 // v11: data pertandingan World War (js/worldwar.js: WorldWar.prepareBattle()); null di mode lain.
 let WW = null;
+// v12: pertandingan Multiplayer (js/mp.js). null di mode lain. { role:'host'|'guest', myName, oppName, oppLoadout, matchId }.
+// Pemain lokal SELALU HUMAN (indeks 0) di kedua perangkat; state dipetakan (ditukar) saat dikirim/diterima.
+let MPM = null;
 // v10.2: tingkat bot (Lawan Bot, bukan Campaign). Pengali stat bot (HP, ATK, DEF, SPD, Range, JPD): Mudah 0,8 / Sedang 1 / Sulit 1,2.
 let BOT_LEVEL = 'sedang';
 const BOT_STAT_MUL = { mudah: 0.8, sedang: 1, sulit: 1.2 };

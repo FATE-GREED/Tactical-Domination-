@@ -69,7 +69,8 @@ function applySemangatBesi(unit) {
   const nearVehicle = units.some(o => {
     if (o.id === unit.id || o.type === 'corps') return false;
     if (hexDistance(unit.r, unit.c, o.r, o.c) > 2) return false;
-    return !!UNITS[o.type].vehicle;
+    const od = unitDef(o.type);   // v12: perbaikan — Advanced Corps tidak ada di UNITS (sebelumnya melempar error)
+    return !!(od && od.vehicle);
   });
   if (nearVehicle) {
     unit.mp += 2;

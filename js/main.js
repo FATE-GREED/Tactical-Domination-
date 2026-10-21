@@ -16,6 +16,7 @@ function startGame(opts) {
   gameStarted = true;
   // opts: { mode: 'bot', level: 'mudah' | 'sedang' | 'sulit' } (v10.2); { mode: 'campaign' } untuk Campaign.
   BOT_LEVEL = (opts && BOT_STAT_MUL[opts.level]) ? opts.level : 'sedang';   // v10.2 (World War: WW_BOT_LEVEL, K8)
+  MPM = (opts && opts.mode === 'mp') ? opts.mpm : null; document.body.classList.toggle('mp', !!MPM);   // v12: Multiplayer
   WW = null; document.body.classList.remove('ww');   // v11: data World War hanya ada di mode 'ww'
   if (opts && opts.mode === 'ww') { WW = WorldWar.prepareBattle(); document.body.classList.add('ww'); }
 
@@ -26,7 +27,7 @@ function startGame(opts) {
   setupPlayersAndBuildings();       // setup.js
   Stats.init();                     // stats.js — statistik pertandingan mulai dari nol
 
-  currentPlayerIdx = CAMPAIGN ? HUMAN : (Math.random() < 0.5 ? 0 : 1);
+  currentPlayerIdx = (CAMPAIGN || MPM) ? HUMAN : (Math.random() < 0.5 ? 0 : 1);   // v12: Multiplayer — tuan rumah jalan dulu
   turnNumber = 1;
 
   // v10.1 (P7/P9/P10): reset mode otomatis, Skip, mode cepat, dan log eksekusi sebelumnya
@@ -41,9 +42,11 @@ function startGame(opts) {
   document.getElementById('pauseBtn').addEventListener('click', togglePause);
   document.getElementById('pmResume').addEventListener('click', togglePause);
   document.getElementById('pmRestart').addEventListener('click', () => document.getElementById('restartBtn').click());
-  document.getElementById('pmLobby').addEventListener('click', () => { if (WW) WorldWar.confirmLeave(); else document.getElementById('lobbyBtn').click(); });   // v11 (5.4): keluar = KALAH
+  document.getElementById('pmLobby').addEventListener('click', () => { if (MPM) MP.confirmLeave(); else if (WW) WorldWar.confirmLeave(); else document.getElementById('lobbyBtn').click(); });   // v11 (5.4): keluar = KALAH
 
-  startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
+  if (MPM && MPM.role === 'guest') MP.applyStart(opts.snap);   // v12: tamu memakai keadaan awal dari tuan rumah
+  else startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
+  if (MPM && MPM.role === 'host') MP.sendStart();
 
   // Pusatkan kamera ke Markas pemain manusia
   (function centerOnStartingMarkas() {

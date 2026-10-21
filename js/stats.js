@@ -19,7 +19,9 @@ const Stats = (() => {
   function use(p, res, amt) { const i = idx(p); if (s[i] && amt > 0) s[i][res].out += amt; }
   function unitLost(owner, type) { if (s[owner]) s[owner].unitLost[type] = (s[owner].unitLost[type] || 0) + 1; }
   function bldLost(owner, type) { if (s[owner]) s[owner].bldLost[type] = (s[owner].bldLost[type] || 0) + 1; }
-  return { init, dmg, earn, use, unitLost, bldLost, get data() { return s; } };
+  function dump() { return JSON.parse(JSON.stringify(s)); }            // v12: dipakai snapshot Multiplayer
+  function load(d) { if (Array.isArray(d) && d.length === 2) s = d; }
+  return { init, dmg, earn, use, unitLost, bldLost, dump, load, get data() { return s; } };
 })();
 
 // ---------- Layar Rincian ----------

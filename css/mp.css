@@ -1,0 +1,47 @@
+/* mp.css — Mode Multiplayer (v12): room chat global, daftar online, tantangan. */
+#mpscreen { position: fixed; inset: 0; z-index: 1500; display: flex; flex-direction: column; background: #0f1512; color: #e8efe9; font: 13px/1.35 system-ui, sans-serif; }
+#mpscreen[hidden] { display: none; }
+.mp-top { height: 40px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 8px; background: #18211d; border-bottom: 1px solid #5f7d72; }
+.mp-top button { min-height: 28px; min-width: 28px; padding: 0 10px; border: 1px solid #5f7d72; border-radius: 6px; background: #22302a; color: #e8efe9; font-size: 12px; }
+.mp-title { flex: 1; text-align: center; letter-spacing: .25em; font-size: 12px; }
+.mp-stat { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #a9bdb3; }
+.mp-dot { width: 8px; height: 8px; border-radius: 50%; background: #666; display: inline-block; }
+#mpscreen.inroom .mp-dot { background: #4fd37c; }
+.mp-body { flex: 1; min-height: 0; display: flex; }
+.mp-entry { flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; }
+.mp-entry[hidden], .mp-room[hidden], .mp-dlg[hidden], .mp-wait[hidden] { display: none; }
+.mp-card { width: min(360px, 100%); padding: 14px; border: 1px solid #5f7d72; border-radius: 8px; background: rgba(18,24,22,.9); display: flex; flex-direction: column; gap: 8px; }
+.mp-card h3 { margin: 0; font-size: 15px; }
+.mp-card p { margin: 0; color: #a9bdb3; font-size: 12px; }
+.mp-name, .mp-text { min-height: 32px; padding: 0 8px; border: 1px solid #5f7d72; border-radius: 6px; background: #0b100e; color: #e8efe9; font-size: 14px; }
+.mp-enter, .mp-sendbtn { min-height: 32px; border: 1px solid #6fae8c; border-radius: 6px; background: #2c6b4a; color: #fff; font-weight: 600; padding: 0 12px; }
+.mp-msg { min-height: 16px; color: #f0b06b; font-size: 12px; }
+.mp-room { flex: 1; min-height: 0; display: flex; gap: 6px; padding: 6px; }
+.mp-chat { flex: 1.5; min-width: 0; display: flex; flex-direction: column; border: 1px solid #5f7d72; border-radius: 8px; background: rgba(18,24,22,.84); overflow: hidden; }
+.mp-users { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid #5f7d72; border-radius: 8px; background: rgba(18,24,22,.84); overflow: hidden; }
+.mp-h { padding: 5px 8px; font-size: 10px; letter-spacing: .15em; color: #a9bdb3; border-bottom: 1px solid #2f433a; }
+.mp-log, .mp-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 8px; }
+.mp-line { margin-bottom: 3px; word-break: break-word; }
+.mp-line b { color: #8fc7ff; }
+.mp-line.me b { color: #9be28f; }
+.mp-send { display: flex; gap: 6px; padding: 6px; border-top: 1px solid #2f433a; }
+.mp-text { flex: 1; min-width: 0; }
+.mp-user { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 0; border-bottom: 1px solid #1f2c26; }
+.mp-uname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-user button { min-height: 28px; min-width: 56px; border: 1px solid #c2823d; border-radius: 6px; background: #8a5a22; color: #fff; font-size: 12px; }
+.mp-user button:disabled { opacity: .45; }
+.mp-user small { color: #8aa398; }
+.mp-dlg, .mp-wait { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); }
+.mp-dbox { min-width: 240px; max-width: 90%; padding: 14px 16px; border: 1px solid #6fae8c; border-radius: 10px; background: #18211d; text-align: center; }
+.mp-dtext, .mp-wtext { margin-bottom: 10px; font-size: 14px; }
+.mp-wtext { margin: 0; }
+.mp-dbtns { display: flex; gap: 8px; justify-content: center; }
+.mp-dbtns button { min-height: 32px; min-width: 80px; border: 1px solid #5f7d72; border-radius: 6px; background: #2c6b4a; color: #fff; }
+.mp-dbtns button:last-child { background: #3a4540; }
+@media (max-width: 560px) { .mp-room { flex-direction: column; } }
+
+/* di dalam pertandingan */
+#mpBackBtn { display: none; }
+body.mp #mpBackBtn { display: inline-block; }
+body.mp #restartBtn, body.mp #lobbyBtn, body.mp #pmRestart, body.mp #skipBtn { display: none !important; }
+#mpbanner { position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 900; display: none; padding: 5px 14px; border: 1px solid #c2823d; border-radius: 14px; background: rgba(40,28,12,.92); color: #ffd9a0; font: 12px system-ui, sans-serif; pointer-events: none; }

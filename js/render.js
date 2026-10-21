@@ -269,6 +269,7 @@ function showGameOver() {
   if (typeof onGameOverAuto === 'function') onGameOverAuto();   // v10.1 (P7/P9): ∞ dan Skip mati sendiri
   if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
   if (WW) { WorldWar.onBattleEnd(winner === HUMAN); return; }         // v11: World War — hasil ke peta (5.3)
+  if (MPM) MP.onGameOver();                                           // v12: kabari lawan (tampilan akhir tetap memakai overlay di bawah)
   Sfx.end(winner === HUMAN);
   // v10.2: lawan bot -> VICTORY bila pemain menang, DEFEAT bila bot menang
   const won = winner === HUMAN;

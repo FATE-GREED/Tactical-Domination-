@@ -124,6 +124,11 @@ function confirmUnitSelection() {
   const screen = document.getElementById('unitselect-screen');
   const message = document.getElementById('unitselect-message');
   const wwOpts = unitSelectPendingOpts && unitSelectPendingOpts.mode === 'ww' ? unitSelectPendingOpts : null;
+  if (unitSelectPendingOpts && unitSelectPendingOpts.mode === 'mp') {   // v12: Multiplayer — kirim pilihan ke lawan, game dimulai tuan rumah
+    screen.classList.remove('is-open'); screen.setAttribute('aria-hidden', 'true');
+    MP.onLoadout(unitSelectSelected.slice());
+    return;
+  }
   try {
     if (wwOpts) { WorldWar.saveLoadout(unitSelectSelected); WorldWar.beginBattle(wwOpts.target, wwOpts.role); }   // v11: pending tersimpan sebelum startGame (K9)
     startGame(unitSelectPendingOpts || { mode: 'bot', level: 'sedang' });

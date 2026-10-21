@@ -770,6 +770,7 @@ function beginPlanning() {
   renderTargetPanel();
   draw();
   updateAutoUI();
+  if (MPM && currentPlayerIdx !== HUMAN) { MP.waitTurn(); return; }               // v12: giliran lawan manusia — menunggu snapshot
   if (currentPlayerIdx !== HUMAN) { autoPlayTurn(currentPlayerIdx); return; }   // giliran bot: susun rencana seketika, lalu eksekusi
   if (autoMode) { autoPlayTurn(HUMAN); return; }                               // v10.1 (P7): ∞ aktif -> bot memainkan pihak kita
   // v8.5: fase rencana pemain tanpa batas waktu — tidak ada hitung mundur;
@@ -860,5 +861,6 @@ async function runExecution() {
   if (currentPlayerIdx === 0) turnNumber++;
   startTurn(currentPlayerIdx);
   if (gameOver) { endFast(false); showGameOver(); return; }     // v9.7: Markas bisa hancur karena Peluru Pembakar di awal giliran
+  if (MPM) MP.passTurn();                                       // v12: kirim snapshot ke lawan, lalu menunggu
   beginPlanning();
 }
