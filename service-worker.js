@@ -2,8 +2,7 @@
 // bisa dimainkan offline setelahnya (khas PWA). Versi cache dinaikkan
 // manual kalau ada update file game.
 // v10.1 lengkap (P1-P10). Baris komentar ini mengubah isi berkas agar browser memasang ulang SW dan menimpa cache build P1-P5.
-// v13 Tahap 3-4 (hadiah pertandingan, Spin, tukar fragmen): baris komentar ini mengubah isi berkas agar browser memasang ulang SW dan menimpa cache Tahap 1-2.
-const CACHE_NAME = 'tactical-domination-v13';
+const CACHE_NAME = 'tactical-domination-v12';
 const ASSETS = [
   './',
   './manifest.json',
@@ -12,11 +11,8 @@ const ASSETS = [
   './css/settings.css',
   './css/story.css',
   './css/worldwar.css',
-  './css/progress.css',
   './js/state.js',
   './js/commanders.js',
-  './js/progress.js',
-  './js/progress-ui.js',
   './js/skill-icons.js',
   './js/settings.js',
   './js/stats.js',

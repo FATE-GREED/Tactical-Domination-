@@ -103,7 +103,7 @@ function markasDefBonusPct() {
 // Dipecah agar bom (bombs.js) memakai rumus & perhitungan DEF target yang sama persis.
 // baseDEFOverride (opsional): dipakai Penembusan (DEF dasar kendaraan dianggap 0).
 function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride, attackerOwner) {   // v11: attackerOwner (opsional) = pemilik penyerang/bom, untuk buff ATK World War
-  let baseDEF = targetInfo.kind === 'unit' ? baseDEFOfUnit(targetInfo.obj) * progDefMul(targetInfo.ownerIdx, targetInfo.obj.type) : targetInfo.def.def;   // v13: pengali DEF progresi (bangunan tidak terpengaruh)
+  let baseDEF = targetInfo.kind === 'unit' ? baseDEFOfUnit(targetInfo.obj) : targetInfo.def.def;
   if (baseDEFOverride !== undefined && baseDEFOverride !== null) baseDEF = baseDEFOverride;
   baseDEF *= statMul(targetInfo.ownerIdx);                       // v9.7: stat bot Campaign = 70%
   if (attackerOwner !== undefined && attackerOwner !== null) atkPct += wwAtkPct(attackerOwner);   // v11 (6.6): buff ATK World War (0 di mode lain)
@@ -122,7 +122,7 @@ function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride, at
 }
 
 function computeDamage(attackerUnit, targetInfo) {
-  const baseATK = baseATKOf(attackerUnit) * statMul(attackerUnit.owner) * progAtkMul(attackerUnit.owner, attackerUnit.type);   // Tembok Berjalan: 63 -> 25,2; v9.7: stat bot Campaign = 70%
+  const baseATK = baseATKOf(attackerUnit) * statMul(attackerUnit.owner);   // Tembok Berjalan: 63 -> 25,2; v9.7: stat bot Campaign = 70%
   let atkPct = territoryATKBonusPct(attackerUnit.owner, attackerUnit.r, attackerUnit.c);
   atkPct += attackerAbilityATKPct(attackerUnit, targetInfo);
   // Penembusan (Advanced Anti-Tank): DEF dasar kendaraan dianggap 0

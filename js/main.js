@@ -16,8 +16,6 @@ function startGame(opts) {
   gameStarted = true;
   // opts: { mode: 'bot', level: 'mudah' | 'sedang' | 'sulit' } (v10.2); { mode: 'campaign' } untuk Campaign.
   BOT_LEVEL = (opts && BOT_STAT_MUL[opts.level]) ? opts.level : 'sedang';   // v10.2 (World War: WW_BOT_LEVEL, K8)
-  PROG_AKTIF = !!(opts && (opts.mode === 'bot' || opts.mode === 'mp'));   // v13 (6.1): progres akun hanya di Klasik vs Bot & Multiplayer
-  if (opts && opts.mode === 'campaign') selectedLoadoutAktif = false;       // Campaign tidak memakai pembatasan loadout
   MPM = (opts && opts.mode === 'mp') ? opts.mpm : null; document.body.classList.toggle('mp', !!MPM);   // v12: Multiplayer
   WW = null; document.body.classList.remove('ww');   // v11: data World War hanya ada di mode 'ww'
   if (opts && opts.mode === 'ww') { WW = WorldWar.prepareBattle(); document.body.classList.add('ww'); }
@@ -33,8 +31,7 @@ function startGame(opts) {
   turnNumber = 1;
 
   // v10.1 (P7/P9/P10): reset mode otomatis, Skip, mode cepat, dan log eksekusi sebelumnya
-  autoMode = false; autoTurnBusy = false; autoPernahAktif = false;   // v13 Tahap 3: reset penanda ∞
-  matchRewardGiven = false; lastMatchReward = null;
+  autoMode = false; autoTurnBusy = false;
   skipArmed = false; skipExecLeft = 0; FAST = false;
   dmgFeedPrev = null; dmgFeedPrevOpen = false;
   botWaveStarted = [false, false];

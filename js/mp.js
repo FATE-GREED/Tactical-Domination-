@@ -125,13 +125,12 @@ const MP = (() => {
     if (S.root) S.root.style.display = 'none';
     showUnitSelectScreen({ mode: 'mp', level: 'sedang' });
   }
-  function resendHandshake() { if (!S.match) return; matchSend({ t: 'hello' }); if (S.match.myLoadout) matchSend({ t: 'ready', loadout: S.match.myLoadout, prog: S.match.myProg }); }
+  function resendHandshake() { if (!S.match) return; matchSend({ t: 'hello' }); if (S.match.myLoadout) matchSend({ t: 'ready', loadout: S.match.myLoadout }); }
 
   function onLoadout(list) {                             // dipanggil unit-select.js
     if (!S.match) return;
     S.match.myLoadout = list;
-    S.match.myProg = Prog.exportMatchProg(list);        // v13 (6.6): level, ascend, dan kemampuan yang dimiliki
-    matchSend({ t: 'ready', loadout: list, prog: S.match.myProg });
+    matchSend({ t: 'ready', loadout: list });
     if (S.root) S.root.style.display = '';
     showWait('Menunggu ' + S.match.peer.name + ' memilih unit…');
     maybeStart();
@@ -147,7 +146,7 @@ const MP = (() => {
     hideWait();
     if (S.root) S.root.style.display = 'none';
     S.phase = 'match';
-    const mpm = { role: m.role, myName: S.me.name, oppName: m.peer.name, oppLoadout: m.oppLoadout, oppProg: Prog.sanitizeMatchProg(m.oppProg), matchId: m.cid };
+    const mpm = { role: m.role, myName: S.me.name, oppName: m.peer.name, oppLoadout: m.oppLoadout, matchId: m.cid };
     startGame(Object.assign({ mode: 'mp', level: 'sedang', mpm }, extra));
     startFrames(); startWatchdog();
   }
@@ -155,7 +154,7 @@ const MP = (() => {
   function sendStart() {                                 // dipanggil main.js (tuan rumah) setelah giliran pertama siap
     players[HUMAN].name = MPM.myName; players[BOT].name = MPM.oppName;
     const snap = toWire();
-    S.match.lastSent = { t: 'start', snap, loadout: S.match.myLoadout, prog: S.match.myProg };
+    S.match.lastSent = { t: 'start', snap, loadout: S.match.myLoadout };
     matchSend(S.match.lastSent);
   }
   function applyStart(wire) {                            // dipanggil main.js (tamu) menggantikan startTurn
@@ -183,11 +182,11 @@ const MP = (() => {
     const m = S.match; if (!m || !msg || msg.from === S.me.id) return;
     m.lastIn = Date.now();
     switch (msg.t) {
-      case 'hello': if (!m.helloAck) { m.helloAck = true; matchSend({ t: 'hello' }); } if (m.myLoadout) matchSend({ t: 'ready', loadout: m.myLoadout, prog: m.myProg }); break;
-      case 'ready': m.oppLoadout = msg.loadout; m.oppProg = msg.prog; maybeStart(); break;
+      case 'hello': if (!m.helloAck) { m.helloAck = true; matchSend({ t: 'hello' }); } if (m.myLoadout) matchSend({ t: 'ready', loadout: m.myLoadout }); break;
+      case 'ready': m.oppLoadout = msg.loadout; maybeStart(); break;
       case 'start':
         if (m.role !== 'guest' || m.started) break;
-        m.started = true; m.oppLoadout = msg.loadout || m.oppLoadout; m.oppProg = msg.prog || m.oppProg;
+        m.started = true; m.oppLoadout = msg.loadout || m.oppLoadout;
         startMatch({ snap: msg.snap });
         break;
       case 'snap': {
