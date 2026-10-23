@@ -277,8 +277,28 @@ function showGameOver() {
   wt.textContent = won ? 'VICTORY' : 'DEFEAT';
   wt.className = won ? 'victory' : 'defeat';
   document.querySelector('#gameover p').textContent = won ? 'Seluruh Markas lawan telah hancur.' : 'Seluruh Markasmu telah hancur.';
+  // v13 Tahap 3 (Bagian 8): hadiah pertandingan — hanya Klasik vs Bot & Multiplayer, tanpa ∞ (pernah dinyalakan), sekali per pertandingan.
+  // Pertandingan Event (EVENT) hanya memberi poin dan peti event, bukan hadiah ini. Keluar di tengah jalan tidak melewati showGameOver, jadi tanpa hadiah.
+  if (!matchRewardGiven) {
+    matchRewardGiven = true;
+    const eligible = PROG_AKTIF && !autoPernahAktif && !(typeof EVENT !== 'undefined' && EVENT);
+    if (eligible) { try { lastMatchReward = Prog.grantMatchReward(Stats.rewardInfo(), MPM ? 'mp' : BOT_LEVEL); } catch (e) { console.warn('hadiah pertandingan gagal:', e); lastMatchReward = null; } }
+  }
+  const rwEl = document.getElementById('matchReward');
+  if (rwEl) { rwEl.innerHTML = matchRewardHTML(lastMatchReward); rwEl.style.display = rwEl.innerHTML ? 'block' : 'none'; }
   document.getElementById('gameover').style.display = 'flex';
   Rincian.open();                               // rincian pertandingan muncul saat game berakhir
+}
+// Panel "Hadiah Pertandingan" di layar akhir (8.3). Kosong bila pertandingan tidak memberi hadiah.
+function matchRewardHTML(rw) {
+  if (!rw || !rw.ok) return '';
+  const F = Prog.fmt, rows = [];
+  Object.keys(rw.exp).forEach(k => rows.push(`${unitDef(k) ? unitDef(k).name : k} +${F(rw.exp[k])} Exp`));
+  rows.push('Gold +' + F(rw.gold), 'Gem +' + F(rw.gem));
+  if (rw.crystal.got) rows.push(`Crystal +1 (${rw.crystal.hariIni}/5 hari ini)`);
+  else if (rw.crystal.batas) rows.push('Crystal: batas harian tercapai');
+  rows.push(rw.peti.baru ? 'Peti Pertandingan +1' : `Peti berikutnya: ${rw.peti.hitung}/2 pertandingan`);
+  return `<h3>Hadiah Pertandingan</h3><ul>${rows.map(t => `<li>${t}</li>`).join('')}</ul>`;
 }
 
 // Panel aksi bawah: muncul saat unit sedang menunggu tujuan gerak / target serang / target supply
@@ -338,9 +358,9 @@ function openEntityPanel(r, c) {
 
   if (target.kind === 'unit') {
     const u = target.obj;
-    html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(target.def.spd, u.owner)}<br>`;
-    if (target.def.combat && isTrapperType(u.type)) html += `Daya bom (ATK): ${Math.round(target.def.atk * statMul(u.owner))} • Jarak pasang: ${scaleStat(target.def.range, u.owner)}<br>DEF: ${Math.round(target.def.def * statMul(u.owner))}<br>`;   // v10.1 (P2): Trapper tidak menembak
-    else if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
+    html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(progSpd(u.owner, u.type, target.def.spd), u.owner)}<br>`;
+    if (target.def.combat && isTrapperType(u.type)) html += `Daya bom (ATK): ${Prog.fmt1(target.def.atk * statMul(u.owner) * progAtkMul(u.owner, u.type))} • Jarak pasang: ${scaleStat(progRng(u.owner, u.type, target.def.range), u.owner)}<br>DEF: ${Prog.fmt1(target.def.def * statMul(u.owner) * progDefMul(u.owner, u.type))}<br>`;   // v10.1 (P2): Trapper tidak menembak
+    else if (target.def.combat) html += `ATK: ${Prog.fmt1(target.def.atk * statMul(u.owner) * progAtkMul(u.owner, u.type))} &nbsp; DEF: ${Prog.fmt1(target.def.def * statMul(u.owner) * progDefMul(u.owner, u.type))} &nbsp; Range: ${scaleStat(progRng(u.owner, u.type, target.def.range), u.owner)}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${fuelMaxOf(target.def, u.owner)}<br>`;
     if (WW) html += wwBuffLine(target);                                   // v11: baris "Buff WW"
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;

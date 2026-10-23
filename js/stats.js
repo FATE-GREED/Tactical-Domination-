@@ -4,7 +4,7 @@
 // ====================================================================
 const Stats = (() => {
   let s = [blank(), blank()];
-  function blank() { return { dmgUnit: 0, dmgBld: 0, dmgBy: {}, kredit: { in: 0, out: 0 }, fuel: { in: 0, out: 0 }, medical: { in: 0, out: 0 }, unitLost: {}, bldLost: {} }; }
+  function blank() { return { dmgUnit: 0, dmgBld: 0, dmgBy: {}, kredit: { in: 0, out: 0 }, fuel: { in: 0, out: 0 }, medical: { in: 0, out: 0 }, unitLost: {}, bldLost: {}, deployed: {} }; }
   const idx = p => (typeof p === 'number' ? p : players.indexOf(p));
   function init() {
     s = [blank(), blank()];
@@ -17,11 +17,35 @@ const Stats = (() => {
   }
   function earn(p, res, amt) { const i = idx(p); if (s[i] && amt > 0) s[i][res].in += amt; }
   function use(p, res, amt) { const i = idx(p); if (s[i] && amt > 0) s[i][res].out += amt; }
+  // v13 Tahap 3 (8.1): setiap unit yang dibuat dari Barak (rules-auto.js) dan Corps dari Garnisun (rules-economy.js)
+  function deploy(owner, type) { if (s[owner]) s[owner].deployed[type] = (s[owner].deployed[type] || 0) + 1; }
   function unitLost(owner, type) { if (s[owner]) s[owner].unitLost[type] = (s[owner].unitLost[type] || 0) + 1; }
   function bldLost(owner, type) { if (s[owner]) s[owner].bldLost[type] = (s[owner].bldLost[type] || 0) + 1; }
   function dump() { return JSON.parse(JSON.stringify(s)); }            // v12: dipakai snapshot Multiplayer
-  function load(d) { if (Array.isArray(d) && d.length === 2) s = d; }
-  return { init, dmg, earn, use, unitLost, bldLost, dump, load, get data() { return s; } };
+  function load(d) { if (Array.isArray(d) && d.length === 2) { s = d; s.forEach(x => { if (!x.deployed || typeof x.deployed !== 'object') x.deployed = {}; }); } }
+  // v13 Tahap 3 (8.1): bahan hitungan hadiah pertandingan, dari sisi pemain lokal (HUMAN).
+  // Unit hidup = unit di papan + muatan APC yang masih hidup; total = hidup + gugur.
+  // HP Markas = jumlah HP Markas yang masih berdiri / (jumlah Markas berdiri + Markas yang pernah hancur) x HP maks;
+  // Markas yang hancur dihitung 0, jadi 100% hanya bila tidak ada Markas yang hilang dan semuanya penuh.
+  function rewardInfo() {
+    const me = HUMAN, d = s[me] || blank();
+    let alive = 0;
+    units.forEach(u => {
+      if (u.owner !== me) return;
+      alive++;
+      if (u.cargo && u.cargo.unit) alive++;
+    });
+    const lost = Object.values(d.unitLost).reduce((a, b) => a + b, 0);
+    const ms = (players[me] ? players[me].buildings : []).filter(b => b.type === 'markas');
+    const mLost = d.bldLost.markas || 0, mTotal = ms.length + mLost;
+    let hpRatio = 0;
+    if (mTotal > 0) {
+      const sum = ms.reduce((a, b) => a + Math.max(0, Math.min(1, b.hp / maxHpOf(b, BUILDING_TYPES.markas))), 0);
+      hpRatio = sum / mTotal;
+    }
+    return { deployed: Object.assign({}, d.deployed), alive, lost, hpRatio, won: winner === me };
+  }
+  return { init, dmg, earn, use, deploy, unitLost, bldLost, dump, load, rewardInfo, get data() { return s; } };
 })();
 
 // ---------- Layar Rincian ----------

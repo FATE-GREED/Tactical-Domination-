@@ -97,7 +97,7 @@ async function placeBomb(u, spot) {
     if (gameOver || !units.includes(u)) return;
   }
   const special = u.type === 'trapper' && Math.random() < 0.2;     // Keberuntungan (tidak untuk Advanced Trapper)
-  bombs.push({ id: bombSeq++, owner: u.owner, r: spot.r, c: spot.c, special, active: false, atk: UNITS[u.type].atk, trapperId: u.id, trapperType: u.type });
+  bombs.push({ id: bombSeq++, owner: u.owner, r: spot.r, c: spot.c, special, active: false, atk: UNITS[u.type].atk * progAtkMul(u.owner, u.type), trapperId: u.id, trapperType: u.type });
   u.attacked = true;                                               // 1 aksi: MP menjadi 0, flag attacked
   u.mp = 0;
   if (u.owner === HUMAN) actAdd(u.owner, [[unitName(u), 'unit'], [' memasang bom']]);

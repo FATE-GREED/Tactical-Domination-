@@ -63,6 +63,7 @@
     terrainBase(c, 'grass', w / 2, h / 2, 78);
     UNIT_RENDERERS[key](c, w / 2, h / 2 + 6, 42);
   })}">`;
+  window.canvasURL = canvasURL;   // v13: dipakai Inventory (progress-ui.js)
   function bridgeArt(c) {                     // Jembatan & Renov tidak punya BUILDING_ART — digambar sederhana
     c.save(); c.rotate(-0.35);
     c.fillStyle = '#6b5233'; c.fillRect(-0.95, -0.2, 1.9, 0.4);
@@ -85,6 +86,7 @@
     c.restore();
   })}">`;
 
+  window.unitImg = unitImg;       // v13
   // Ikon skill: data & fungsi ada di js/skill-icons.js (dipakai juga di dalam pertandingan)
   const skillIcon = skillIconHTML;
 

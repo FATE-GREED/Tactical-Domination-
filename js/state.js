@@ -177,7 +177,11 @@ let mapData = null;          // array[ROWS][COLS] berisi kunci TERRAIN
 let players = [];            // diisi oleh setup.js
 let units = [];              // {id, owner(0/1), type, r, c, mp, fuel, hp}
 let uidCounter = 1;
-let selectedLoadoutUnits = []; // v9.8: jenis unit yang dipilih pemain sebelum pertandingan
+let selectedLoadoutUnits = []; // v9.8: jenis unit yang dipilih pemain sebelum pertandingan (v13: 1-10 jenis)
+let selectedLoadoutAktif = false;   // v13: penanda eksplisit "loadout sudah dipilih" (pengganti panjang daftar === 10)
+let matchRewardGiven = false;      // v13 Tahap 3: penjaga "hadiah pertandingan sudah diberikan" (layar akhir bisa dibuka ulang)
+let lastMatchReward = null;        // v13 Tahap 3: hasil hadiah terakhir (ditampilkan ulang bila layar akhir dibuka lagi)
+let PROG_AKTIF = false;             // v13: progres akun berlaku (mode bot & Multiplayer), lihat progress.js
 let bombs = [];              // v9.7: bom Trapper {id, owner, r, c, special, active, atk, trapperId, trapperType} — bukan entitas (lihat bombs.js)
 let bombSeq = 1;
 

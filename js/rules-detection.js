@@ -15,7 +15,7 @@ function rangeAtTile(def, r, c) {
 }
 function effectiveRange(unit) {
   const def = unitDef(unit.type);
-  const scaled = statMul(unit.owner) === 1 ? def : { ...def, range: scaleStat(def.range, unit.owner) };   // v9.7: stat bot Campaign = 70%
+  const scaled = { ...def, range: scaleStat(progRng(unit.owner, unit.type, def.range), unit.owner) };   // v13: RNG progresi   // v9.7: stat bot Campaign = 70%
   let rng = rangeAtTile(scaled, unit.r, unit.c);
   if (unit.type === 'advsniper') rng += Math.min(5, unit.focusTurns || 0);   // Titik Fokus: ceil(Rng x Mountain) + focusTurns
   return rng;

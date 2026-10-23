@@ -47,7 +47,7 @@ function corpsKinds(pIdx) {
   if (WW && pIdx === BOT) return wwCorpsKinds(BOT);   // v11 (3.4): Corps Garnisun bot ditentukan faksinya
   let sel = (typeof selectedLoadoutUnits !== 'undefined') ? selectedLoadoutUnits : [];
   if (MPM && pIdx !== HUMAN) sel = MPM.oppLoadout || [];   // v12: Garnisun lawan manusia mengikuti pilihan unit LAWAN
-  if (CAMPAIGN || !Array.isArray(sel) || sel.length !== 10) return ['corps'];
+  if (CAMPAIGN || !Array.isArray(sel) || sel.length < 1) return ['corps'];   // v13: loadout 1-10 jenis
   const hasC = sel.includes('corps'), hasA = sel.includes('advcorps');
   if (hasC && hasA) return ['corps', 'advcorps'];
   if (hasA) return ['advcorps'];
@@ -66,8 +66,9 @@ function spawnCorps(pIdx, type) {
   const def = unitDef(type);
   const spot = emptyAdjacentBuilding(g, def);
   if (!spot) return false; // tidak ada ruang, coba lagi giliran berikutnya
-  const u = { id: uidCounter++, owner: pIdx, type, r: spot.r, c: spot.c, mp: def.spd, fuel: 0, hp: corpsHpOf(def, pIdx), maxHp: corpsHpOf(def, pIdx), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false };   // v11: HP x buff World War
+  const u = { id: uidCounter++, owner: pIdx, type, r: spot.r, c: spot.c, mp: progSpd(pIdx, type, def.spd), fuel: 0, hp: progHpScale(pIdx, type, corpsHpOf(def, pIdx)), maxHp: progHpScale(pIdx, type, corpsHpOf(def, pIdx)), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false };   // v11: HP x buff World War
   units.push(u);
+  Stats.deploy(pIdx, type);   // v13 Tahap 3 (8.1): Corps dari Garnisun ikut dihitung
   if (type === 'advcorps') u.mp = effectiveSpeed(u);          // Semangat Kerja: 7 tanpa muatan
   p.corps.count = corpsAlive(pIdx);
   return true;

@@ -14,8 +14,9 @@
 // ---------- Speed efektif (dipakai rules-economy.js saat set MP awal giliran) ----------
 function effectiveSpeed(unit) {
   const def = unitDef(unit.type);
-  let spd = def.spd;
-  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = def.spd + 5; // Dikejar Waktu (bonus tetap +5 dari SPD dasar)
+  const spd0 = progSpd(unit.owner, unit.type, def.spd);   // v13: SPD dasar = SPD progresi (netral di luar mode progresi)
+  let spd = spd0;
+  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = spd0 + 5; // Dikejar Waktu (bonus tetap +5 dari SPD dasar)
   if (unit.type === 'corps' && !unit.cargo) spd += 2;                             // Jangan Menganggur
   if (unit.type === 'assault' && isUnitUnseen(unit)) {                            // Serangan Kejut: SPD+2 saat unseen
     const enemyWithin5 = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
@@ -30,7 +31,7 @@ function effectiveSpeed(unit) {
   if (unit.type === 'advtankcrusher' && isBeraniMati(unit)) spd += 2;              // Pasukan Berani Mati
   // ---- v9.7 unit Advanced ----
   if (unit.type === 'advassault') {                                               // Lompatan Seketika: siklus 3 giliran
-    spd = (unit.jumpCycle || 0) === 3 ? def.spd + 6 : def.spd - 3;
+    spd = (unit.jumpCycle || 0) === 3 ? spd0 + 6 : spd0 - 3;
   }
   if (unit.type === 'advinfantry' && unit.sacrificeState === 2) spd *= 2;         // Pengorbanan Terakhir (giliran bertindak)
   return scaleStat(spd, unit.owner);   // v9.7: stat bot Campaign = 70%

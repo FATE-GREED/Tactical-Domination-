@@ -16,6 +16,7 @@
 // v10.1 (P7/P9): state Mode Otomatis (∞), Skip, dan mode cepat (FAST)
 // ---------------------------------------------------------------
 let autoMode = false;        // P7: tombol ∞ — gerak pihak HUMAN dikendalikan bot, eksekusi jalan sendiri tiap giliran
+let autoPernahAktif = false;   // v13 Tahap 3 (6.1): ∞ pernah dinyalakan sekali -> pertandingan ini tidak memberi hadiah (anti-farming)
 let autoTurnBusy = false;    // P7: autoPlayTurn sedang berjalan (cegah pemanggilan ganda)
 let skipArmed = false;       // P9: Skip terpasang (berlaku untuk eksekusi HUMAN berikutnya)
 let skipExecLeft = 0;        // P9: sisa eksekusi pada set Skip yang sedang berjalan (kita + musuh = 2)
@@ -95,6 +96,7 @@ function toggleSkip() {
 function toggleAutoMode() {
   if (gameOver) return;
   autoMode = !autoMode;
+  if (autoMode) autoPernahAktif = true;
   if (autoMode) { cancelActionMode(); closeAllPanels(); pendingTile = null; }
   updateAutoUI();
   updateTimerUI();
@@ -273,9 +275,10 @@ function doDeploy(key, barak, player) {
   player.resources.kredit -= price;
   Stats.use(player, 'kredit', price);
   barak.slots = barakSlots(barak) - 1;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? fuelMaxOf(def, player.id - 1) : 0, hp: unitHpOf(def, player.id - 1), maxHp: unitHpOf(def, player.id - 1), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false,
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? fuelMaxOf(def, player.id - 1) : 0, hp: progHpScale(player.id - 1, key, unitHpOf(def, player.id - 1)), maxHp: progHpScale(player.id - 1, key, unitHpOf(def, player.id - 1)), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false,
     // v9.7 unit Advanced (batch A)
     legacyStacks: 0, sacrificeUsed: false, sacrificeState: 0, jumpCycle: 0, camo: false, eagerTurns: 0, focusTurns: 0, toxinTurns: 0, toxinDmg: 0 });
+  Stats.deploy(player.id - 1, key);   // v13 Tahap 3 (8.1): hitung deploy untuk hadiah pertandingan
   return true;
 }
 
