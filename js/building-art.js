@@ -255,9 +255,22 @@ const BUILDING_ART = {
     bFlag(c, 0, 0.0, 0.62, own);
     bSandbags(c, -0.5, 0.68, 0.35, 1); bSandbags(c, 0.2, 0.68, 0.35, 1);
   },
+  balista(c, own) {   // benteng dengan busur raksasa di atasnya
+    bShadow(c, 0, 0.58, 1.1, 0.2);
+    bBlock(c, 0, 0.42, 1.3, 0.4, 0.26, '#8d8878');
+    bStripe(c, 0, 0.0, 1.3, 0.05, own);
+    c.strokeStyle = '#3b2a1a'; c.lineWidth = 0.07; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-0.62, -0.5); c.quadraticCurveTo(0, -0.05, 0.62, -0.5); c.stroke();      // busur
+    c.strokeStyle = '#e8e2cf'; c.lineWidth = 0.02;
+    c.beginPath(); c.moveTo(-0.62, -0.5); c.lineTo(0, -0.18); c.lineTo(0.62, -0.5); c.stroke();      // tali
+    c.strokeStyle = '#2a2018'; c.lineWidth = 0.05;
+    c.beginPath(); c.moveTo(0, -0.18); c.lineTo(0, -0.88); c.stroke();                               // anak panah
+    c.fillStyle = '#9aa0a6'; c.beginPath(); c.moveTo(0, -1.0); c.lineTo(-0.07, -0.86); c.lineTo(0.07, -0.86); c.closePath(); c.fill();
+    bFlag(c, 0.55, 0.0, 0.62, own);
+  },
 };
 // Tinggi (ruang satuan, relatif ke pusat) tempat bar HP dipasang
-const BUILDING_HP_TOP = { markas: -0.95, barak: -0.5, garnisun: -0.78, pom: -0.5, pospemulihan: -0.5, benteng: -0.8 };
+const BUILDING_HP_TOP = { markas: -0.95, barak: -0.5, garnisun: -0.78, pom: -0.5, pospemulihan: -0.5, benteng: -0.8, balista: -1.0 };
 
 // ---------- Efek rusak: retakan, asap, api (berdasar sisa HP) ----------
 function drawDamage(c, hpr, seed) {

@@ -17,6 +17,8 @@ const TERRAIN = {
   rocks:     { name: "Rocks",      pct: 2,  color: "#8d8d85", effect: "Slow untuk semua kendaraan (2 MP)." },
   swamp:     { name: "Swamp",      pct: 2,  color: "#5b4a36", effect: "Tank: normal. Non-Tank: slow (2 MP)." },
   tallgrass: { name: "Tall Grass", pct: 2,  color: "#9db85c", effect: "Non-kendaraan unseen (default)." },
+  racun:     { name: "Racun",      pct: 0,  color: "#4b3827", effect: "Infanteri tidak bisa lewat. Kendaraan bisa lewat. Hanya ada di Event 1." },
+  void:      { name: "Void",       pct: 0,  color: "#000000", hidden: true, effect: "Kosong di luar peta (Event 2). Tidak bisa dimasuki." },
   valley:    { name: "Valley",     pct: 7,  color: "#2a2d36", effect: "Tidak bisa dilewati sama sekali." },
   river:     { name: "River",      pct: 7,  color: "#4a90c4", effect: "Kendaraan wajib lewat Jembatan (belum ada)." },
   mountain:  { name: "Mountain",   pct: 4,  color: "#7a6a58", effect: "Movement selalu 1 MP. Range/JPD +30%." },
@@ -80,6 +82,7 @@ const BUILDING_TYPES = {
   benteng:      { label: 'F', name: 'Benteng',        hp: 200,  def: 70, destructible: true,  corpsRequired: 1, turnsRequired: 3, maxCount: 5 },
   jembatan:     { label: 'J', name: 'Jembatan',       hp: 200,  def: 10,  destructible: true,  corpsRequired: 1, turnsRequired: 1, maxCount: 5 },
   // Renov = aksi (bukan bangunan): 3 tile menjadi Grass dalam 1 giliran; Valley/River/Mountain tidak bisa direnov.
+  balista:      { label: 'T', name: 'Balista',       hp: 200,  def: 50,  destructible: true,  corpsRequired: 0, turnsRequired: 0, maxCount: 0, atk: 100, range: 15, jpd: 15, noBuild: true },
   renov:        { label: 'R', name: 'Renov',          hp: null, def: null, destructible: false, corpsRequired: 1, turnsRequired: 1, maxCount: Infinity, action: true },
 };
 
@@ -177,7 +180,12 @@ let mapData = null;          // array[ROWS][COLS] berisi kunci TERRAIN
 let players = [];            // diisi oleh setup.js
 let units = [];              // {id, owner(0/1), type, r, c, mp, fuel, hp}
 let uidCounter = 1;
-let selectedLoadoutUnits = []; // v9.8: jenis unit yang dipilih pemain sebelum pertandingan
+let selectedLoadoutUnits = []; // v9.8: jenis unit yang dipilih pemain sebelum pertandingan (v13: 1-10 jenis)
+let selectedLoadoutAktif = false;   // v13: penanda eksplisit "loadout sudah dipilih" (pengganti panjang daftar === 10)
+let dailyMatchCounted = false;     // v13 Tahap 6: pertandingan sudah dihitung untuk misi Event Harian (sekali per pertandingan)
+let matchRewardGiven = false;      // v13 Tahap 3: penjaga "hadiah pertandingan sudah diberikan" (layar akhir bisa dibuka ulang)
+let lastMatchReward = null;        // v13 Tahap 3: hasil hadiah terakhir (ditampilkan ulang bila layar akhir dibuka lagi)
+let PROG_AKTIF = false;             // v13: progres akun berlaku (mode bot & Multiplayer), lihat progress.js
 let bombs = [];              // v9.7: bom Trapper {id, owner, r, c, special, active, atk, trapperId, trapperType} — bukan entitas (lihat bombs.js)
 let bombSeq = 1;
 
@@ -203,6 +211,7 @@ let WW = null;
 // v12: pertandingan Multiplayer (js/mp.js). null di mode lain. { role:'host'|'guest', myName, oppName, oppLoadout, matchId }.
 // Pemain lokal SELALU HUMAN (indeks 0) di kedua perangkat; state dipetakan (ditukar) saat dikirim/diterima.
 let MPM = null;
+let EVENT = null;   // v13 Tahap 7-8: data pertandingan event ({no, tahap, ...}); null di mode lain
 // v10.2: tingkat bot (Lawan Bot, bukan Campaign). Pengali stat bot (HP, ATK, DEF, SPD, Range, JPD): Mudah 0,8 / Sedang 1 / Sulit 1,2.
 let BOT_LEVEL = 'sedang';
 const BOT_STAT_MUL = { mudah: 0.8, sedang: 1, sulit: 1.2 };

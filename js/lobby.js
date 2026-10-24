@@ -63,6 +63,7 @@
     terrainBase(c, 'grass', w / 2, h / 2, 78);
     UNIT_RENDERERS[key](c, w / 2, h / 2 + 6, 42);
   })}">`;
+  window.canvasURL = canvasURL;   // v13: dipakai Inventory (progress-ui.js)
   function bridgeArt(c) {                     // Jembatan & Renov tidak punya BUILDING_ART — digambar sederhana
     c.save(); c.rotate(-0.35);
     c.fillStyle = '#6b5233'; c.fillRect(-0.95, -0.2, 1.9, 0.4);
@@ -85,12 +86,13 @@
     c.restore();
   })}">`;
 
+  window.unitImg = unitImg;       // v13
   // Ikon skill: data & fungsi ada di js/skill-icons.js (dipakai juga di dalam pertandingan)
   const skillIcon = skillIconHTML;
 
   // ---------- Katalog: Tile ----------
   function tileHTML() {
-    const rows = Object.values(TERRAIN).map(t => `
+    const rows = Object.values(TERRAIN).filter(t => !t.hidden).map(t => `
       <article class="card">
         ${tileImg(Object.keys(TERRAIN).find(k => TERRAIN[k] === t))}
         <div class="card-main">
@@ -299,6 +301,16 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
 
   // ---------- Masuk lobby: musik lobby, atau langsung main (tombol 'Main Lagi') ----------
+  // v13 Tahap 7-8: tombol "Mulai" tiap event. Satu percobaan terpakai saat Mulai ditekan (keluar di tengah tetap terpotong).
+  function startEvent(n, tahap) {
+    const r = Ev.consumeAttempt(n);
+    if (!r.ok) { alert(r.msg || 'Tidak bisa memulai'); return; }
+    if (n === 3) showLoading(() => { lobby.style.display = 'none'; }, () => startGame({ mode: 'event', no: 3, tahap: tahap || 1 }));
+    else enterGame({ mode: 'event', no: n });
+  }
+  Ev.startHandlers[1] = () => startEvent(1);
+  Ev.startHandlers[2] = () => startEvent(2);
+  Ev.startHandlers[3] = o => startEvent(3, o && o.tahap);
   Campaign.bind({ lobby, showLoading });
   WorldWar.bind({ lobby, showLoading });
   MP.bind({ lobby, showLoading });
@@ -315,6 +327,10 @@
     showLoading(() => { lobby.style.display = 'none'; }, () => showUnitSelectScreen({ mode: 'bot', level: ['mudah', 'sedang', 'sulit'].includes(auto) ? auto : 'sedang' }));   // v10.1 (P1); v10.2: tingkat bot dipertahankan saat Main Lagi
   } else {
     Sfx.music('lobby'); // mulai terdengar setelah sentuhan pertama (aturan autoplay browser)
+    let retry = null;
+    try { retry = JSON.parse(sessionStorage.getItem('td-event-retry') || 'null'); sessionStorage.removeItem('td-event-retry'); } catch (e) {}
+    if (retry && Ev.startHandlers[retry.no]) { lobby.style.display = 'none'; Ev.startHandlers[retry.no]({ tahap: retry.tahap }); }
+    else if (openAfter === 'event' && window.EventUI) EventUI.open('panjang');
     if (openAfter === 'campaign') Campaign.enter();   // selesai Chapter 1: tampilkan peta Vanderick
     if (openAfter === 'ww') WorldWar.enter();         // v11: selesai pertandingan World War: kembali ke peta benua
     if (openAfter === 'mp') { lobby.style.display = 'none'; MP.enter(); }   // v12: selesai/keluar pertandingan Multiplayer: kembali ke room

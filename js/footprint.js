@@ -8,7 +8,7 @@
 // Titik sambung untuk tim grafis: drawBuildingSprite(b, ownerColor, x, y) dipanggil SEKALI per
 // bangunan (render.js); b.tiles = semua tile, buildingCenter(b) = titik tengah piksel.
 // ====================================================================
-const NON_RENOVABLE = ['valley', 'river', 'mountain'];
+const NON_RENOVABLE = ['valley', 'river', 'mountain', 'racun', 'void'];
 const canRenovTile = t => t !== 'grass' && !NON_RENOVABLE.includes(t);
 
 const bTiles = b => b.tiles || [[b.r, b.c]];

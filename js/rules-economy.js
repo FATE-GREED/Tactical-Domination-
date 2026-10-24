@@ -47,7 +47,7 @@ function corpsKinds(pIdx) {
   if (WW && pIdx === BOT) return wwCorpsKinds(BOT);   // v11 (3.4): Corps Garnisun bot ditentukan faksinya
   let sel = (typeof selectedLoadoutUnits !== 'undefined') ? selectedLoadoutUnits : [];
   if (MPM && pIdx !== HUMAN) sel = MPM.oppLoadout || [];   // v12: Garnisun lawan manusia mengikuti pilihan unit LAWAN
-  if (CAMPAIGN || !Array.isArray(sel) || sel.length !== 10) return ['corps'];
+  if (CAMPAIGN || !Array.isArray(sel) || sel.length < 1) return ['corps'];   // v13: loadout 1-10 jenis
   const hasC = sel.includes('corps'), hasA = sel.includes('advcorps');
   if (hasC && hasA) return ['corps', 'advcorps'];
   if (hasA) return ['advcorps'];
@@ -66,8 +66,9 @@ function spawnCorps(pIdx, type) {
   const def = unitDef(type);
   const spot = emptyAdjacentBuilding(g, def);
   if (!spot) return false; // tidak ada ruang, coba lagi giliran berikutnya
-  const u = { id: uidCounter++, owner: pIdx, type, r: spot.r, c: spot.c, mp: def.spd, fuel: 0, hp: corpsHpOf(def, pIdx), maxHp: corpsHpOf(def, pIdx), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false };   // v11: HP x buff World War
+  const u = { id: uidCounter++, owner: pIdx, type, r: spot.r, c: spot.c, mp: progSpd(pIdx, type, def.spd), fuel: 0, hp: progHpScale(pIdx, type, corpsHpOf(def, pIdx)), maxHp: progHpScale(pIdx, type, corpsHpOf(def, pIdx)), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false };   // v11: HP x buff World War
   units.push(u);
+  Stats.deploy(pIdx, type);   // v13 Tahap 3 (8.1): Corps dari Garnisun ikut dihitung
   if (type === 'advcorps') u.mp = effectiveSpeed(u);          // Semangat Kerja: 7 tanpa muatan
   p.corps.count = corpsAlive(pIdx);
   return true;
@@ -93,7 +94,7 @@ function startTurn(pIdx) {
   const barakCount = p.buildings.filter(b => b.type === 'barak').length;
   const pomCount = p.buildings.filter(b => b.type === 'pom').length;
   const pospemulihanCount = p.buildings.filter(b => b.type === 'pospemulihan').length;
-  const incKredit = CAMPAIGN ? CAMPAIGN.markasIncome * markasCount + CAMPAIGN.barakIncome * barakCount : 30 * markasCount + 20 * barakCount;
+  const incKredit = (EVENT && EVENT.no === 3) ? 0 : CAMPAIGN ? CAMPAIGN.markasIncome * markasCount + CAMPAIGN.barakIncome * barakCount : 30 * markasCount + 20 * barakCount;
   // v11 (6.3/6.6): World War — Kredit kota ditambahkan dulu, lalu pengali faksi Ekonomi (x1,3) untuk Kredit, Fuel, Medical. Di luar WW = nilai asli.
   const inc = wwIncome(pIdx, { kredit: incKredit, fuel: 50 * pomCount, medical: 50 * pospemulihanCount });
   p.resources.kredit += inc.kredit; // klasik: Markas +30, tiap Barak +20; Campaign: nilai dari chapter
@@ -119,6 +120,7 @@ function startTurn(pIdx) {
   if (gameOver) return;
 
   processBuildProgress(pIdx); // Corps yang sedang Build maju 1 giliran / selesai jadi bangunan
+  if (EVENT && pIdx === BOT) EventBattle.spawnWave();   // v13 Tahap 8: gelombang musuh Event 2 di awal giliran musuh
 
   for (const u of units.filter(u => u.owner === pIdx)) {
     const def = unitDef(u.type);
@@ -139,7 +141,7 @@ function startTurn(pIdx) {
       }
       if (u.sacrificeState === 1) u.sacrificeState = 2;            // giliran ini = giliran bertindak (SPD & ATK x2)
     }
-    if (u.type === 'advassault') u.jumpCycle = ((u.jumpCycle || 0) % 3) + 1;   // Lompatan Seketika: 1-2-3-1-2-3
+    if (u.type === 'advassault' && skillOn(u, 'Lompatan Seketika')) u.jumpCycle = ((u.jumpCycle || 0) % 3) + 1;   // Lompatan Seketika: 1-2-3-1-2-3
     if (u.toxinTurns > 0 && damageUnit(u, u.toxinDmg || 0, u.toxinSrcOwner, u.toxinSrcType || 'advtrapper')) continue;   // racun Bom Beracun
 
     if (u.isBuilding) { u.mp = 0; continue; } // masih membangun, tidak bisa beraksi lain giliran ini
@@ -170,7 +172,9 @@ function startTurn(pIdx) {
       // bonus bertahan PENUH 2 giliran sejak kehilangan status — baru giliran
       // berikutnya (kalau tetap tidak unseen) mulai meluruh.
       const nowUnseen = isUnitUnseen(u);
-      if (nowUnseen || u.ambushWasUnseen) {
+      if (!skillOn(u, 'Yang Tersembunyi')) u.assaultExtend = 0;          // v13 Tahap 5: penjaga slot
+      if (!skillOn(u, 'Serangan Kejut')) { u.ambushAtkTimer = 0; u.ambushWasUnseen = nowUnseen; }
+      else if (nowUnseen || u.ambushWasUnseen) {
         u.ambushAtkTimer = 2;
       } else if (u.ambushAtkTimer > 0) {
         u.ambushAtkTimer--;

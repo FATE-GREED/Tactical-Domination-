@@ -16,22 +16,28 @@ function startGame(opts) {
   gameStarted = true;
   // opts: { mode: 'bot', level: 'mudah' | 'sedang' | 'sulit' } (v10.2); { mode: 'campaign' } untuk Campaign.
   BOT_LEVEL = (opts && BOT_STAT_MUL[opts.level]) ? opts.level : 'sedang';   // v10.2 (World War: WW_BOT_LEVEL, K8)
+  PROG_AKTIF = !!(opts && (opts.mode === 'bot' || opts.mode === 'mp' || opts.mode === 'event'));   // v13 (6.1): progres akun hanya di Klasik vs Bot & Multiplayer
+  if (opts && opts.mode === 'campaign') selectedLoadoutAktif = false;       // Campaign tidak memakai pembatasan loadout
   MPM = (opts && opts.mode === 'mp') ? opts.mpm : null; document.body.classList.toggle('mp', !!MPM);   // v12: Multiplayer
   WW = null; document.body.classList.remove('ww');   // v11: data World War hanya ada di mode 'ww'
   if (opts && opts.mode === 'ww') { WW = WorldWar.prepareBattle(); document.body.classList.add('ww'); }
 
+  EVENT = null; document.body.classList.remove('event', 'event1', 'event2', 'event3');   // v13 Tahap 7-8
+  if (opts && opts.mode === 'event') EventBattle.prepare(opts);
+
   document.getElementById('game').style.display = 'block'; // canvas butuh ukuran nyata sebelum initCanvas
 
   if (opts && opts.mode === 'campaign') Campaign.prepareBattle(opts);   // v9.7: aturan, ukuran peta 15x25, UI disederhanakan
-  mapData = CAMPAIGN ? Campaign.battleMap() : (WW ? generateMapByType(WW.mapType) : generateMap());   // map-gen.js (acak, tanpa simetri); v11: World War memakai 7 jenis map (map-types.js)
+  mapData = EVENT ? EventBattle.buildMap() : CAMPAIGN ? Campaign.battleMap() : (WW ? generateMapByType(WW.mapType) : generateMap());   // map-gen.js (acak, tanpa simetri); v11: World War memakai 7 jenis map (map-types.js)
   setupPlayersAndBuildings();       // setup.js
   Stats.init();                     // stats.js — statistik pertandingan mulai dari nol
 
-  currentPlayerIdx = (CAMPAIGN || MPM) ? HUMAN : (Math.random() < 0.5 ? 0 : 1);   // v12: Multiplayer — tuan rumah jalan dulu
+  currentPlayerIdx = (CAMPAIGN || MPM || EVENT) ? HUMAN : (Math.random() < 0.5 ? 0 : 1);   // v12: Multiplayer — tuan rumah jalan dulu
   turnNumber = 1;
 
   // v10.1 (P7/P9/P10): reset mode otomatis, Skip, mode cepat, dan log eksekusi sebelumnya
-  autoMode = false; autoTurnBusy = false;
+  autoMode = false; autoTurnBusy = false; autoPernahAktif = false;   // v13 Tahap 3: reset penanda ∞
+  matchRewardGiven = false; lastMatchReward = null; dailyMatchCounted = false;
   skipArmed = false; skipExecLeft = 0; FAST = false;
   dmgFeedPrev = null; dmgFeedPrevOpen = false;
   botWaveStarted = [false, false];
@@ -45,7 +51,7 @@ function startGame(opts) {
   document.getElementById('pmLobby').addEventListener('click', () => { if (MPM) MP.confirmLeave(); else if (WW) WorldWar.confirmLeave(); else document.getElementById('lobbyBtn').click(); });   // v11 (5.4): keluar = KALAH
 
   if (MPM && MPM.role === 'guest') MP.applyStart(opts.snap);   // v12: tamu memakai keadaan awal dari tuan rumah
-  else startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama
+  else if (!(EVENT && EVENT.no === 3)) startTurn(currentPlayerIdx);      // rules-economy.js — giliran pertama (Event 3: setelah fase penempatan)
   if (MPM && MPM.role === 'host') MP.sendStart();
 
   // Pusatkan kamera ke Markas pemain manusia
@@ -57,6 +63,7 @@ function startGame(opts) {
     camY = canvas.height / 2 - y * scale;
   })();
 
+  if (EVENT) EventBattle.afterStart();
   if (CAMPAIGN) Campaign.fitView();   // seluruh peta kecil terlihat sekaligus
   renderLegend();
   renderResourcePanels();
@@ -64,7 +71,7 @@ function startGame(opts) {
   renderLog();
   logAction('Permainan dimulai.');
   Sfx.music('plan');                // musik lobby berganti ke musik fase rencana
-  beginPlanning();                  // rules-auto.js — fase rencana pertama
+  if (EVENT && EVENT.no === 3) EventBattle.beginPlacement(); else beginPlanning();   // rules-auto.js — fase rencana pertama (Event 3: penempatan dulu)
   if (CAMPAIGN) Campaign.startTutorial();   // John memandu pemain
 }
 

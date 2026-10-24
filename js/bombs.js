@@ -96,8 +96,9 @@ async function placeBomb(u, spot) {
     await explodeBomb(oldest);
     if (gameOver || !units.includes(u)) return;
   }
-  const special = u.type === 'trapper' && Math.random() < 0.2;     // Keberuntungan (tidak untuk Advanced Trapper)
-  bombs.push({ id: bombSeq++, owner: u.owner, r: spot.r, c: spot.c, special, active: false, atk: UNITS[u.type].atk, trapperId: u.id, trapperType: u.type });
+  const special = u.type === 'trapper' && skillOn(u, 'Keberuntungan') && Math.random() < 0.2;     // Keberuntungan (tidak untuk Advanced Trapper)
+  bombs.push({ id: bombSeq++, owner: u.owner, r: spot.r, c: spot.c, special, active: false, atk: UNITS[u.type].atk * progAtkMul(u.owner, u.type), trapperId: u.id, trapperType: u.type,
+    onar: u.type === 'trapper' && skillOn(u, 'Pembuat Onar'), beracun: u.type === 'advtrapper' && skillOn(u, 'Bom Beracun'), kejutan: u.type === 'advtrapper' && skillOn(u, 'Hadiah Kejutan') });   // v13 Tahap 5: kemampuan dicatat saat dipasang
   u.attacked = true;                                               // 1 aksi: MP menjadi 0, flag attacked
   u.mp = 0;
   if (u.owner === HUMAN) actAdd(u.owner, [[unitName(u), 'unit'], [' memasang bom']]);
@@ -135,7 +136,8 @@ function explodeBombNow(bomb) {
   const foeIdx = 1 - bomb.owner;
   const src = { type: bomb.trapperType, owner: bomb.owner };
   const atkPct = bomb.special ? 30 : 0;
-  const poison = bomb.trapperType === 'advtrapper';                // Bom Beracun | selain itu: Pembuat Onar
+  const poison = bomb.trapperType === 'advtrapper' && bomb.beracun !== false;
+  const onar = bomb.trapperType === 'trapper' && bomb.onar !== false;   // v13 Tahap 5: bom lama tanpa penanda dianggap aktif                // Bom Beracun | selain itu: Pembuat Onar
   const toxinDmg = specialRound(bomb.atk * 0.10);
   startBombFx(bomb.r, bomb.c, radius);
   Sfx.explode(false);
@@ -152,7 +154,7 @@ function explodeBombNow(bomb) {
     dmgFeedAdd(src, unitName(u), u.owner, dmg);
     if (destroyed) { killFeedAdd(UNITS[bomb.trapperType].name, bomb.owner, unitName(u), u.owner); continue; }
     if (poison) { u.toxinTurns = 3; u.toxinDmg = toxinDmg; u.toxinSrcOwner = bomb.owner; u.toxinSrcType = bomb.trapperType; }   // SPD −50% + racun, 3 giliran
-    else u.mp = 0;                                                  // Pembuat Onar: gerakan terhenti seketika
+    else if (onar) u.mp = 0;                                        // Pembuat Onar: gerakan terhenti seketika
   }
   for (const b of bldTargets) {
     if (!players[foeIdx].buildings.includes(b)) continue;
@@ -163,7 +165,7 @@ function explodeBombNow(bomb) {
     dmgFeedAdd(src, def.name, foeIdx, dmg);
     if (destroyed) { killFeedAdd(UNITS[bomb.trapperType].name, bomb.owner, def.name, foeIdx); continue; }
     if (poison) { b.toxinTurns = 3; b.toxinDmg = toxinDmg; b.toxinSrcOwner = bomb.owner; b.toxinSrcType = bomb.trapperType; }   // DEF −20% + racun
-    else b.bombDefTurns = 3;                                        // Pembuat Onar: DEF −30% selama 3 giliran
+    else if (onar) b.bombDefTurns = 3;                              // Pembuat Onar: DEF −30% selama 3 giliran
   }
   renderResourcePanels();
 }
@@ -209,7 +211,7 @@ function bombStepToward(r0, c0, tr, tc) {
 
 // ---------- Hadiah Kejutan: bom aktif Advanced Trapper bergerak 1 tile ke unit musuh terdekat ----------
 async function moveBombs(pIdx) {
-  const movers = bombs.filter(b => b.owner === pIdx && b.active && b.trapperType === 'advtrapper');
+  const movers = bombs.filter(b => b.owner === pIdx && b.active && b.trapperType === 'advtrapper' && b.kejutan !== false);
   if (!movers.length) return;
   for (const b of movers) {
     if (!bombs.includes(b)) continue;

@@ -1,0 +1,71 @@
+/* events.css — v13 Tahap 6: layar Event (Harian, Jangka Panjang, Toko). Memakai variabel & kelas dasar lobby.css / progress.css. */
+#evModal { z-index: 12; }
+#evModal .lb-box { width: min(560px, 100%); height: min(100%, 640px); display: flex; flex-direction: column; }
+#evModal .lb-box-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#evModal .pg-tab .lb-dot { top: 4px; right: 4px; }
+
+/* ---------- Harian ---------- */
+.ev-daily { padding: 12px 12px 10px; }
+.ev-pt { font-size: 15px; color: #cfd1c2; } .ev-pt b { font-size: 22px; color: var(--brass); } .ev-pt small { color: #8f9280; }
+.ev-barwrap { padding: 20px 24px 10px; }
+.ev-bar { position: relative; height: 8px; background: #0f110b; border: 1px solid #3a3d2c; border-radius: 5px; }
+.ev-bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#e0b956, #8a6d22); border-radius: 4px; transition: width .3s; }
+.ev-node { position: absolute; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border-radius: 50%; background: #1b1d15; border: 2px solid #4b4d3b; color: #8f9280; font: inherit; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.ev-node.can { border-color: var(--brass); color: var(--brass); background: #2a2512; box-shadow: 0 0 0 3px rgba(215, 181, 109, .25); animation: evPulse 1.4s infinite; }
+.ev-node.done { border-color: #5f8a3a; color: #9fd47a; background: #1d2a14; }
+.ev-node.done b::after { content: '✓'; position: absolute; right: -2px; top: -4px; font-size: 13px; color: #9fd47a; }
+@keyframes evPulse { 50% { box-shadow: 0 0 0 6px rgba(215, 181, 109, .08); } }
+.ev-rwlist { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12.5px; color: #b6b9a8; }
+.ev-rwlist li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; } .ev-rwlist b { color: #cfd1c2; min-width: 28px; }
+.ev-rwlist li.can { color: var(--brass); } .ev-rwlist li.done { color: #7f9a68; }
+.ev-rwlist em { font-style: normal; font-size: 11px; margin-left: auto; }
+@media (max-width: 420px) { .ev-rwlist { grid-template-columns: 1fr; } }
+.ev-mlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ev-m { background: #191b13; border: 1px solid #34362a; border-radius: 6px; padding: 8px 10px; }
+.ev-mh { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; } .ev-mh b { color: #ecebe0; } .ev-mh span { color: var(--brass); font-weight: 700; }
+.ev-tiers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ev-tier { font-style: normal; font-size: 11.5px; padding: 3px 8px; border-radius: 10px; background: #12140e; border: 1px solid #3a3d2c; color: #8f9280; }
+.ev-tier.ok { border-color: #5f8a3a; color: #9fd47a; background: #1d2a14; }
+
+/* ---------- Jangka Panjang ---------- */
+.ev-card { padding: 12px; }
+.ev-ch { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
+.ev-ch h3 { margin: 0 0 2px; font-size: 16px; color: #ecebe0; }
+.ev-art { flex: none; width: 72px; height: 54px; background: #12140e; border: 1px solid #3a3d2c; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+.ev-art svg { width: 62px; height: 46px; }
+.ev-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: #b6b9a8; margin: 4px 0; } .ev-stats b { color: var(--brass); }
+.ev-ticks { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+.ev-ticks span { font-size: 11.5px; padding: 3px 8px; border-radius: 10px; background: #12140e; border: 1px solid #3a3d2c; color: #8f9280; }
+.ev-ticks span.ok { border-color: #5f8a3a; color: #9fd47a; background: #1d2a14; }
+
+/* ---------- Toko ---------- */
+.ev-shops .pg-tab { font-size: 12.5px; }
+.ev-saldo { margin: 2px 0 8px; font-size: 14px; } .ev-saldo b { color: var(--brass); font-size: 16px; }
+.ev-shoplist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ev-it { display: flex; align-items: center; gap: 8px; background: #191b13; border: 1px solid #34362a; border-radius: 6px; padding: 6px 8px 6px 10px; min-height: 56px; }
+.ev-it.ev-main { border-color: var(--brass-d, #8a6d22); background: #211e10; }
+.ev-itt { flex: 1; min-width: 0; display: flex; flex-direction: column; } .ev-itt b { font-size: 13.5px; color: #ecebe0; line-height: 1.25; } .ev-itt small { font-size: 11px; color: #8f9280; margin-top: 2px; }
+.ev-it .pg-btn { flex: none; min-width: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; padding: 4px 8px; }
+.ev-it .pg-btn em { font-style: normal; font-size: 11.5px; font-weight: 400; color: #cfd1c2; }
+.ev-it .pg-btn.main em { color: var(--brass); }
+
+/* ---------- v13 Tahap 7-8: pertempuran event ---------- */
+#evHud { position: fixed; top: 6px; left: 50%; transform: translateX(-50%); z-index: 40; background: rgba(18,20,14,.88); border: 1px solid #5a5d44; color: #ecebe0; padding: 5px 12px; border-radius: 14px; font-size: 13px; pointer-events: none; white-space: nowrap; max-width: 94vw; overflow: hidden; text-overflow: ellipsis; }
+body.event3 #autoBtn, body.event3 #skipBtn, body.event3 #endturn, body.event1 #autoBtn, body.event2 #autoBtn { display: none !important; }
+#evPlace { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; background: rgba(18,20,14,.96); border-top: 2px solid #5a5d44; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); display: none; }
+.ev-pl-head { display: flex; align-items: center; gap: 8px; color: #ecebe0; font-size: 14px; margin-bottom: 6px; }
+.ev-pl-head span { flex: 1; } .ev-pl-head b { color: #e3c36a; font-size: 16px; }
+.ev-pl-head button, .ev-pl-list button { min-height: 44px; border-radius: 8px; border: 1px solid #5a5d44; background: #25281c; color: #ecebe0; padding: 0 12px; font-size: 14px; }
+.ev-pl-head button.on, .ev-pl-list button.on { border-color: #e3c36a; background: #3a3315; }
+#evGo { background: #3d6a22; border-color: #7bbf4a; font-weight: 700; } #evGo:disabled, .ev-pl-list button:disabled { opacity: .4; }
+.ev-pl-list { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.ev-pl-list button { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 78px; line-height: 1.15; }
+.ev-pl-list small { color: #e3c36a; }
+#evEnd { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.72); display: none; align-items: center; justify-content: center; padding: 12px; }
+.ev-end-box { background: #1b1d14; border: 2px solid #5a5d44; border-radius: 12px; padding: 16px; width: min(420px, 96vw); max-height: 92vh; overflow: auto; color: #ecebe0; }
+.ev-end-box h2 { margin: 0; text-align: center; font-size: 24px; } .ev-end-box h2.ok { color: #9fd47a; } .ev-end-box h2.bad { color: #e07a6e; }
+.ev-end-sub { text-align: center; color: #b6b9a8; margin: 2px 0 10px; }
+.ev-end-rows > div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #34362a; } .ev-end-rows b { color: #e3c36a; }
+.ev-end-box ul { margin: 8px 0; padding-left: 18px; font-size: 13.5px; }
+.ev-end-btns { display: flex; gap: 8px; flex-wrap: wrap; } .ev-end-btns button { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid #5a5d44; background: #2b2e20; color: #ecebe0; font-size: 15px; }
+#evRetry { background: #3d6a22 !important; border-color: #7bbf4a !important; font-weight: 700; }

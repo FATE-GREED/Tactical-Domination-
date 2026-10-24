@@ -122,7 +122,7 @@ function processBuildProgress(pIdx) {
 // ---------- Cargo: muat / bongkar ----------
 function cargoCapacity(unit, cargoType) {
   if (isApcType(unit.type)) {
-    const m = unit.type === 'advapc' ? 1.5 : 1;               // v9.7 Kelebihan Muatan: kapasitas +50% (Fuel 150, Medical 75); slot Corps/Montir tetap 1
+    const m = (unit.type === 'advapc' && skillOn(unit, 'Kelebihan Muatan')) ? 1.5 : 1;               // v9.7 Kelebihan Muatan: kapasitas +50% (Fuel 150, Medical 75); slot Corps/Montir tetap 1
     return cargoType === 'fuel' ? 100 * m : cargoType === 'medical' ? 50 * m : 1;
   }
   if (isCorpsType(unit.type)) return cargoType === 'fuel' ? 50 : cargoType === 'medical' ? 50 : 0;
@@ -200,6 +200,7 @@ function unloadCorpsFromAPC(apc, prefer) {
 function loadMontirIntoAPC(apc, montir) {
   if (!isApcType(apc.type)) return { ok: false, message: 'Hanya APC yang bisa mengangkut Montir.' };
   if (apc.cargo) return { ok: false, message: 'APC sudah membawa muatan.' };
+  if (montir.type === 'advmontir' && !skillOn(montir, 'Perubahan Model')) return { ok: false, message: 'Perubahan Model belum aktif pada Advanced Montir ini.' };
   if (montir.type !== 'advmontir' || montir.owner !== apc.owner) return { ok: false, message: 'Target bukan Advanced Montir sekutu.' };
   if (hexDistance(apc.r, apc.c, montir.r, montir.c) !== 1) return { ok: false, message: 'Montir harus bersebelahan dengan APC.' };
   if (apc.attacked) return { ok: false, message: 'APC sudah memakai Action giliran ini.' };

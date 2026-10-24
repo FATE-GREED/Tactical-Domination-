@@ -15,9 +15,9 @@ function rangeAtTile(def, r, c) {
 }
 function effectiveRange(unit) {
   const def = unitDef(unit.type);
-  const scaled = statMul(unit.owner) === 1 ? def : { ...def, range: scaleStat(def.range, unit.owner) };   // v9.7: stat bot Campaign = 70%
+  const scaled = { ...def, range: scaleStat(progRng(unit.owner, unit.type, def.range), unit.owner) };   // v13: RNG progresi   // v9.7: stat bot Campaign = 70%
   let rng = rangeAtTile(scaled, unit.r, unit.c);
-  if (unit.type === 'advsniper') rng += Math.min(5, unit.focusTurns || 0);   // Titik Fokus: ceil(Rng x Mountain) + focusTurns
+  if (unit.type === 'advsniper' && skillOn(unit, 'Titik Fokus')) rng += Math.min(5, unit.focusTurns || 0);   // Titik Fokus: ceil(Rng x Mountain) + focusTurns
   return rng;
 }
 
@@ -26,11 +26,11 @@ function effectiveJPD(unit) {
   const terr = mapData[unit.r][unit.c];
   let jpd = scaleStat(def.jpd, unit.owner);            // JPD dasar (non-combat tetap 5); v9.7: bot Campaign 70%
   if (def.combat && terr === 'mountain') jpd = effectiveRange(unit); // di Mountain: JPD = Rng saat ini
-  if (unit.type === 'sniper') {
+  if (unit.type === 'sniper' && skillOn(unit, 'Sang Pengamat')) {
     const noAlliesNear = !units.some(e => e !== unit && e.owner === unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
     if (noAlliesNear) jpd = Math.ceil(jpd * 1.5 - 1e-9);   // Sang Pengamat: JPD +50%
   }
-  if (unit.type === 'advsniper') {                      // Mata Elang: +2 JPD per giliran diam, maks Rng efektif + 5
+  if (unit.type === 'advsniper' && skillOn(unit, 'Mata Elang')) {   // Mata Elang: +2 JPD per giliran diam, maks Rng efektif + 5
     const cap = effectiveRange(unit) + 5;
     jpd = Math.max(jpd, Math.min(jpd + 2 * (unit.eagerTurns || 0), cap));
   }
@@ -67,7 +67,7 @@ function isUnitUnseen(unit) {
   if (!isHiddenByTerrain(unit)) return false;
   const revealed = units.some(e => e.owner !== unit.owner && !e.downed && hexDistance(unit.r, unit.c, e.r, e.c) <= effectiveJPD(e));
   if (!revealed) return true;
-  if (unit.type === 'assault' && unit.assaultExtend > 0) return true;
+  if (unit.type === 'assault' && unit.assaultExtend > 0 && skillOn(unit, 'Yang Tersembunyi')) return true;
   return false;
 }
 

@@ -274,7 +274,7 @@ function finishHaul() {
 function handleHaulPick(r, c) {
   const apc = haulActor;
   if (!haulCorps) {                             // langkah 1: pilih Corps sekutu atau Advanced Montir sekutu
-    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && (isCorpsType(u.type) || u.type === 'advmontir'));
+    const cu = units.find(u => u.r === r && u.c === c && u.owner === apc.owner && (isCorpsType(u.type) || (u.type === 'advmontir' && skillOn(u, 'Perubahan Model'))));
     if (!cu) return;
     const montir = cu.type === 'advmontir', label = montir ? 'Montir' : 'Corps';
     if (cu.isBuilding) { alert('Corps ini sedang membangun.'); return; }
@@ -353,6 +353,7 @@ function onCanvasClick(e) {
   if (gameOver || laneMode || lockMode) return;
   if (dragMoved) return;
   if (Date.now() < suppressClickUntil) return;
+  if (EVENT && EventBattle.placing()) { const pt = tileFromScreen(e.clientX, e.clientY); if (pt) EventBattle.onTap(pt.r, pt.c); return; }   // v13 Tahap 8: penempatan Event 3
   // v10.1 (P7): saat ∞ aktif perintah manual mati, tetapi ketuk tile / ikon (melihat info & panel) tetap bisa
   const viewOnly = !canAct();
   if (viewOnly && !(autoMode && !paused)) return;

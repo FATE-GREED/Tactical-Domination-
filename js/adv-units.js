@@ -14,7 +14,7 @@
 // ---------- Tak Terkalahkan (Advanced Tank Lapis Baja) ----------
 // Dipanggil saat HP ≤ 0. Mengembalikan true bila kematian ditahan (unit masuk mode gugur).
 function advTryDowned(u) {
-  if (u.type !== 'advtanklapis' || u.reviveUsed) return false;
+  if (u.type !== 'advtanklapis' || u.reviveUsed || !skillOn(u, 'Tak Terkalahkan')) return false;
   u.reviveUsed = true;           // kemampuan habis sejak dipakai; HP ≤ 0 berikutnya = gugur biasa
   u.downed = true;               // tak bisa bertindak, tak bisa ditarget; tile tetap ditempati
   u.hp = 0; u.mp = 0; u.attacked = true;
@@ -37,16 +37,18 @@ function advOnHitSurvive(attacker, target, isSplash) {
     const u = target.obj;
     // Pantang Menyerah (Advanced APC): terkena serangan & selamat -> DEF +20% & SPD +2 selama 2 giliran;
     // serangan baru saat aktif tidak mengulang hitungan; setelah habis ada cooldown 2 giliran (toughCd).
-    if (u.type === 'advapc' && !(u.toughTurns > 0) && !(u.toughCd > 0)) u.toughTurns = 2;
+    if (u.type === 'advapc' && skillOn(u, 'Pantang Menyerah') && !(u.toughTurns > 0) && !(u.toughCd > 0)) u.toughTurns = 2;
     if (isSplash) return;
     if (attacker.type === 'advantitank' && target.vehicle) {
       // Kebocoran Minyak: +1 tumpukan (maks 4), durasi diperbarui ke 3
-      u.leakStacks = Math.min(MAX_ADV_FUEL_LEAK_STACKS, (u.leakStacks || 0) + 1);
-      u.leakTurns = 3;
+      if (skillOn(attacker, 'Kebocoran Minyak')) {
+        u.leakStacks = Math.min(MAX_ADV_FUEL_LEAK_STACKS, (u.leakStacks || 0) + 1);
+        u.leakTurns = 3;
+      }
       // Penembusan: DEF akhir −20% selama 2 giliran (tidak menumpuk sesama Penembusan -> hanya perbarui durasi)
-      u.pierceTurns = 2;
+      if (skillOn(attacker, 'Penembusan')) u.pierceTurns = 2;
     }
-  } else if (target.kind === 'building' && attacker.type === 'advmontir') {
+  } else if (target.kind === 'building' && attacker.type === 'advmontir' && skillOn(attacker, 'Peluru Pembakar')) {
     // Peluru Pembakar: +1 tumpukan (maks 4), durasi 5 giliran. Damage per tumpukan = 5% ATK Advanced Montir (45 -> 2,25 -> specialRound = 2)
     const b = target.obj;
     b.burnStacks = Math.min(MAX_BURN_STACKS, (b.burnStacks || 0) + 1);
@@ -96,5 +98,5 @@ function advBurnTick(pIdx) {
 // ---------- Percepatan Pembangunan (Advanced Corps) ----------
 // Sekali per pertandingan per pemain: bangunan pertama yang mulai dibangun Advanced Corps hanya 1 giliran. Renov tidak dihitung.
 function advRushAvailable(corps, buildType) {
-  return corps.type === 'advcorps' && buildType !== 'renov' && !players[corps.owner].rushUsed;
+  return corps.type === 'advcorps' && skillOn(corps, 'Percepatan Pembangunan') && buildType !== 'renov' && !players[corps.owner].rushUsed;
 }

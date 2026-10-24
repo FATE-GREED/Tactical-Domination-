@@ -14,42 +14,43 @@
 // ---------- Speed efektif (dipakai rules-economy.js saat set MP awal giliran) ----------
 function effectiveSpeed(unit) {
   const def = unitDef(unit.type);
-  let spd = def.spd;
-  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps') spd = def.spd + 5; // Dikejar Waktu (bonus tetap +5 dari SPD dasar)
-  if (unit.type === 'corps' && !unit.cargo) spd += 2;                             // Jangan Menganggur
-  if (unit.type === 'assault' && isUnitUnseen(unit)) {                            // Serangan Kejut: SPD+2 saat unseen
+  const spd0 = progSpd(unit.owner, unit.type, def.spd);   // v13: SPD dasar = SPD progresi (netral di luar mode progresi)
+  let spd = spd0;
+  if (unit.type === 'apc' && unit.cargo && unit.cargo.type === 'corps' && skillOn(unit, 'Dikejar Waktu')) spd = spd0 + 5; // Dikejar Waktu (bonus tetap +5 dari SPD dasar)
+  if (unit.type === 'corps' && !unit.cargo && skillOn(unit, 'Jangan Menganggur')) spd += 2;                             // Jangan Menganggur
+  if (unit.type === 'assault' && skillOn(unit, 'Serangan Kejut') && isUnitUnseen(unit)) {                            // Serangan Kejut: SPD+2 saat unseen
     const enemyWithin5 = units.some(e => e.owner !== unit.owner && hexDistance(unit.r, unit.c, e.r, e.c) <= 5);
     if (!enemyWithin5) spd += 2; // hilang seketika kalau ada musuh dalam radius 5 tile
   }
   // ---- v9.7 Advanced (batch B) ----
-  if (unit.type === 'advcorps') spd += unit.cargo ? 3 : -3;                        // Semangat Kerja: 7 tanpa muatan, 13 membawa muatan
+  if (unit.type === 'advcorps' && skillOn(unit, 'Semangat Kerja')) spd += unit.cargo ? 3 : -3;                        // Semangat Kerja: 7 tanpa muatan, 13 membawa muatan
   if (unit.type === 'advapc') {
     if (advApcOverloaded(unit)) spd -= 3;                                          // Kelebihan Muatan
-    if (unit.toughTurns > 0) spd += 2;                                             // Pantang Menyerah (dikurangi 1 di startTurn setelah SPD dihitung)
+    if (unit.toughTurns > 0 && skillOn(unit, 'Pantang Menyerah')) spd += 2;                                             // Pantang Menyerah (dikurangi 1 di startTurn setelah SPD dihitung)
   }
   if (unit.type === 'advtankcrusher' && isBeraniMati(unit)) spd += 2;              // Pasukan Berani Mati
   // ---- v9.7 unit Advanced ----
-  if (unit.type === 'advassault') {                                               // Lompatan Seketika: siklus 3 giliran
-    spd = (unit.jumpCycle || 0) === 3 ? def.spd + 6 : def.spd - 3;
+  if (unit.type === 'advassault' && skillOn(unit, 'Lompatan Seketika')) {          // Lompatan Seketika: siklus 3 giliran
+    spd = (unit.jumpCycle || 0) === 3 ? spd0 + 6 : spd0 - 3;
   }
-  if (unit.type === 'advinfantry' && unit.sacrificeState === 2) spd *= 2;         // Pengorbanan Terakhir (giliran bertindak)
+  if (unit.type === 'advinfantry' && unit.sacrificeState === 2 && skillOn(unit, 'Pengorbanan Terakhir')) spd *= 2;         // Pengorbanan Terakhir (giliran bertindak)
   return scaleStat(spd, unit.owner);   // v9.7: stat bot Campaign = 70%
 }
 
 // ---------- v9.7 Advanced: helper kondisi (Bagian 5) ----------
 // Kelebihan Muatan: SPD −3 selama muatan > 70% kapasitas DASAR (Fuel > 70, Medical > 35; Corps/Montir = 100% -> selalu).
 function advApcOverloaded(unit) {
-  if (!unit.cargo) return false;
+  if (!unit.cargo || !skillOn(unit, 'Kelebihan Muatan')) return false;   // v13 Tahap 5: penjaga slot
   if (unit.cargo.type === 'corps' || unit.cargo.type === 'montir') return true;
   const baseCap = unit.cargo.type === 'fuel' ? 100 : 50;
   return unit.cargo.amount > baseCap * 0.7;
 }
 // Pasukan Berani Mati: aktif selama HP < 40% HP maks (dievaluasi terus-menerus)
-function isBeraniMati(unit) { return unit.type === 'advtankcrusher' && unit.hp < maxHpOf(unit, unitDef(unit.type)) * 0.4; }
+function isBeraniMati(unit) { return unit.type === 'advtankcrusher' && skillOn(unit, 'Pasukan Berani Mati') && unit.hp < maxHpOf(unit, unitDef(unit.type)) * 0.4; }
 // ATK dasar efektif: Tembok Berjalan mengubah 60% ATK dasar menjadi DEF -> ATK efektif 63 × 0,4 = 25,2
 function baseATKOf(unit) {
   const def = unitDef(unit.type);
-  return unit.type === 'advtanklapis' ? def.atk * 0.4 : def.atk;
+  return (unit.type === 'advtanklapis' && skillOn(unit, 'Tembok Berjalan')) ? def.atk * 0.4 : def.atk;
 }
 // Pengali ATK akhir setelah semua modifier persen: Tak Terkalahkan (setelah hidup lagi: ATK ×0,5 permanen)
 function atkFinalMultiplier(unit) { return (unit.weakened ? 0.5 : 1) * (unit.sacrificeState === 2 ? 2 : 1); }   // Tak Terkalahkan ×0,5; Pengorbanan Terakhir ×2
@@ -57,14 +58,14 @@ function atkFinalMultiplier(unit) { return (unit.weakened ? 0.5 : 1) * (unit.sac
 function baseDEFOfUnit(unit) {
   const def = unitDef(unit.type);
   if (isBeraniMati(unit)) return 0;
-  if (unit.type === 'advtanklapis') return def.def + (def.atk * 0.6) / 2;
+  if (unit.type === 'advtanklapis' && skillOn(unit, 'Tembok Berjalan')) return def.def + (def.atk * 0.6) / 2;
   return def.def;
 }
 
 // ---------- Anti-Tank: Semangat Besi (+2 MP sekali/giliran jika ada kendaraan dalam jarak 2 tile) ----------
 // Dipanggil dari input.js saat unit mulai dipilih untuk bergerak (startMoveMode).
 function applySemangatBesi(unit) {
-  if (unit.type !== 'antitank' || unit.semangatBesiUsed) return;
+  if (unit.type !== 'antitank' || unit.semangatBesiUsed || !skillOn(unit, 'Semangat Besi')) return;
   // Ada kendaraan (sekutu MAUPUN musuh) dalam jarak 2 tile
   const nearVehicle = units.some(o => {
     if (o.id === unit.id || o.type === 'corps') return false;
@@ -85,7 +86,7 @@ function hasAllyNearby(unit, range) {
 
 // ---------- Tank Lapis Baja: Sang Pelindung (proteksi ke SEKUTU dalam jangkauan 2 tile, bukan diri sendiri) ----------
 function hasAdjacentAllyProtector(unit) {   // nama lama dipertahankan; jangkauan kini 2 tile
-  return units.some(other => other.id !== unit.id && other.owner === unit.owner && other.type === 'tanklapis' &&
+  return units.some(other => other.id !== unit.id && other.owner === unit.owner && other.type === 'tanklapis' && skillOn(other, 'Sang Pelindung') &&
     hexDistance(unit.r, unit.c, other.r, other.c) <= 2);
 }
 
@@ -96,15 +97,15 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
   const owner = players[attackerUnit.owner];
 
   // Infantry: Semangat Perjuangan (buff seluruh Infantry pemilik selama 2 giliran usai 1 gugur)
-  if (attackerUnit.type === 'infantry' && owner.infantrySpiritTurns > 0) pct += 20;
+  if (attackerUnit.type === 'infantry' && owner.infantrySpiritTurns > 0 && skillOn(attackerUnit, 'Semangat Perjuangan')) pct += 20;
 
   // Assault: Serangan Kejut — +20% ATK selama unit "dalam status penyergapan":
   // aktif kalau sedang unseen, dan tetap bertahan 2 giliran SEJAK kehilangan
   // status unseen (jadi kalau terus unseen, bonusnya terus menyala tanpa luntur).
-  if (attackerUnit.type === 'assault' && attackerUnit.ambushAtkTimer > 0) pct += 20;
+  if (attackerUnit.type === 'assault' && attackerUnit.ambushAtkTimer > 0 && skillOn(attackerUnit, 'Serangan Kejut')) pct += 20;
 
   // Sniper: Konsentrasi Tinggi (bonus berdasar jarak tembak vs Range)
-  if (attackerUnit.type === 'sniper') {
+  if (attackerUnit.type === 'sniper' && skillOn(attackerUnit, 'Konsentrasi Tinggi')) {
     const dist = targetInfo.kind === 'building' ? distToBuilding(attackerUnit.r, attackerUnit.c, targetInfo.obj) : hexDistance(attackerUnit.r, attackerUnit.c, targetInfo.obj.r, targetInfo.obj.c);
     const range = effectiveRange(attackerUnit);
     if (dist === range) pct += 30;
@@ -113,7 +114,7 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
   }
 
   // Tank Crusher: Penggila Perang (+5%/musuh dalam jangkauan, maks +20% pada 4 musuh — BOLEH bertahap)
-  if (attackerUnit.type === 'tankcrusher') {
+  if (attackerUnit.type === 'tankcrusher' && skillOn(attackerUnit, 'Penggila Perang')) {
     const range = effectiveRange(attackerUnit);
     let enemyCount = 0;
     for (const u of units) {
@@ -125,7 +126,7 @@ function attackerAbilityATKPct(attackerUnit, targetInfo) {
 
   // v9.7 Advanced Tank Crusher: Laras Kedua (ATK tiap tembakan −45%) & Pasukan Berani Mati (ATK +10% saat HP < 40%)
   if (attackerUnit.type === 'advtankcrusher') {
-    pct -= 45;
+    if (skillOn(attackerUnit, 'Laras Kedua')) pct -= 45;
     if (isBeraniMati(attackerUnit)) pct += 10;
   }
 
@@ -141,15 +142,15 @@ function defenderAbilityDEFPct(targetInfo) {
     const u = targetInfo.obj;
     const def = targetInfo.def;
 
-    if (u.type === 'infantry' && hasAllyNearby(u, 2)) pct += 20;        // Moral Persatuan
-    if (u.type === 'tanklapis' && u.hp < maxHpOf(u, def) * 0.5) pct += 50;              // Pejuang Bertahan
+    if (u.type === 'infantry' && skillOn(u, 'Moral Persatuan') && hasAllyNearby(u, 2)) pct += 20;        // Moral Persatuan
+    if (u.type === 'tanklapis' && skillOn(u, 'Pejuang Bertahan') && u.hp < maxHpOf(u, def) * 0.5) pct += 50;              // Pejuang Bertahan
     if (hasAdjacentAllyProtector(u)) pct += 20;                                // Sang Pelindung (dari sekutu)
-    if (u.type === 'apc' && u.cargo) pct += 20;                                // Kurir Setia
-    if (u.type === 'corps' && u.isBuilding) pct += 20;                         // Kerja Sampai Tuntas
+    if (u.type === 'apc' && u.cargo && skillOn(u, 'Kurir Setia')) pct += 20;                                // Kurir Setia
+    if (u.type === 'corps' && u.isBuilding && skillOn(u, 'Kerja Sampai Tuntas')) pct += 20;                         // Kerja Sampai Tuntas
     if (u.intimidatedTurns > 0) pct -= 20;                                     // kena Intimidasi (Tank Crusher)
-    if (u.type === 'advapc' && u.toughTurns > 0) pct += 20;                    // Pantang Menyerah (Advanced APC)
+    if (u.type === 'advapc' && u.toughTurns > 0 && skillOn(u, 'Pantang Menyerah')) pct += 20;                    // Pantang Menyerah (Advanced APC)
     if (u.pierceTurns > 0) pct -= 20;                                          // kena Penembusan (Advanced Anti-Tank); menjumlah dengan debuff lain
-    if (u.type === 'advinfantry') pct += 2 * Math.min(10, u.legacyStacks || 0); // Penerus Tekad: +2% per tumpukan (maks 10)
+    if (u.type === 'advinfantry' && skillOn(u, 'Penerus Tekad')) pct += 2 * Math.min(10, u.legacyStacks || 0); // Penerus Tekad: +2% per tumpukan (maks 10)
   } else if (targetInfo.kind === 'building') {
     const b = targetInfo.obj;
     if (b.defDebuffTurns > 0) pct -= 30;                                       // kena Penghancur Bangunan (Montir)
@@ -165,7 +166,7 @@ function defenderAbilityDEFPct(targetInfo) {
 // (Konsentrasi Tinggi, Ayo Ledakkan, Perusak Formasi) tidak punya keadaan menetap, jadi tidak ditampilkan.
 function activeAbilityIcons(u) {
   if (CAMPAIGN) return [];
-  const out = [];
+  let out = [];
   const owner = players[u.owner];
   const seen = e => isVisibleToCurrentPlayer(e);
   switch (u.type) {
@@ -235,6 +236,7 @@ function activeAbilityIcons(u) {
       if (bombs.some(b => b.trapperId === u.id && b.active)) out.push('Hadiah Kejutan');
       break;
   }
+  out = out.filter(n => skillOn(u, n));                                  // v13 Tahap 5: hanya kemampuan aktif (slot terbuka & dimiliki)
   if (u.leakTurns > 0 && u.leakStacks > 0) out.push('Kebocoran Minyak');          // kena Advanced Anti-Tank
   if (u.pierceTurns > 0) out.push('Penembusan');
   if (u.toxinTurns > 0) out.push('Bom Beracun');                        // korban Advanced Trapper

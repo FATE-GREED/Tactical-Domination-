@@ -22,6 +22,8 @@ function neighborsOf(r, c) {
 function moveCost(terrainKey, def) {
   switch (terrainKey) {
     case 'valley': return Infinity;                           // tidak bisa dilewati sama sekali
+    case 'void': return Infinity;                             // v13: kosong di luar peta Event 2
+    case 'racun': return def.vehicle ? 1 : Infinity;          // v13: Racun — infanteri (non-kendaraan, termasuk Corps) tak bisa lewat; kendaraan bisa
     case 'mountain': return 1;                              // selalu 1 MP
     case 'road': return 1;                                   // normal; gratis terbatas ditangani di computeReachable (khusus Non-Combat)
     case 'sand': return 2;                                   // 2 MP/tile

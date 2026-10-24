@@ -16,6 +16,7 @@
 // v10.1 (P7/P9): state Mode Otomatis (∞), Skip, dan mode cepat (FAST)
 // ---------------------------------------------------------------
 let autoMode = false;        // P7: tombol ∞ — gerak pihak HUMAN dikendalikan bot, eksekusi jalan sendiri tiap giliran
+let autoPernahAktif = false;   // v13 Tahap 3 (6.1): ∞ pernah dinyalakan sekali -> pertandingan ini tidak memberi hadiah (anti-farming)
 let autoTurnBusy = false;    // P7: autoPlayTurn sedang berjalan (cegah pemanggilan ganda)
 let skipArmed = false;       // P9: Skip terpasang (berlaku untuk eksekusi HUMAN berikutnya)
 let skipExecLeft = 0;        // P9: sisa eksekusi pada set Skip yang sedang berjalan (kita + musuh = 2)
@@ -95,6 +96,7 @@ function toggleSkip() {
 function toggleAutoMode() {
   if (gameOver) return;
   autoMode = !autoMode;
+  if (autoMode) autoPernahAktif = true;
   if (autoMode) { cancelActionMode(); closeAllPanels(); pendingTile = null; }
   updateAutoUI();
   updateTimerUI();
@@ -112,6 +114,11 @@ function tileFree(u, r, c) { return (r === u.r && c === u.c) || !isTileBlocked(r
 // Target
 // ---------------------------------------------------------------
 function nearestEnemyMarkas(u) {
+  if (EVENT && !players[1 - u.owner].buildings.some(b => b.type === 'markas')) {   // v13: Markas musuh event habis -> bangunan musuh terdekat
+    let bb = null, dd = Infinity;
+    for (const b of players[1 - u.owner].buildings) { if (BUILDING_TYPES[b.type].destructible === false) continue; const d = distToBuilding(u.r, u.c, b); if (d < dd) { dd = d; bb = b; } }
+    return bb;
+  }
   let best = null, bd = Infinity;
   for (const b of players[1 - u.owner].buildings) {
     if (b.type !== 'markas') continue;
@@ -194,7 +201,7 @@ function pendingBuildCount(owner, type) {
 function buildOrderBlockReason(owner, type, r, c) {
   const spec = BUILDING_TYPES[type];
   const p = players[owner];
-  const count = p.buildings.filter(b => b.type === type).length + pendingBuildCount(owner, type);
+  const count = p.buildings.filter(b => b.type === type && !b.evInit).length + pendingBuildCount(owner, type);   // v13: bangunan awal event tidak dihitung ke batas
   if (count >= maxCountOf(owner, type)) return 'maks tercapai';   // v11: faksi Pembangunan (Benteng tanpa batas, lainnya +1)
   if (type === 'benteng' && !bentengUnlimited(owner) && bentengInProgress(owner)) return 'Benteng lain masih dibangun (maks 1 sekaligus)';
   if (!footprintOptions(owner, type, r, c).length) return footprintWhy(owner, type, r, c);   // footprint.js
@@ -273,9 +280,10 @@ function doDeploy(key, barak, player) {
   player.resources.kredit -= price;
   Stats.use(player, 'kredit', price);
   barak.slots = barakSlots(barak) - 1;
-  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? fuelMaxOf(def, player.id - 1) : 0, hp: unitHpOf(def, player.id - 1), maxHp: unitHpOf(def, player.id - 1), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false,
+  units.push({ id: uidCounter++, owner: player.id - 1, type: key, r: spot.r, c: spot.c, mp: 0, fuel: def.hasFuel ? fuelMaxOf(def, player.id - 1) : 0, hp: progHpScale(player.id - 1, key, unitHpOf(def, player.id - 1)), maxHp: progHpScale(player.id - 1, key, unitHpOf(def, player.id - 1)), attacked: false, speedDebuffTurns: 0, cargo: null, isBuilding: false, assaultExtend: 0, assaultGraceUsed: false, ambushAtkTimer: 0, ambushWasUnseen: false, intimidatedTurns: 0, semangatBesiUsed: false, roadFreeUsesLeft: 2, target: null, job: 'idle', buildOrder: null, locked: false, leakStacks: 0, leakTurns: 0, pierceTurns: 0, toughTurns: 0, toughCd: 0, reviveUsed: false, downed: false, weakened: false,
     // v9.7 unit Advanced (batch A)
     legacyStacks: 0, sacrificeUsed: false, sacrificeState: 0, jumpCycle: 0, camo: false, eagerTurns: 0, focusTurns: 0, toxinTurns: 0, toxinDmg: 0 });
+  Stats.deploy(player.id - 1, key);   // v13 Tahap 3 (8.1): hitung deploy untuk hadiah pertandingan
   return true;
 }
 
@@ -432,7 +440,7 @@ async function autoAttack(u) {
   if (u.attacked || !units.includes(u) || u.downed) return;
   const pick = pickAutoTarget(u);
   if (!pick) return;
-  if (u.type !== 'advtankcrusher') { await fireShot(u, pick, false); return; }
+  if (u.type !== 'advtankcrusher' || !skillOn(u, 'Laras Kedua')) { await fireShot(u, pick, false); return; }
   // v9.7 Laras Kedua (Advanced Tank Crusher): 2 tembakan per serangan (1 aksi). Tembakan kedua memilih target BERBEDA bila ada
   // (prioritas sama dengan pickAutoTarget tanpa target pertama); bila tak ada, menembak target yang sama; bila target pertama gugur, memilih ulang.
   try {
@@ -542,7 +550,7 @@ async function execCombat(u) {
   applySemangatBesi(u);
   const busy = await execLane(u);
   const tgt = resolveTarget(u);
-  if (!busy && tgt && u.mp > 0 && u.type === 'advassault' && u.jumpCycle === 3 && !u.locked) await execJump(u, tgt);
+  if (!busy && tgt && u.mp > 0 && u.type === 'advassault' && skillOn(u, 'Lompatan Seketika') && u.jumpCycle === 3 && !u.locked) await execJump(u, tgt);
   if (!busy && tgt && u.mp > 0 && units.includes(u)) { await moveToward(u, goalForTarget(u, tgt, 'range'), tgt); if (u.lane) await execLane(u); }
   clearReachedHex(u);
   await autoAttack(u);
@@ -788,7 +796,7 @@ async function autoPlayTurn(me) {
     if (gameOver) return;
     if (phase !== 'plan' || currentPlayerIdx !== me) return;
     if (me === HUMAN && !autoMode) return;                                       // ∞ dimatikan sebelum rencana disusun
-    try { botTakeTurn(me); } catch (err) { console.warn('Bot gagal menyusun rencana:', err); }
+    try { if (EVENT && EVENT.no !== 3) { /* Event 1/2: musuh digerakkan aturan default + Balista/spawner */ } else botTakeTurn(me); } catch (err) { console.warn('Bot gagal menyusun rencana:', err); }
     renderTargetPanel(); draw();
     if (me !== HUMAN) await wait((Settings.get('enemyDelay') || 0) * 1000);       // jeda sebelum musuh bergerak (Pengaturan)
     await sleep(500);
@@ -812,7 +820,7 @@ function afterUnitTurn(u, sr, sc) {
     }
   } else if (u.type === 'advassault') {
     if (moved) u.camo = false;                                                          // Teknik Kamuflase: diam 1 giliran penuh
-    else { u.camo = true; refreshCamo(); }
+    else if (skillOn(u, 'Teknik Kamuflase')) { u.camo = true; refreshCamo(); }
   }
 }
 async function runExecution() {
@@ -835,7 +843,8 @@ async function runExecution() {
   if (laneMode) toggleLaneMode();
   if (lockMode) toggleLockMode();
   if (pIdx === HUMAN) units.forEach(lockOnStep);   // unit yang sudah berdiri di tile Baris Kunci ikut terkunci
-  try { await moveBombs(pIdx); } catch (err) { console.warn('Gerak bom gagal:', err); }   // Hadiah Kejutan, sebelum unit pemilik bergerak
+  try { await moveBombs(pIdx); } catch (err) { console.warn('Gerak bom gagal:', err); }
+  if (EVENT) await EventBattle.preExec(pIdx);                 // v13 Tahap 7: Balista menembak di giliran musuh   // Hadiah Kejutan, sebelum unit pemilik bergerak
   const order = units.filter(u => u.owner === pIdx).sort((a, b) => a.id - b.id);
   for (const u of order) {
     if (gameOver) break;
@@ -857,6 +866,7 @@ async function runExecution() {
     else endFast(true);
   }
 
+  if (EVENT && EventBattle.afterExec(pIdx)) { endFast(false); showGameOver(); return; }   // v13: batas turn / stagnasi event
   currentPlayerIdx = 1 - pIdx;
   if (currentPlayerIdx === 0) turnNumber++;
   startTurn(currentPlayerIdx);

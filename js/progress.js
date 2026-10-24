@@ -1,5 +1,5 @@
 // ====================================================================
-// progress.js — v13 Tahap 1-4: akun progres (localStorage 'td-progress'), mata uang & bahan,
+// progress.js — v13 Tahap 1-6: akun progres (localStorage 'td-progress'), mata uang & bahan,
 // kode, konversi, peti, surat, kepemilikan unit, Naikkan Level, Ascend, dan pengali stat pertandingan.
 // Tahap 3: hadiah pertandingan (calcMatchReward, grantMatchReward). Tahap 4: Spin 8 banner + pity + fragmen (spin, exchangeFragments).
 // Dokumen rancangan: Rancangan-Tactical-Domination-Progresi-Event v1.1 (Bagian 3-6, 9, 11, 12).
@@ -66,7 +66,10 @@ const Prog = (() => {
 
   // ---------- Data awal & validasi ----------
   const nn = v => { v = Number(v); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0; };
-  const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  let clockFn = () => Date.now();                                  // v13 Tahap 6: jam dapat diganti untuk uji (setClock)
+  const nowMs = () => clockFn();
+  const setClock = f => { clockFn = typeof f === 'function' ? f : () => Date.now(); };
+  const today = () => { const d = new Date(nowMs()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
   function fresh() {
     const s = { versi: 1, wallet: {}, fragmen: {}, unit: {}, kemampuan: {}, pity: {}, peti: { harianSiapSejak: 0, pertandinganMenunggu: 0, hitungPertandingan: 0 },
@@ -80,6 +83,26 @@ const Prog = (() => {
     ABIL_LIST.forEach(a => { s.kemampuan[a.name] = { dimiliki: STARTER_ABIL.includes(a.name) }; });
     return s;
   }
+  // Event Harian (16.9): penghitung hari ini. Nilai tak sah dipulihkan; hanya tanda yang dikenal yang disimpan.
+  const KLAIM_POIN = [20, 40, 60, 80, 100];
+  function normHarian(x) {
+    const h = { tanggal: '', pertandingan: 0, deploy: 0, naikLevel: 0, spin: 0, misi: {}, klaim: {}, login: false };
+    if (!x || typeof x !== 'object') return h;
+    h.tanggal = typeof x.tanggal === 'string' ? x.tanggal : '';
+    ['pertandingan', 'deploy', 'naikLevel', 'spin'].forEach(k => { h[k] = nn(x[k]); });
+    ['mp', 'ww', 'campaign'].forEach(k => { if (x.misi && x.misi[k] === true) h.misi[k] = true; });
+    KLAIM_POIN.forEach(p => { if (x.klaim && x.klaim[p] === true) h.klaim[p] = true; });
+    h.login = x.login === true;
+    return h;
+  }
+  // Ganti hari (00:00 lokal) = reset penghitung. Jam dimundurkan: hari yang lebih baru dipertahankan (tidak membuka hari lama).
+  function dailyRoll(s) {
+    const t = today(), h = s.harian;
+    if (h.tanggal === t || (h.tanggal && t < h.tanggal)) return h;
+    s.harian = normHarian(null); s.harian.tanggal = t;
+    return s.harian;
+  }
+  function dailyBump(s, key, n) { const h = dailyRoll(s); h[key] = nn(h[key]) + (n === undefined ? 1 : n); }
   // Lengkapi bidang hilang tanpa membuang bidang lain; nilai tak sah dipulihkan (Bagian 4.1)
   function normalize(raw) {
     const s = fresh();
@@ -106,7 +129,7 @@ const Prog = (() => {
     const sr = raw.surat || {}; s.surat = { s1: sr.s1 === true, s2: sr.s2 === true, s3: sr.s3 === true };
     const lo = raw.loadoutTerakhir || {};
     ['bot', 'mp', 'event'].forEach(m => { s.loadoutTerakhir[m] = Array.isArray(lo[m]) ? lo[m].filter(k => UNIT_KEYS.includes(k)).slice(0, 10) : []; });
-    if (raw.harian && typeof raw.harian === 'object') s.harian = Object.assign(s.harian, raw.harian);   // dipakai Tahap 6
+    s.harian = normHarian(raw.harian);                                                                   // Tahap 6: Event Harian
     return s;
   }
 
@@ -157,7 +180,7 @@ const Prog = (() => {
       if (u.exp + s.wallet.expUmum < c.exp) return { ok: false, msg: 'Exp tidak cukup' };
       if (s.wallet.gold < c.gold) return { ok: false, msg: 'Gold tidak cukup' };
       const dariUnit = Math.min(u.exp, c.exp);                    // exp unit dipakai lebih dulu
-      u.exp -= dariUnit; s.wallet.expUmum -= c.exp - dariUnit; s.wallet.gold -= c.gold; u.level++;
+      u.exp -= dariUnit; s.wallet.expUmum -= c.exp - dariUnit; s.wallet.gold -= c.gold; u.level++; dailyBump(s, 'naikLevel', 1);
       return { ok: true, level: u.level };
     });
   }
@@ -168,7 +191,7 @@ const Prog = (() => {
       if (u.salinan < c.salinan) return { ok: false, msg: 'Salinan tidak cukup' };
       if (s.wallet.crystal < c.crystal) return { ok: false, msg: 'Crystal tidak cukup' };
       if (s.wallet.gold < c.gold) return { ok: false, msg: 'Gold tidak cukup' };
-      u.salinan -= c.salinan; s.wallet.crystal -= c.crystal; s.wallet.gold -= c.gold; u.ascend++;
+      u.salinan -= c.salinan; s.wallet.crystal -= c.crystal; s.wallet.gold -= c.gold; u.ascend++; dailyBump(s, 'naikLevel', 1);
       return { ok: true, ascend: u.ascend };
     });
   }
@@ -211,14 +234,14 @@ const Prog = (() => {
 
   // ---------- Peti (Bagian 9) ----------
   function harianStatus() {                                       // pengaman jam dimundurkan
-    const now = Date.now();
+    const now = nowMs();
     if (S.peti.harianSiapSejak - now > PETI_HARIAN_MS) { S.peti.harianSiapSejak = now + PETI_HARIAN_MS; save(); }
     const sisa = Math.max(0, S.peti.harianSiapSejak - now);
     return { siap: sisa === 0, sisaMs: sisa };
   }
   function openHarian() {
     return tx(s => {
-      const now = Date.now();
+      const now = nowMs();
       if (s.peti.harianSiapSejak - now > PETI_HARIAN_MS) s.peti.harianSiapSejak = now + PETI_HARIAN_MS;
       if (s.peti.harianSiapSejak > now) return { ok: false, msg: 'Peti harian belum siap' };
       s.peti.harianSiapSejak = now + PETI_HARIAN_MS;
@@ -342,6 +365,7 @@ const Prog = (() => {
       else if (p.c2 >= 10) { tier = 2; cat = wpick(eq(TIER2)); }                            // Tier 2 dijamin
       else { cat = wpick(CAT_W); tier = TIER1.includes(cat) ? 1 : TIER2.includes(cat) ? 2 : 3; }
       if (tier === 1) p.c1 = 0; else if (tier === 2) p.c2 = 0;                              // penghitung tier lain tidak berubah
+      dailyBump(s, 'spin', 1);                                                              // Event Harian: 10x dihitung 10
       return { ok: true, item: rollPrize(s, banner, cat), tier };
     });
   }
@@ -422,7 +446,7 @@ const Prog = (() => {
     get data() { return S; }, load, save, tx, onChange, fmt, fmt1, statsOf, starsOf, slotOpen, abilityActive, levelCost, ascendCost, levelUp, ascend, redeem, convert,
     MATCH_MULT, CRYSTAL_HARIAN_MAX, calcMatchReward, grantMatchReward,
     SPIN_CFG, SPIN_UNIT_BANNERS, SPIN_ABIL_BANNERS, mainPool, CAT_W, VAL_W, TIER1, TIER2, pityInfo, chanceEach, spin, setRandom, exchangeState, exchangeFragments,
-    harianStatus, openHarian, openMatchChests, addMatchCount, suratBaca, suratSudahDipakai, adaDot, getLoadout, saveLoadout, exportMatchProg, sanitizeMatchProg, localInfo, isAdvanced, today };
+    harianStatus, openHarian, openMatchChests, addMatchCount, suratBaca, suratSudahDipakai, adaDot, getLoadout, saveLoadout, exportMatchProg, sanitizeMatchProg, localInfo, isAdvanced, today, nowMs, setClock, dailyRoll, dailyBump, KLAIM_POIN };
 })();
 
 // ====================================================================
@@ -445,3 +469,28 @@ function progDefMul(owner, type) { const s = progStats(owner, type); return s ? 
 // SPD/RNG: ganti nilai dasar dengan nilai progresi (bilangan bulat); dasar 0 tetap 0
 function progSpd(owner, type, base) { const s = progStats(owner, type); return s ? s.spd : base; }
 function progRng(owner, type, base) { const s = progStats(owner, type); return s ? (base > 0 ? s.rng : 0) : base; }
+
+// ====================================================================
+// v13 Tahap 5 — Penjaga slot kemampuan (Bagian 6.4)
+// skillOn(unit, nama): benar bila (a) PROG_AKTIF salah (Campaign, World War, mode lain), atau (b) pemilik unit adalah
+// BOT di mode bot / musuh event, atau (c) kemampuan sudah dimiliki pemain DAN slotnya pada jenis unit asal sudah terbuka
+// (slot 1 di Level 10, slot 2 di Ascend ke-6). Argumen pertama boleh objek unit/bom ({owner}) atau indeks pemilik (angka).
+// Multiplayer: pemilik HUMAN membaca akun lokal; pemilik BOT membaca MPM.oppProg (hasil sanitizeMatchProg, 6.6).
+// Jenis yang tidak ada di data lawan dianggap netral (aktif), sama seperti pengali stat.
+// ====================================================================
+function skillOn(who, name) {
+  if (typeof PROG_AKTIF === 'undefined' || !PROG_AKTIF) return true;
+  const a = Prog.ABIL_BY_NAME[name];
+  if (!a) return true;                                     // nama tak dikenal: jangan matikan apa pun
+  const owner = typeof who === 'number' ? who : (who ? who.owner : null);
+  if (owner === null || owner === undefined) return true;
+  if (MPM) {
+    if (owner === HUMAN) return Prog.abilityActive(name);
+    const op = MPM.oppProg;
+    if (!op || !op.unit || !op.unit[a.unit]) return true;
+    const lv = op.unit[a.unit][0], asc = op.unit[a.unit][1];
+    const open = a.slot === 1 ? lv >= Prog.MAX_LV : asc >= Prog.MAX_ASC;
+    return open && Array.isArray(op.abil) && op.abil.includes(name);
+  }
+  return owner === HUMAN ? Prog.abilityActive(name) : true;   // bot / musuh event: semua kemampuan aktif
+}

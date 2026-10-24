@@ -18,7 +18,7 @@ function shiftColor(hex, amt) {
 // Di-cache sekali per terrain (bukan per tile) supaya tetap ringan meski 4000 tile.
 // Render di resolusi 3x lalu diperkecil (supersampling) biar tajam di layar HP.
 let terrainSprites = {};
-const TERRAIN_SEED = { valley:13, grass:1, forest:9, rocks:4, swamp:6, tallgrass:7, river:3, mountain:2, sand:8, road:10, ruins:11, city:12 };
+const TERRAIN_SEED = { valley:13, grass:1, forest:9, rocks:4, swamp:6, tallgrass:7, river:3, mountain:2, sand:8, road:10, ruins:11, city:12, racun:14, void:15 };
 
 function mulberry32(seed) {
   return function () {
@@ -65,6 +65,27 @@ function drawWall(o, x, y, w, h, tilt, shade) {
 }
 
 const TERRAIN_DETAIL = {
+  racun(o, cx, cy, hs, rand) {
+    // Tanah coklat gelap gersang: retakan kering tipis + 4 pohon mati hitam (posisi & tinggi tetap karena rand berbenih)
+    o.strokeStyle = 'rgba(20,14,8,0.55)'; o.lineWidth = 1.4;
+    for (let i = 0; i < 7; i++) {
+      let x = cx + (rand() - 0.5) * hs * 1.6, y = cy + (rand() - 0.5) * hs * 1.6;
+      o.beginPath(); o.moveTo(x, y);
+      for (let k = 0; k < 3; k++) { x += (rand() - 0.5) * hs * 0.5; y += (rand() - 0.3) * hs * 0.4; o.lineTo(x, y); }
+      o.stroke();
+    }
+    const pos = [[-0.45, 0.35], [0.4, 0.4], [-0.25, -0.3], [0.38, -0.25]];
+    pos.forEach(([px, py]) => {
+      const bx = cx + px * hs, by = cy + py * hs, h = hs * (0.45 + rand() * 0.35);
+      o.strokeStyle = '#14110e'; o.lineCap = 'round';
+      o.lineWidth = 2.6; o.beginPath(); o.moveTo(bx, by); o.lineTo(bx + (rand() - 0.5) * 3, by - h); o.stroke();
+      o.lineWidth = 1.5;
+      for (let k = 0; k < 3; k++) {
+        const ty = by - h * (0.45 + k * 0.2), dir = k % 2 ? 1 : -1, len = h * (0.35 - k * 0.07);
+        o.beginPath(); o.moveTo(bx, ty); o.lineTo(bx + dir * len, ty - len * 0.6); o.stroke();
+      }
+    });
+  },
   valley(o, cx, cy, hs, rand) {
     // Jurang gelap: bayangan dalam + retakan bergerigi
     const g = o.createRadialGradient(cx, cy, hs * 0.1, cx, cy, hs * 0.95);
@@ -198,7 +219,7 @@ const TERRAIN_DETAIL = {
 const TERRAIN_BASE_COLOR = {
   grass: '#6b9b3f', forest: '#556b45', rocks: '#8f8d84', swamp: '#5c6b4a',
   tallgrass: '#3f4f2a', river: '#4a7a8a', mountain: '#7d7568', sand: '#c9b077',
-  road: '#7a7367', ruins: '#a89a83', city: '#8f8574', valley: '#2a2d36',
+  road: '#7a7367', ruins: '#a89a83', city: '#8f8574', valley: '#2a2d36', racun: '#4b3827', void: '#000000',
 };
 
 function buildTerrainSprites() {

@@ -7,6 +7,7 @@
 // ====================================================================
 
 function setupPlayersAndBuildings() {   // v9.7: dipakai juga oleh Campaign (cabang di bawah)
+  if (typeof EVENT !== 'undefined' && EVENT) { EventBattle.setupPlayers(); return; }   // v13 Tahap 7-8: pangkalan Event 1/2/3
   players = [
     { id: 1, name: 'Pemain', color: PLAYER_COLORS[0], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, corps: { count: 0, timer: null }, infantrySpiritTurns: 0, rushUsed: false },
     { id: 2, name: 'Bot', color: PLAYER_COLORS[1], buildings: [], resources: { kredit: 200, fuel: 0, medical: 0 }, corps: { count: 0, timer: null }, infantrySpiritTurns: 0, rushUsed: false },

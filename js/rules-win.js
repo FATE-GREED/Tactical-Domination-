@@ -7,6 +7,7 @@
 
 function checkWinCondition() {
   if (gameOver) return true;
+  if (EVENT) return EventBattle.checkWin();      // v13 Tahap 7-8: kondisi akhir tiap event
   for (let i = 0; i < players.length; i++) {
     const markasCount = players[i].buildings.filter(b => b.type === 'markas').length;
     if (markasCount === 0) {

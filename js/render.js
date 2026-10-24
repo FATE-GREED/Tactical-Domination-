@@ -74,6 +74,7 @@ function draw() {
       const sx = x * scale + camX, sy = y * scale + camY;
       if (sx < -40 || sx > canvas.width + 40 || sy < -40 || sy > canvas.height + 40) continue;
 
+      if (mapData[r][c] === 'void') continue;   // v13: tile void (Event 2) tidak digambar
       const terr = TERRAIN[mapData[r][c]];
       const sprite = terrainSprites[mapData[r][c]];
       if (sprite) {
@@ -102,6 +103,8 @@ function draw() {
 
       const rk = r + ',' + c;
       pathHex();
+      if (EVENT && EventBattle.regionHL(r, c)) { pathHex(); ctx.fillStyle = 'rgba(90,200,120,0.22)'; ctx.fill(); }
+      pathHex();
       if (reachable.has(rk)) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fill(); }
       pathHex();
       if (attackMode && attackable.some(t => t.r === r && t.c === c)) { ctx.fillStyle = 'rgba(255,60,60,0.45)'; ctx.fill(); }
@@ -121,6 +124,7 @@ function draw() {
   }
 
   drawEntityLayers(); // bangunan + unit (building-art.js), di atas semua tile
+  if (EVENT) EventBattle.drawFog();   // v13 Tahap 8: fog JPD Event 2
   drawBombs();        // v9.7: bom milik pemain (bombs.js); tidak pernah menggambar bom musuh
   drawLanes();
   drawLockLines();
@@ -194,7 +198,7 @@ function renderLegend() {
   legend.innerHTML = `
     <div class="panel-header"><b style="color:#a8d08d">Legenda</b><button class="collapse-btn" onclick="togglePanel('legend')">▾</button></div>
     <div class="panel-body">` +
-    Object.values(TERRAIN).map(t => `<div class="row"><div class="swatch" style="background:${t.color}"></div>${t.name}</div>`).join('') +
+    Object.values(TERRAIN).filter(t => !t.hidden).map(t => `<div class="row"><div class="swatch" style="background:${t.color}"></div>${t.name}</div>`).join('') +
     `<br><div class="row"><div class="swatch" style="background:${PLAYER_COLORS[0]}"></div>Pemain 1 (Kiri)</div>` +
     `<div class="row"><div class="swatch" style="background:${PLAYER_COLORS[1]}"></div>Pemain 2 (Kanan)</div>
     </div>`;
@@ -266,7 +270,12 @@ function renderLog() { if (typeof renderActFeed === 'function') renderActFeed();
 
 // ---------- Win Condition ----------
 function showGameOver() {
+  if (!dailyMatchCounted) {                                                         // v13 Tahap 6: misi Event Harian (pertandingan berakhir normal, semua mode)
+    dailyMatchCounted = true;
+    try { if (typeof Ev !== 'undefined') Ev.daily.matchDone((typeof EVENT !== 'undefined' && EVENT) ? 'event' : CAMPAIGN ? 'campaign' : WW ? 'ww' : MPM ? 'mp' : 'bot'); } catch (e) { console.warn('misi harian gagal:', e); }
+  }
   if (typeof onGameOverAuto === 'function') onGameOverAuto();   // v10.1 (P7/P9): ∞ dan Skip mati sendiri
+  if (EVENT) { Sfx.end(winner === HUMAN); EventBattle.onEnd(); return; }   // v13 Tahap 7-8: layar akhir percobaan event (poin & peti event)
   if (CAMPAIGN) { Campaign.onBattleEnd(winner === HUMAN); return; }   // v9.7: Campaign punya alur akhir sendiri
   if (WW) { WorldWar.onBattleEnd(winner === HUMAN); return; }         // v11: World War — hasil ke peta (5.3)
   if (MPM) MP.onGameOver();                                           // v12: kabari lawan (tampilan akhir tetap memakai overlay di bawah)
@@ -277,8 +286,28 @@ function showGameOver() {
   wt.textContent = won ? 'VICTORY' : 'DEFEAT';
   wt.className = won ? 'victory' : 'defeat';
   document.querySelector('#gameover p').textContent = won ? 'Seluruh Markas lawan telah hancur.' : 'Seluruh Markasmu telah hancur.';
+  // v13 Tahap 3 (Bagian 8): hadiah pertandingan — hanya Klasik vs Bot & Multiplayer, tanpa ∞ (pernah dinyalakan), sekali per pertandingan.
+  // Pertandingan Event (EVENT) hanya memberi poin dan peti event, bukan hadiah ini. Keluar di tengah jalan tidak melewati showGameOver, jadi tanpa hadiah.
+  if (!matchRewardGiven) {
+    matchRewardGiven = true;
+    const eligible = PROG_AKTIF && !autoPernahAktif && !(typeof EVENT !== 'undefined' && EVENT);
+    if (eligible) { try { lastMatchReward = Prog.grantMatchReward(Stats.rewardInfo(), MPM ? 'mp' : BOT_LEVEL); } catch (e) { console.warn('hadiah pertandingan gagal:', e); lastMatchReward = null; } }
+  }
+  const rwEl = document.getElementById('matchReward');
+  if (rwEl) { rwEl.innerHTML = matchRewardHTML(lastMatchReward); rwEl.style.display = rwEl.innerHTML ? 'block' : 'none'; }
   document.getElementById('gameover').style.display = 'flex';
   Rincian.open();                               // rincian pertandingan muncul saat game berakhir
+}
+// Panel "Hadiah Pertandingan" di layar akhir (8.3). Kosong bila pertandingan tidak memberi hadiah.
+function matchRewardHTML(rw) {
+  if (!rw || !rw.ok) return '';
+  const F = Prog.fmt, rows = [];
+  Object.keys(rw.exp).forEach(k => rows.push(`${unitDef(k) ? unitDef(k).name : k} +${F(rw.exp[k])} Exp`));
+  rows.push('Gold +' + F(rw.gold), 'Gem +' + F(rw.gem));
+  if (rw.crystal.got) rows.push(`Crystal +1 (${rw.crystal.hariIni}/5 hari ini)`);
+  else if (rw.crystal.batas) rows.push('Crystal: batas harian tercapai');
+  rows.push(rw.peti.baru ? 'Peti Pertandingan +1' : `Peti berikutnya: ${rw.peti.hitung}/2 pertandingan`);
+  return `<h3>Hadiah Pertandingan</h3><ul>${rows.map(t => `<li>${t}</li>`).join('')}</ul>`;
 }
 
 // Panel aksi bawah: muncul saat unit sedang menunggu tujuan gerak / target serang / target supply
@@ -338,9 +367,9 @@ function openEntityPanel(r, c) {
 
   if (target.kind === 'unit') {
     const u = target.obj;
-    html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(target.def.spd, u.owner)}<br>`;
-    if (target.def.combat && isTrapperType(u.type)) html += `Daya bom (ATK): ${Math.round(target.def.atk * statMul(u.owner))} • Jarak pasang: ${scaleStat(target.def.range, u.owner)}<br>DEF: ${Math.round(target.def.def * statMul(u.owner))}<br>`;   // v10.1 (P2): Trapper tidak menembak
-    else if (target.def.combat) html += `ATK: ${Math.round(target.def.atk * statMul(u.owner))} &nbsp; DEF: ${Math.round(target.def.def * statMul(u.owner))} &nbsp; Range: ${scaleStat(target.def.range, u.owner)}<br>`;
+    html += `HP: ${u.hp}/${maxHpOf(u, target.def)} &nbsp; MP: ${u.mp}/${scaleStat(progSpd(u.owner, u.type, target.def.spd), u.owner)}<br>`;
+    if (target.def.combat && isTrapperType(u.type)) html += `Daya bom (ATK): ${Prog.fmt1(target.def.atk * statMul(u.owner) * progAtkMul(u.owner, u.type))} • Jarak pasang: ${scaleStat(progRng(u.owner, u.type, target.def.range), u.owner)}<br>DEF: ${Prog.fmt1(target.def.def * statMul(u.owner) * progDefMul(u.owner, u.type))}<br>`;   // v10.1 (P2): Trapper tidak menembak
+    else if (target.def.combat) html += `ATK: ${Prog.fmt1(target.def.atk * statMul(u.owner) * progAtkMul(u.owner, u.type))} &nbsp; DEF: ${Prog.fmt1(target.def.def * statMul(u.owner) * progDefMul(u.owner, u.type))} &nbsp; Range: ${scaleStat(progRng(u.owner, u.type, target.def.range), u.owner)}<br>`;
     if (target.def.hasFuel) html += `Fuel: ${u.fuel}/${fuelMaxOf(target.def, u.owner)}<br>`;
     if (WW) html += wwBuffLine(target);                                   // v11: baris "Buff WW"
     if (u.speedDebuffTurns > 0) html += `<span style="color:#e08a4a">Speed -50% (${u.speedDebuffTurns} giliran lagi)</span><br>`;
@@ -349,8 +378,8 @@ function openEntityPanel(r, c) {
     if (u.weakened) html += `<span style="color:#e08a4a">ATK −50% permanen (Tak Terkalahkan sudah dipakai)</span><br>`;
     if (u.leakTurns > 0 && u.leakStacks > 0) html += `<span style="color:#e08a4a">Bocor minyak ×${u.leakStacks}: −${2 * u.leakStacks} Fuel/giliran (${u.leakTurns} giliran lagi)</span><br>`;
     if (u.pierceTurns > 0) html += `<span style="color:#e08a4a">Penembusan: DEF −20% (${u.pierceTurns} giliran lagi)</span><br>`;
-    if (u.type === 'advapc' && u.toughTurns > 0) html += `<span style="color:#7fb4ff">Pantang Menyerah: DEF +20%, SPD +2 (${u.toughTurns} giliran lagi)</span><br>`;
-    if (u.type === 'advapc' && u.toughCd > 0) html += `<span style="color:#9aa">Pantang Menyerah cooldown ${u.toughCd} giliran</span><br>`;
+    if (u.type === 'advapc' && u.toughTurns > 0 && skillOn(u, 'Pantang Menyerah')) html += `<span style="color:#7fb4ff">Pantang Menyerah: DEF +20%, SPD +2 (${u.toughTurns} giliran lagi)</span><br>`;
+    if (u.type === 'advapc' && u.toughCd > 0 && skillOn(u, 'Pantang Menyerah')) html += `<span style="color:#9aa">Pantang Menyerah cooldown ${u.toughCd} giliran</span><br>`;
     if (u.type === 'advtankcrusher' && isBeraniMati(u)) html += `<span style="color:#e0574f">Pasukan Berani Mati: DEF 0, SPD +2, ATK +10%</span><br>`;
     if (u.toxinTurns > 0) html += `<span style="color:#e08a4a">Racun: −${u.toxinDmg} HP/giliran, SPD −50% (${u.toxinTurns} giliran lagi)</span><br>`;
     if (isMine) {   // v9.7: keadaan kemampuan unit Advanced (hanya terlihat pemilik)
@@ -360,8 +389,8 @@ function openEntityPanel(r, c) {
         if (u.sacrificeState === 2) html += `<span style="color:#ff8a7a">Pengorbanan Terakhir AKTIF: SPD & ATK ×2, gugur di awal giliran depan</span><br>`;
       }
       if (u.type === 'advassault') {
-        html += `Lompatan Seketika: giliran ke-${u.jumpCycle || 0}/3${u.jumpCycle === 3 ? ' (melompat!)' : ''}<br>`;
-        if (u.camo) html += `<span style="color:#c9a6ff">Kamuflase aktif (tak terlihat musuh)</span><br>`;
+        if (skillOn(u, 'Lompatan Seketika')) html += `Lompatan Seketika: giliran ke-${u.jumpCycle || 0}/3${u.jumpCycle === 3 ? ' (melompat!)' : ''}<br>`;
+        if (u.camo && skillOn(u, 'Teknik Kamuflase')) html += `<span style="color:#c9a6ff">Kamuflase aktif (tak terlihat musuh)</span><br>`;
       }
       if (u.type === 'advsniper') html += `JPD efektif: ${effectiveJPD(u)} (Mata Elang +${2 * (u.eagerTurns || 0)}) &nbsp; Rng efektif: ${effectiveRange(u)} (Titik Fokus +${u.focusTurns || 0})<br>`;
       if (isTrapperType(u.type)) html += `Bom hidup: ${bombsOf(u).length}/${BOMB_MAX_PER_TRAPPER}<br>`;
@@ -403,7 +432,7 @@ function openEntityPanel(r, c) {
       if (isApcType(u.type) && !u.cargo) {
         const adjCorps = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && isCorpsType(cc.type) && !cc.cargo));
         if (adjCorps) buttons.push({ id: 'loadCorpsBtn', label: 'Muat Corps' });
-        const adjMontir = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'advmontir'));
+        const adjMontir = neighborsOf(u.r, u.c).some(([nr, nc]) => units.some(cc => cc.r === nr && cc.c === nc && cc.owner === u.owner && cc.type === 'advmontir' && skillOn(cc, 'Perubahan Model')));
         if (adjMontir) buttons.push({ id: 'loadMontirBtn', label: 'Muat Montir' });        // v9.7 Perubahan Model
       }
       if (isApcType(u.type) && u.cargo && u.cargo.type === 'corps') {
@@ -468,7 +497,7 @@ function openEntityPanel(r, c) {
   });
   bind('unloadCorpsBtn', () => runAndRefreshEntity(target.obj, () => unloadCorpsFromAPC(target.obj), r, c));
   bind('loadMontirBtn', () => {
-    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && cc.type === 'advmontir'));
+    const [nr, nc] = neighborsOf(target.obj.r, target.obj.c).find(([nr2, nc2]) => units.some(cc => cc.r === nr2 && cc.c === nc2 && cc.owner === target.obj.owner && cc.type === 'advmontir' && skillOn(cc, 'Perubahan Model')));
     const montir = units.find(cc => cc.r === nr && cc.c === nc);
     runAndRefreshEntity(target.obj, () => loadMontirIntoAPC(target.obj, montir), r, c);
   });

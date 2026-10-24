@@ -67,7 +67,7 @@ function specialRound(x) {
 // agar Semangat Perjuangan, Penerus Tekad (batch A) dan statistik konsisten.
 function killUnit(unit) {
   if (!unit || !units.includes(unit)) return;
-  if (unit.type === 'infantry') players[unit.owner].infantrySpiritTurns = 2;   // Semangat Perjuangan
+  if (unit.type === 'infantry' && skillOn(unit, 'Semangat Perjuangan')) players[unit.owner].infantrySpiritTurns = 2;   // Semangat Perjuangan
   units = units.filter(u => u.id !== unit.id);
   Stats.unitLost(unit.owner, unit.type);
   if (unit.cargo && unit.cargo.type === 'montir' && unit.cargo.unit) Stats.unitLost(unit.owner, unit.cargo.unit.type);   // Montir yang sedang diangkut ikut gugur
@@ -76,7 +76,7 @@ function killUnit(unit) {
 // Penerus Tekad (Advanced Infantry): tiap sekutu apa pun yang gugur memberi +1 tumpukan (maks 10) pada Advanced Infantry pemiliknya.
 function onUnitKilled(unit) {
   for (const a of units)
-    if (a.owner === unit.owner && a.type === 'advinfantry' && (a.legacyStacks || 0) < 10) a.legacyStacks = (a.legacyStacks || 0) + 1;
+    if (a.owner === unit.owner && a.type === 'advinfantry' && skillOn(a, 'Penerus Tekad') && (a.legacyStacks || 0) < 10) a.legacyStacks = (a.legacyStacks || 0) + 1;
 }
 // HP ≤ 0: Tak Terkalahkan (Advanced Tank Lapis Baja) bisa menahan kematian sekali -> mode gugur ('downed'); selain itu gugur biasa.
 function resolveUnitLethal(unit) {
@@ -90,7 +90,7 @@ function resolveUnitLethal(unit) {
 // Rumus: 300 × (20 − t) ÷ 19, t = turnNumber dijepit 1..20 → giliran 1 = 300%, 2 = 284,2%, 10 = 157,9%, 19 = 15,8%, ≥20 = 0%.
 const MARKAS_BONUS_START = 300, MARKAS_BONUS_END_TURN = 20;
 function markasDefBonusPct() {
-  if (CAMPAIGN) return 0;
+  if (CAMPAIGN || EVENT) return 0;
   const t = Math.min(Math.max(turnNumber, 1), MARKAS_BONUS_END_TURN);
   return MARKAS_BONUS_START * (MARKAS_BONUS_END_TURN - t) / (MARKAS_BONUS_END_TURN - 1);
 }
@@ -103,7 +103,7 @@ function markasDefBonusPct() {
 // Dipecah agar bom (bombs.js) memakai rumus & perhitungan DEF target yang sama persis.
 // baseDEFOverride (opsional): dipakai Penembusan (DEF dasar kendaraan dianggap 0).
 function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride, attackerOwner) {   // v11: attackerOwner (opsional) = pemilik penyerang/bom, untuk buff ATK World War
-  let baseDEF = targetInfo.kind === 'unit' ? baseDEFOfUnit(targetInfo.obj) : targetInfo.def.def;
+  let baseDEF = targetInfo.kind === 'unit' ? baseDEFOfUnit(targetInfo.obj) * progDefMul(targetInfo.ownerIdx, targetInfo.obj.type) : targetInfo.def.def;   // v13: pengali DEF progresi (bangunan tidak terpengaruh)
   if (baseDEFOverride !== undefined && baseDEFOverride !== null) baseDEF = baseDEFOverride;
   baseDEF *= statMul(targetInfo.ownerIdx);                       // v9.7: stat bot Campaign = 70%
   if (attackerOwner !== undefined && attackerOwner !== null) atkPct += wwAtkPct(attackerOwner);   // v11 (6.6): buff ATK World War (0 di mode lain)
@@ -122,15 +122,15 @@ function damageFormula(baseATK, atkPct, targetInfo, atkMult, baseDEFOverride, at
 }
 
 function computeDamage(attackerUnit, targetInfo) {
-  const baseATK = baseATKOf(attackerUnit) * statMul(attackerUnit.owner);   // Tembok Berjalan: 63 -> 25,2; v9.7: stat bot Campaign = 70%
+  const baseATK = baseATKOf(attackerUnit) * statMul(attackerUnit.owner) * progAtkMul(attackerUnit.owner, attackerUnit.type);   // Tembok Berjalan: 63 -> 25,2; v9.7: stat bot Campaign = 70%
   let atkPct = territoryATKBonusPct(attackerUnit.owner, attackerUnit.r, attackerUnit.c);
   atkPct += attackerAbilityATKPct(attackerUnit, targetInfo);
   // Penembusan (Advanced Anti-Tank): DEF dasar kendaraan dianggap 0
-  const pierce = (attackerUnit.type === 'advantitank' && targetInfo.kind === 'unit' && targetInfo.vehicle) ? 0 : null;
+  const pierce = (attackerUnit.type === 'advantitank' && skillOn(attackerUnit, 'Penembusan') && targetInfo.kind === 'unit' && targetInfo.vehicle) ? 0 : null;
   let damage = damageFormula(baseATK, atkPct, targetInfo, atkFinalMultiplier(attackerUnit), pierce, attackerUnit.owner);
 
   // Anti-Tank: Ayo Ledakkan (serangan tambahan saat menyerang kendaraan -> total 2x). Hanya tipe dasar 'antitank'.
-  if (attackerUnit.type === 'antitank' && targetInfo.vehicle) damage *= 2;
+  if (attackerUnit.type === 'antitank' && targetInfo.vehicle && skillOn(attackerUnit, 'Ayo Ledakkan')) damage *= 2;
 
   return damage;
 }
@@ -138,7 +138,7 @@ function computeDamage(attackerUnit, targetInfo) {
 // ---------- Kerusakan & kematian terpusat (dipakai serangan, splash, bom, racun, bakar) ----------
 // Pemicu setelah unit terkena damage tapi selamat: Pengorbanan Terakhir (Advanced Infantry)
 function afterUnitDamaged(u) {
-  if (u.type === 'advinfantry' && !u.sacrificeUsed && u.hp < maxHpOf(u, UNITS.advinfantry) * 0.3) {
+  if (u.type === 'advinfantry' && skillOn(u, 'Pengorbanan Terakhir') && !u.sacrificeUsed && u.hp < maxHpOf(u, UNITS.advinfantry) * 0.3) {
     u.sacrificeUsed = true;
     u.sacrificeState = 1;           // 1 = giliran bertindak berikutnya akan datang; 2 = sedang giliran bertindak
   }
@@ -184,15 +184,15 @@ function applyAttack(attackerUnit, targetR, targetC, opts) {
 
   if (!destroyed && !downed) {
     if (target.kind === 'unit' && !target.def.combat) target.obj.speedDebuffTurns = 2;        // Bagian 6
-    if (target.kind === 'unit' && attackerUnit.type === 'tankcrusher') target.obj.intimidatedTurns = 2; // Intimidasi
-    if (target.kind === 'building' && attackerUnit.type === 'montir') target.obj.defDebuffTurns = 2;    // Penghancur Bangunan
+    if (target.kind === 'unit' && attackerUnit.type === 'tankcrusher' && skillOn(attackerUnit, 'Intimidasi')) target.obj.intimidatedTurns = 2; // Intimidasi
+    if (target.kind === 'building' && attackerUnit.type === 'montir' && skillOn(attackerUnit, 'Penghancur Bangunan')) target.obj.defDebuffTurns = 2;    // Penghancur Bangunan
     if (typeof advOnHitSurvive === 'function') advOnHitSurvive(attackerUnit, target);                   // v9.7: Kebocoran Minyak, Penembusan, Peluru Pembakar, Pantang Menyerah
   }
 
   // Montir: Perusak Formasi — splash 50% damage asli ke unit musuh di tile adjacent target
   // (pengecualian aturan "attack 1 tile"; hanya berlaku jika target utama adalah unit)
   const splashResults = [];
-  if (attackerUnit.type === 'montir' && target.kind === 'unit') {
+  if (attackerUnit.type === 'montir' && target.kind === 'unit' && skillOn(attackerUnit, 'Perusak Formasi')) {
     const splashDmg = Math.floor(damage * 0.5);
     for (const [nr, nc] of neighborsOf(targetR, targetC)) {
       const other = units.find(u => u.r === nr && u.c === nc && u.owner !== attackerUnit.owner && !u.downed);
